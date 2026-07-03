@@ -1,0 +1,45 @@
+{
+  "summary": "Backend testing of Team League, Rewards CRUD, Redemptions, Profile Completion, and Exports (CSV/PDF). 18/19 tests passed, 1 skipped (attendance export - no season seeded).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/exports/attendance", "issue": "Returns 400 when no season exists. Not tested against a real season since none was available in the DB."}
+    ]
+  },
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_league_rewards_exports.py",
+    "/app/test_reports/pytest/league_rewards.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py is 2218 lines - consider splitting into feature modules (rewards, exports, team_league, profile) for maintainability.",
+    "attendance_bonus_xp is computed in team-league response but NOT auto-awarded to users - confirm this is intentional (currently informational only).",
+    "In redeem_reward, XP deduction, xp_events insert, stock decrement, and redemption insert are not in a transaction - partial failures could desync state.",
+    "ProfileUpdate does not include team_id; new users can only reach 100% completion if a team is assigned via a separate admin flow. Verified xp is awarded once (idempotent) via profile_completed_awarded flag."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_league_rewards_exports.py"
+  ],
+  "success_rate": {"backend": "100% (18/18 executed, 1 skipped due to no season)", "frontend": "not tested"},
+  "test_credentials": "admin@spartans.com/Spartan123!, leader@spartans.com/Leader123!, member@spartans.com/Member123!, achilles@spartans.com/Demo123! (3200 XP for redemption test)",
+  "seed_data_creation": "Created ephemeral TEST_-prefixed rewards during tests; all deleted in teardown. One redemption row remains for achilles@spartans.com (100 XP deducted, then fulfilled).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Test file /app/backend/tests/test_league_rewards_exports.py covers all new endpoints. Attendance export test is skipped when no season exists - create a season to fully cover it. achilles@spartans.com XP was reduced by 100 during redemption test.",
+  "verified": [
+    "GET /api/team-league returns correct shape with 6-tier attendance_xp_table",
+    "attendance_bonus_xp matches table for every team's monthly_attendance_pct",
+    "4 seeded rewards present with correct costs (300/500/1500/2000)",
+    "POST/PATCH/DELETE /api/rewards require super_admin (403 for member/leader)",
+    "Redeem: XP deducted, xp_events logged, redemption pending, /auth/me reflects new XP",
+    "Redeem insufficient XP -> 400; stock=0 -> 400 'Out of stock'",
+    "GET /api/redemptions?all_users=true requires super_admin (403 for member)",
+    "PATCH /api/redemptions/{id}/fulfill super_admin only, sets status=fulfilled",
+    "GET /api/profile/completion returns {filled,total=6,pct,missing[],completion_xp_awarded}",
+    "PATCH /api/profile awards +50 XP once at 100% (idempotent on second call)",
+    "Exports: CSV headers exact match for team-performance, daily; PDF starts with %PDF-",
+    "Exports require super_admin/team_leader (member gets 403); team_leader can access team-performance",
+    "SPARTANS team is seeded (via GET /api/teams)"
+  ]
+}

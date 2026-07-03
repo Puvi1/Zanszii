@@ -2,23 +2,58 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import XPBar from "@/components/XPBar";
-import { ShieldStar, Sword, Trophy, Fire, LockKey, Sparkle } from "@phosphor-icons/react";
+import ProgressBar from "@/components/ProgressBar";
+import { ShieldStar, Sword, Trophy, Fire, LockKey, Sparkle, PencilSimple, Check, X } from "@phosphor-icons/react";
 import { motion } from "framer-motion";
+import { toast } from "sonner";
+import { fireBigConfetti } from "@/lib/confetti";
 
 export default function Profile() {
-    const { user } = useAuth();
+    const { user, refreshUser } = useAuth();
     const [badges, setBadges] = useState([]);
     const [stats, setStats] = useState(null);
+    const [completion, setCompletion] = useState(null);
+    const [editing, setEditing] = useState(false);
+    const [form, setForm] = useState({ phone: "", bio: "", avatar_url: "" });
+
+    const loadCompletion = async () => {
+        const { data } = await api.get("/profile/completion");
+        setCompletion(data);
+    };
 
     useEffect(() => {
         api.get("/badges").then((r) => setBadges(r.data));
         api.get("/dashboard/stats").then((r) => setStats(r.data));
+        loadCompletion();
     }, []);
+
+    useEffect(() => {
+        if (user) {
+            setForm({ phone: user.phone || "", bio: user.bio || "", avatar_url: user.avatar_url || "" });
+        }
+    }, [user]);
+
+    const saveProfile = async (e) => {
+        e.preventDefault();
+        try {
+            const { data } = await api.patch("/profile", form);
+            if (data.xp) {
+                fireBigConfetti();
+                toast.success("Profile complete! +50 XP");
+            } else {
+                toast.success("Profile updated");
+            }
+            setEditing(false);
+            await refreshUser();
+            await loadCompletion();
+        } catch (err) { toast.error(err.response?.data?.detail || "Failed"); }
+    };
 
     if (!user || !stats) return <div className="text-zinc-500 text-sm">Loading...</div>;
 
     const initials = user.name.split(" ").map((s) => s[0]).slice(0, 2).join("").toUpperCase();
     const unlocked = badges.filter((b) => b.unlocked);
+    const missingLabels = { avatar_url: "Avatar", team_id: "Team", phone: "Phone", bio: "Bio" };
     const locked = badges.filter((b) => !b.unlocked);
 
     const circumference = 2 * Math.PI * 88;
@@ -92,6 +127,62 @@ export default function Profile() {
                     </div>
                 </div>
             </section>
+
+            {/* Profile Completion */}
+            {completion && (
+                <section className="glass p-6" data-testid="profile-completion">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+                        <div>
+                            <div className="heading-eyebrow">Profile completion</div>
+                            <h3 className="font-display font-bold text-xl mt-1">
+                                {completion.pct}% complete
+                                {completion.completion_xp_awarded && <span className="chip-emerald ml-2"><Sparkle size={10} weight="fill" /> +50 XP earned</span>}
+                            </h3>
+                        </div>
+                        {!editing ? (
+                            <button onClick={() => setEditing(true)} className="btn-gold py-2 px-4 text-sm" data-testid="edit-profile-btn">
+                                <PencilSimple size={14} weight="bold" /> Edit Profile
+                            </button>
+                        ) : (
+                            <button onClick={() => setEditing(false)} className="btn-ghost text-sm" data-testid="cancel-edit-btn">
+                                <X size={14} /> Cancel
+                            </button>
+                        )}
+                    </div>
+                    <ProgressBar value={completion.pct} max={100} color="gold" testId="completion-progress" />
+
+                    {editing ? (
+                        <form onSubmit={saveProfile} className="mt-6 space-y-3">
+                            <div>
+                                <label className="text-[10px] uppercase tracking-widest text-zinc-500 block mb-1">Avatar URL</label>
+                                <input type="url" placeholder="https://..." value={form.avatar_url} onChange={(e)=>setForm({...form, avatar_url: e.target.value})} className="field" data-testid="profile-avatar-input" />
+                            </div>
+                            <div>
+                                <label className="text-[10px] uppercase tracking-widest text-zinc-500 block mb-1">Phone</label>
+                                <input type="tel" placeholder="+91 98765 43210" value={form.phone} onChange={(e)=>setForm({...form, phone: e.target.value})} className="field" data-testid="profile-phone-input" />
+                            </div>
+                            <div>
+                                <label className="text-[10px] uppercase tracking-widest text-zinc-500 block mb-1">Bio</label>
+                                <textarea rows={3} placeholder="Your story, your mission..." value={form.bio} onChange={(e)=>setForm({...form, bio: e.target.value})} className="field resize-none" data-testid="profile-bio-input" />
+                            </div>
+                            <button type="submit" className="btn-gold w-full mt-2" data-testid="save-profile-btn">
+                                <Check size={16} weight="bold" /> Save
+                                {!completion.completion_xp_awarded && completion.pct < 100 && <span className="ml-1 text-xs opacity-80">· complete for +50 XP</span>}
+                            </button>
+                        </form>
+                    ) : completion.missing.length > 0 ? (
+                        <div className="mt-4 flex flex-wrap gap-2">
+                            {completion.missing.map((m) => (
+                                <span key={m} className="chip-zinc" data-testid={`missing-${m}`}>Missing: {missingLabels[m] || m}</span>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="mt-4 text-sm text-emerald-400 flex items-center gap-2">
+                            <Check size={14} weight="bold" /> All fields filled. You're a full Spartan.
+                        </div>
+                    )}
+                </section>
+            )}
 
             {/* Badges */}
             <section>

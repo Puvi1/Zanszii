@@ -20,6 +20,8 @@ import Missions from "@/pages/Missions";
 import WeeklyAttendance from "@/pages/WeeklyAttendance";
 import Seasons from "@/pages/Seasons";
 import Tasks from "@/pages/Tasks";
+import TeamLeague from "@/pages/TeamLeague";
+import Rewards from "@/pages/Rewards";
 import "@/App.css";
 
 function Router() {
@@ -149,6 +151,22 @@ function Router() {
                 element={
                     <ProtectedRoute>
                         <AppLayout><Tasks /></AppLayout>
+                    </ProtectedRoute>
+                }
+            />
+            <Route
+                path="/team-league"
+                element={
+                    <ProtectedRoute>
+                        <AppLayout><TeamLeague /></AppLayout>
+                    </ProtectedRoute>
+                }
+            />
+            <Route
+                path="/rewards"
+                element={
+                    <ProtectedRoute>
+                        <AppLayout><Rewards /></AppLayout>
                     </ProtectedRoute>
                 }
             />

@@ -2,7 +2,7 @@ import { Link, NavLink, useNavigate } from "react-router-dom";
 import {
     House, Target, Phone, Trophy, User, ChartLine,
     Sword, SignOut, ShieldStar, Calendar, Fire,
-    Users, UsersThree, ChartBar, Crosshair, CalendarCheck, ClipboardText, MedalMilitary,
+    Users, UsersThree, ChartBar, Crosshair, CalendarCheck, ClipboardText, MedalMilitary, GameController, Gift,
 } from "@phosphor-icons/react";
 import { useAuth } from "@/context/AuthContext";
 import { motion } from "framer-motion";
@@ -13,6 +13,8 @@ const BASE_NAV = [
     { to: "/weekly-attendance", icon: CalendarCheck, label: "Weekly", testId: "nav-weekly" },
     { to: "/seasons", icon: MedalMilitary, label: "Seasons", testId: "nav-seasons" },
     { to: "/tasks", icon: ClipboardText, label: "Tasks", testId: "nav-tasks" },
+    { to: "/team-league", icon: GameController, label: "Team League", testId: "nav-team-league" },
+    { to: "/rewards", icon: Gift, label: "Rewards", testId: "nav-rewards" },
     { to: "/prospects", icon: Target, label: "Prospects", testId: "nav-prospects" },
     { to: "/followups", icon: Phone, label: "Follow-Ups", testId: "nav-followups" },
     { to: "/attendance", icon: Calendar, label: "Attendance", testId: "nav-attendance" },

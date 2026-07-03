@@ -1,9 +1,58 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
-import { Target, Trophy, Fire, Phone, Calendar, ChartLine, Users, Sparkle } from "@phosphor-icons/react";
+import { Target, Trophy, Fire, Phone, Calendar, ChartLine, Users, Sparkle, FileCsv, FilePdf } from "@phosphor-icons/react";
 import StatCard from "@/components/StatCard";
 import { motion } from "framer-motion";
+
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+
+function download(url) {
+    const token = localStorage.getItem("sgl_access_token");
+    fetch(url, { credentials: "include", headers: token ? { Authorization: `Bearer ${token}` } : {} })
+        .then((r) => { if (!r.ok) throw new Error("Download failed"); return r.blob().then((b) => ({ b, r })); })
+        .then(({ b, r }) => {
+            const cd = r.headers.get("content-disposition") || "";
+            const name = /filename="([^"]+)"/.exec(cd)?.[1] || "report";
+            const a = document.createElement("a");
+            a.href = URL.createObjectURL(b);
+            a.download = name;
+            a.click();
+            URL.revokeObjectURL(a.href);
+        })
+        .catch(() => alert("Export failed"));
+}
+
+function ExportBar({ scope }) {
+    // scope options: 'daily','weekly','attendance','xp','team-performance'
+    const map = {
+        daily: `/api/exports/daily`,
+        weekly: `/api/exports/xp-leaderboard?scope=weekly`,
+        attendance: `/api/exports/attendance`,
+        xp: `/api/exports/xp-leaderboard?scope=all`,
+        "team-performance": `/api/exports/team-performance`,
+    };
+    const url = BACKEND_URL + map[scope];
+    return (
+        <div className="flex items-center gap-2" data-testid={`export-bar-${scope}`}>
+            <span className="text-[10px] uppercase tracking-widest text-zinc-500">Export</span>
+            <button
+                onClick={() => download(url + (url.includes("?") ? "&" : "?") + "format=csv")}
+                className="btn-glass py-2 px-3 text-xs"
+                data-testid={`export-csv-${scope}`}
+            >
+                <FileCsv size={14} weight="duotone" /> Excel/CSV
+            </button>
+            <button
+                onClick={() => download(url + (url.includes("?") ? "&" : "?") + "format=pdf")}
+                className="btn-glass py-2 px-3 text-xs"
+                data-testid={`export-pdf-${scope}`}
+            >
+                <FilePdf size={14} weight="duotone" /> PDF
+            </button>
+        </div>
+    );
+}
 
 export default function Reports() {
     const { user } = useAuth();
@@ -27,10 +76,18 @@ export default function Reports() {
 
     return (
         <div className="space-y-6" data-testid="reports-page">
-            <div>
-                <div className="heading-eyebrow">Battle metrics</div>
-                <h1 className="font-display font-black text-3xl md:text-4xl tracking-tighter mt-1">Reports</h1>
-                <p className="text-zinc-400 mt-2 text-sm">Data-driven proof of your rise.</p>
+            <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+                <div>
+                    <div className="heading-eyebrow">Battle metrics</div>
+                    <h1 className="font-display font-black text-3xl md:text-4xl tracking-tighter mt-1">Reports</h1>
+                    <p className="text-zinc-400 mt-2 text-sm">Data-driven proof of your rise.</p>
+                </div>
+                {canTeam && (
+                    <div className="flex flex-wrap items-center gap-4">
+                        <ExportBar scope="daily" />
+                        <ExportBar scope="team-performance" />
+                    </div>
+                )}
             </div>
 
             <div className="flex bg-white/5 border border-white/10 rounded-xl p-1 w-fit">

@@ -216,6 +216,32 @@ class BelieverUpdate(BaseModel):
     is_believer: bool
 
 
+class RewardIn(BaseModel):
+    name: str
+    description: Optional[str] = None
+    cost_xp: int = Field(ge=1, le=100000)
+    category: Literal["dinner", "movie", "outing", "voucher", "other"] = "other"
+    stock: Optional[int] = None  # None = unlimited
+    image_url: Optional[str] = None
+    active: bool = True
+
+
+class RewardUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    cost_xp: Optional[int] = Field(default=None, ge=1, le=100000)
+    category: Optional[Literal["dinner", "movie", "outing", "voucher", "other"]] = None
+    stock: Optional[int] = None
+    image_url: Optional[str] = None
+    active: Optional[bool] = None
+
+
+class ProfileUpdate(BaseModel):
+    phone: Optional[str] = None
+    bio: Optional[str] = None
+    avatar_url: Optional[str] = None
+
+
 class ChallengeIn(BaseModel):
     title: str
     description: str
@@ -1604,6 +1630,377 @@ async def delete_task(task_id: str, request: Request):
     return {"ok": True}
 
 
+# ---------- Rewards / Redemptions ----------
+ATTENDANCE_XP_TABLE = [(100, 50), (90, 40), (80, 30), (70, 20), (60, 10), (0, 0)]
+
+
+def attendance_bonus_xp(pct: float) -> int:
+    for threshold, xp in ATTENDANCE_XP_TABLE:
+        if pct >= threshold:
+            return xp
+    return 0
+
+
+@api.get("/rewards")
+async def list_rewards(request: Request):
+    await get_current_user(request, db)
+    items = await db.rewards.find({"active": True}, {"_id": 0}).sort("cost_xp", 1).to_list(200)
+    return items
+
+
+@api.post("/rewards")
+async def create_reward(payload: RewardIn, request: Request):
+    user = await get_current_user(request, db)
+    require_role(user, ["super_admin"])
+    doc = payload.model_dump()
+    doc.update({
+        "reward_id": str(uuid.uuid4()),
+        "created_by": user["user_id"],
+        "created_at": _iso(datetime.now(timezone.utc)),
+    })
+    await db.rewards.insert_one(doc)
+    return _clean(doc)
+
+
+@api.patch("/rewards/{reward_id}")
+async def update_reward(reward_id: str, payload: RewardUpdate, request: Request):
+    user = await get_current_user(request, db)
+    require_role(user, ["super_admin"])
+    updates = {k: v for k, v in payload.model_dump().items() if v is not None}
+    if not updates:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    r = await db.rewards.update_one({"reward_id": reward_id}, {"$set": updates})
+    if r.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Reward not found")
+    return {"ok": True}
+
+
+@api.delete("/rewards/{reward_id}")
+async def delete_reward(reward_id: str, request: Request):
+    user = await get_current_user(request, db)
+    require_role(user, ["super_admin"])
+    r = await db.rewards.delete_one({"reward_id": reward_id})
+    if r.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Reward not found")
+    return {"ok": True}
+
+
+@api.post("/rewards/{reward_id}/redeem")
+async def redeem_reward(reward_id: str, request: Request):
+    user = await get_current_user(request, db)
+    reward = await db.rewards.find_one({"reward_id": reward_id, "active": True}, {"_id": 0})
+    if not reward:
+        raise HTTPException(status_code=404, detail="Reward not found")
+    if reward.get("stock") is not None and reward["stock"] <= 0:
+        raise HTTPException(status_code=400, detail="Out of stock")
+    if user.get("xp", 0) < reward["cost_xp"]:
+        raise HTTPException(status_code=400, detail=f"Not enough XP. Need {reward['cost_xp']} XP.")
+    # Deduct XP
+    new_xp = user["xp"] - reward["cost_xp"]
+    await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"xp": new_xp, "level": level_from_xp(new_xp)}})
+    await db.xp_events.insert_one({
+        "event_id": str(uuid.uuid4()), "user_id": user["user_id"],
+        "amount": -reward["cost_xp"], "reason": f"redeem:{reward_id}",
+        "created_at": _iso(datetime.now(timezone.utc)),
+    })
+    # Decrement stock
+    if reward.get("stock") is not None:
+        await db.rewards.update_one({"reward_id": reward_id}, {"$inc": {"stock": -1}})
+    redemption = {
+        "redemption_id": str(uuid.uuid4()),
+        "user_id": user["user_id"],
+        "user_name": user["name"],
+        "reward_id": reward_id,
+        "reward_name": reward["name"],
+        "cost_xp": reward["cost_xp"],
+        "status": "pending",
+        "created_at": _iso(datetime.now(timezone.utc)),
+        "fulfilled_at": None,
+        "fulfilled_by": None,
+    }
+    await db.redemptions.insert_one(redemption)
+    return {"redemption": _clean(redemption), "new_xp": new_xp}
+
+
+@api.get("/redemptions")
+async def list_redemptions(request: Request, all_users: bool = False):
+    user = await get_current_user(request, db)
+    if all_users:
+        require_role(user, ["super_admin"])
+        items = await db.redemptions.find({}, {"_id": 0}).sort("created_at", -1).to_list(500)
+    else:
+        items = await db.redemptions.find({"user_id": user["user_id"]}, {"_id": 0}).sort("created_at", -1).to_list(500)
+    return items
+
+
+@api.patch("/redemptions/{rid}/fulfill")
+async def fulfill_redemption(rid: str, request: Request):
+    user = await get_current_user(request, db)
+    require_role(user, ["super_admin"])
+    r = await db.redemptions.find_one({"redemption_id": rid}, {"_id": 0})
+    if not r:
+        raise HTTPException(status_code=404, detail="Redemption not found")
+    now = _iso(datetime.now(timezone.utc))
+    await db.redemptions.update_one(
+        {"redemption_id": rid},
+        {"$set": {"status": "fulfilled", "fulfilled_at": now, "fulfilled_by": user["user_id"]}},
+    )
+    return {"ok": True}
+
+
+# ---------- Team League ----------
+async def _team_attendance_pct(team_id: str, days: int = 30) -> dict:
+    """Compute team attendance % over the last N days."""
+    end = date.today()
+    start = end - timedelta(days=days - 1)
+    users_in_team = await db.users.find({"team_id": team_id}, {"_id": 0, "user_id": 1}).to_list(1000)
+    uids = [u["user_id"] for u in users_in_team]
+    if not uids:
+        return {"present": 0, "absent": 0, "na": 0, "attendance_pct": 0.0}
+    marks = await db.event_attendance.find({
+        "user_id": {"$in": uids},
+        "event_date": {"$gte": start.isoformat(), "$lte": end.isoformat()},
+    }, {"_id": 0}).to_list(50000)
+    present = sum(1 for m in marks if m["status"] == "present")
+    absent = sum(1 for m in marks if m["status"] == "absent")
+    na = sum(1 for m in marks if m["status"] == "na")
+    countable = present + absent
+    pct = round((present / countable) * 100, 1) if countable else 0.0
+    return {"present": present, "absent": absent, "na": na, "attendance_pct": pct}
+
+
+@api.get("/team-league")
+async def team_league(request: Request):
+    await get_current_user(request, db)
+    teams = await db.teams.find({}, {"_id": 0}).to_list(200)
+    rows = []
+    week_start_iso = (date.today() - timedelta(days=7)).isoformat()
+    month_start_iso = (date.today() - timedelta(days=30)).isoformat()
+    for t in teams:
+        members = await db.users.find({"team_id": t["team_id"]}, {"_id": 0, "password_hash": 0}).to_list(500)
+        if not members:
+            continue
+        xp = sum(m.get("xp", 0) for m in members)
+        streak = max((m.get("streak_current", 0) for m in members), default=0)
+        # Weekly XP
+        mids = [m["user_id"] for m in members]
+        weekly_xp_agg = await db.xp_events.aggregate([
+            {"$match": {"user_id": {"$in": mids}, "created_at": {"$gte": (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()}}},
+            {"$group": {"_id": None, "xp": {"$sum": "$amount"}}},
+        ]).to_list(1)
+        weekly_xp = weekly_xp_agg[0]["xp"] if weekly_xp_agg else 0
+        monthly_xp_agg = await db.xp_events.aggregate([
+            {"$match": {"user_id": {"$in": mids}, "created_at": {"$gte": (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()}}},
+            {"$group": {"_id": None, "xp": {"$sum": "$amount"}}},
+        ]).to_list(1)
+        monthly_xp = monthly_xp_agg[0]["xp"] if monthly_xp_agg else 0
+        # Weekly + Monthly attendance
+        weekly_att = await _team_attendance_pct(t["team_id"], days=7)
+        monthly_att = await _team_attendance_pct(t["team_id"], days=30)
+        bonus = attendance_bonus_xp(monthly_att["attendance_pct"])
+        rows.append({
+            "team_id": t["team_id"], "name": t["name"], "members": len(members),
+            "xp": xp, "streak": streak,
+            "weekly_xp": weekly_xp, "monthly_xp": monthly_xp,
+            "weekly_attendance_pct": weekly_att["attendance_pct"],
+            "monthly_attendance_pct": monthly_att["attendance_pct"],
+            "attendance_bonus_xp": bonus,
+            "leader": t.get("leader_id"),
+        })
+    rows.sort(key=lambda r: (r["monthly_attendance_pct"] + r["xp"] / 1000), reverse=True)
+    for i, r in enumerate(rows):
+        r["rank"] = i + 1
+    return {
+        "teams": rows,
+        "attendance_xp_table": [{"threshold_pct": t, "xp_reward": x} for t, x in ATTENDANCE_XP_TABLE],
+    }
+
+
+# ---------- Profile Completion ----------
+PROFILE_FIELDS = ["name", "email", "avatar_url", "team_id", "phone", "bio"]
+PROFILE_COMPLETION_XP = 50
+
+
+def _profile_completion(user: dict):
+    filled = sum(1 for f in PROFILE_FIELDS if user.get(f))
+    total = len(PROFILE_FIELDS)
+    pct = round((filled / total) * 100, 0)
+    missing = [f for f in PROFILE_FIELDS if not user.get(f)]
+    return {"filled": filled, "total": total, "pct": pct, "missing": missing,
+            "completion_xp_awarded": bool(user.get("profile_completed_awarded"))}
+
+
+@api.get("/profile/completion")
+async def profile_completion(request: Request):
+    user = await get_current_user(request, db)
+    return _profile_completion(user)
+
+
+@api.patch("/profile")
+async def update_profile(payload: ProfileUpdate, request: Request):
+    user = await get_current_user(request, db)
+    updates = {k: v for k, v in payload.model_dump().items() if v is not None}
+    if not updates:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    await db.users.update_one({"user_id": user["user_id"]}, {"$set": updates})
+    fresh = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0, "password_hash": 0})
+    comp = _profile_completion(fresh)
+    xp_awarded = None
+    if comp["pct"] >= 100 and not fresh.get("profile_completed_awarded"):
+        await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"profile_completed_awarded": True}})
+        xp_awarded = await award_xp(user["user_id"], PROFILE_COMPLETION_XP, "profile_completion")
+    return {"user": fresh, "completion": _profile_completion(fresh), "xp": xp_awarded}
+
+
+# ---------- Exports (CSV + PDF) ----------
+import io
+import csv
+
+
+def _csv_response(filename: str, headers: list, rows: list):
+    from fastapi.responses import StreamingResponse
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(headers)
+    for r in rows:
+        w.writerow(r)
+    buf.seek(0)
+    return StreamingResponse(
+        iter([buf.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+def _pdf_response(filename: str, title: str, headers: list, rows: list):
+    from fastapi.responses import StreamingResponse
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib import colors
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=landscape(A4), title=title)
+    styles = getSampleStyleSheet()
+    elems = [Paragraph(f"<b>SPARTANS GROWTH LEAGUE</b>", styles["Title"]),
+             Paragraph(title, styles["Heading2"]),
+             Paragraph(f"Generated: {datetime.now(LOCAL_TZ).strftime('%Y-%m-%d %H:%M IST')}", styles["Normal"]),
+             Spacer(1, 10)]
+    data = [headers] + [[str(c) if c is not None else "" for c in r] for r in rows]
+    tbl = Table(data, repeatRows=1)
+    tbl.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#EAB308")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.black),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, -1), 9),
+        ("GRID", (0, 0), (-1, -1), 0.4, colors.grey),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.HexColor("#F9FAFB"), colors.white]),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+        ("TOPPADDING", (0, 0), (-1, -1), 6),
+    ]))
+    elems.append(tbl)
+    doc.build(elems)
+    buf.seek(0)
+    return StreamingResponse(
+        iter([buf.getvalue()]),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@api.get("/exports/team-performance")
+async def export_team_performance(request: Request, format: str = "csv"):
+    user = await get_current_user(request, db)
+    require_role(user, ["super_admin", "team_leader"])
+    league = await team_league(request)
+    headers = ["Rank", "Team", "Members", "Total XP", "Weekly XP", "Monthly XP",
+               "Weekly Attn %", "Monthly Attn %", "Bonus XP", "Best Streak"]
+    rows = [[r["rank"], r["name"], r["members"], r["xp"], r["weekly_xp"], r["monthly_xp"],
+             r["weekly_attendance_pct"], r["monthly_attendance_pct"], r["attendance_bonus_xp"],
+             r["streak"]] for r in league["teams"]]
+    filename = f"team-performance-{date.today().isoformat()}"
+    if format == "pdf":
+        return _pdf_response(filename + ".pdf", "Team Performance Report", headers, rows)
+    return _csv_response(filename + ".csv", headers, rows)
+
+
+@api.get("/exports/attendance")
+async def export_attendance(request: Request, format: str = "csv", season_id: Optional[str] = None):
+    user = await get_current_user(request, db)
+    require_role(user, ["super_admin", "team_leader"])
+    if not season_id:
+        # Latest season if any
+        s = await db.seasons.find_one({}, {"_id": 0}, sort=[("start_date", -1)])
+        if not s:
+            raise HTTPException(status_code=400, detail="No season available. Create one or pass season_id.")
+        season_id = s["season_id"]
+    # Reuse team-report logic
+    season = await db.seasons.find_one({"season_id": season_id}, {"_id": 0})
+    if not season:
+        raise HTTPException(status_code=404, detail="Season not found")
+    believer_only = bool(season.get("is_believer"))
+    if user["role"] == "team_leader":
+        team = await _my_team_or_403(user)
+        users = await db.users.find({"team_id": team["team_id"]}, {"_id": 0, "password_hash": 0}).to_list(1000)
+    else:
+        q = {"is_believer": True} if believer_only else {}
+        users = await db.users.find(q, {"_id": 0, "password_hash": 0}).to_list(2000)
+    rows = []
+    for u in users:
+        rep = await _compute_report(u["user_id"], season, believer_only=believer_only)
+        rows.append([u["name"], u.get("team") or "-", rep["present"], rep["absent"], rep["na"],
+                     rep["unmarked"], rep["total_events"], rep["attendance_pct"]])
+    rows.sort(key=lambda r: r[7], reverse=True)
+    headers = ["Name", "Team", "Present", "Absent", "N/A", "Unmarked", "Total Events", "Attendance %"]
+    filename = f"attendance-{season['name'].replace(' ', '_')}-{date.today().isoformat()}"
+    if format == "pdf":
+        return _pdf_response(filename + ".pdf", f"Attendance Report — {season['name']}", headers, rows)
+    return _csv_response(filename + ".csv", headers, rows)
+
+
+@api.get("/exports/xp-leaderboard")
+async def export_xp_leaderboard(request: Request, format: str = "csv", scope: str = "all"):
+    user = await get_current_user(request, db)
+    require_role(user, ["super_admin", "team_leader"])
+    lb = await leaderboard(request, scope=scope, limit=500)
+    headers = ["Rank", "Name", "Team", "Level", "XP", "Streak"]
+    rows = [[r["rank"], r["name"], r.get("team") or "-", r["level"], r["xp"], r["streak_current"]]
+            for r in lb]
+    filename = f"xp-leaderboard-{scope}-{date.today().isoformat()}"
+    if format == "pdf":
+        return _pdf_response(filename + ".pdf", f"XP Leaderboard — {scope.title()}", headers, rows)
+    return _csv_response(filename + ".csv", headers, rows)
+
+
+@api.get("/exports/daily")
+async def export_daily(request: Request, format: str = "csv", day: Optional[str] = None):
+    user = await get_current_user(request, db)
+    require_role(user, ["super_admin", "team_leader"])
+    d = day or date.today().isoformat()
+    # XP events per user for that day
+    day_start = _iso(datetime.combine(date.fromisoformat(d), datetime.min.time()).replace(tzinfo=timezone.utc))
+    day_end = _iso(datetime.combine(date.fromisoformat(d) + timedelta(days=1), datetime.min.time()).replace(tzinfo=timezone.utc))
+    pipeline = [
+        {"$match": {"created_at": {"$gte": day_start, "$lt": day_end}}},
+        {"$group": {"_id": "$user_id", "xp": {"$sum": "$amount"}, "events": {"$sum": 1}}},
+    ]
+    events = await db.xp_events.aggregate(pipeline).to_list(2000)
+    uids = [e["_id"] for e in events]
+    users = {u["user_id"]: u for u in await db.users.find({"user_id": {"$in": uids}}, {"_id": 0, "password_hash": 0}).to_list(2000)}
+    rows = []
+    for e in events:
+        u = users.get(e["_id"])
+        if not u:
+            continue
+        rows.append([u["name"], u.get("team") or "-", e["events"], e["xp"]])
+    rows.sort(key=lambda r: r[3], reverse=True)
+    headers = ["Name", "Team", "Actions", "XP Earned"]
+    filename = f"daily-report-{d}"
+    if format == "pdf":
+        return _pdf_response(filename + ".pdf", f"Daily Report — {d}", headers, rows)
+    return _csv_response(filename + ".csv", headers, rows)
+
+
 @api.get("/")
 async def root():
     return {"message": "Spartans Growth League API", "version": "1.0"}
@@ -1637,6 +2034,10 @@ async def seed_admin_and_indexes():
     await db.seasons.create_index("season_id", unique=True)
     await db.tasks.create_index("task_id", unique=True)
     await db.tasks.create_index([("assigned_to", 1), ("due_date", 1)])
+    await db.rewards.create_index("reward_id", unique=True)
+    await db.rewards.create_index([("active", 1), ("cost_xp", 1)])
+    await db.redemptions.create_index("redemption_id", unique=True)
+    await db.redemptions.create_index([("user_id", 1), ("created_at", -1)])
     await db.challenges.create_index([("start_date", 1), ("end_date", 1)])
     await db.challenge_progress.create_index([("user_id", 1), ("challenge_id", 1)], unique=True)
     await db.xp_events.create_index([("user_id", 1), ("created_at", -1)])
@@ -1678,6 +2079,7 @@ async def seed_admin_and_indexes():
 
     team_ids = {
         "Command": await upsert_team("Command"),
+        "SPARTANS": await upsert_team("SPARTANS"),
         "Alpha": await upsert_team("Alpha"),
         "Bravo": await upsert_team("Bravo"),
         "Delta": await upsert_team("Delta"),
@@ -1772,6 +2174,33 @@ async def seed_admin_and_indexes():
             {"event_id": str(uuid.uuid4()), "name": "Spartans Team Meeting", "weekday": 5,
              "is_believer": False, "active": True,
              "created_at": _iso(datetime.now(timezone.utc))},
+        ])
+
+    # Seed default reward store
+    rw_count = await db.rewards.count_documents({})
+    if rw_count == 0:
+        now_iso = _iso(datetime.now(timezone.utc))
+        await db.rewards.insert_many([
+            {"reward_id": str(uuid.uuid4()), "name": "Team Dinner Voucher",
+             "description": "Dinner for one at partner restaurant.",
+             "cost_xp": 300, "category": "dinner", "stock": None,
+             "image_url": None, "active": True,
+             "created_by": "system", "created_at": now_iso},
+            {"reward_id": str(uuid.uuid4()), "name": "Movie Ticket",
+             "description": "One movie ticket, any screening.",
+             "cost_xp": 500, "category": "movie", "stock": None,
+             "image_url": None, "active": True,
+             "created_by": "system", "created_at": now_iso},
+            {"reward_id": str(uuid.uuid4()), "name": "Team Outing Pass",
+             "description": "Full-team outing sponsored by leadership.",
+             "cost_xp": 1500, "category": "outing", "stock": None,
+             "image_url": None, "active": True,
+             "created_by": "system", "created_at": now_iso},
+            {"reward_id": str(uuid.uuid4()), "name": "Amazon Gift Voucher ₹500",
+             "description": "Digital gift card, redeem online.",
+             "cost_xp": 2000, "category": "voucher", "stock": None,
+             "image_url": None, "active": True,
+             "created_by": "system", "created_at": now_iso},
         ])
 
 
