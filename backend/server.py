@@ -1250,6 +1250,8 @@ async def seed_admin_and_indexes():
     await db.prospects.create_index([("user_id", 1), ("status", 1)])
     await db.followups.create_index([("user_id", 1), ("due_date", 1)])
     await db.attendance.create_index([("user_id", 1), ("event_date", -1)])
+    await db.missions.create_index("mission_id", unique=True)
+    await db.missions.create_index([("user_id", 1), ("created_at", -1)])
     await db.challenges.create_index([("start_date", 1), ("end_date", 1)])
     await db.challenge_progress.create_index([("user_id", 1), ("challenge_id", 1)], unique=True)
     await db.xp_events.create_index([("user_id", 1), ("created_at", -1)])

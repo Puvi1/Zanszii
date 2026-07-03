@@ -70,3 +70,27 @@ Gamified performance tracking & accountability platform for a Crypto Network Mar
 - **P2**: Team leader ability to create challenges scoped to their team only
 - **P3**: Direct messages / team chat
 - **P3**: Custom badge creation UI for super admin
+
+## Daily Mission System (Feb 2026)
+
+### Implemented
+- **New collection**: `missions` (mission_id UUID unique, user_id, prospect_name, mobile_number, notes, status, lat, lng, google_maps_url, accuracy, photo_data base64, created_at, updated_at)
+- **Indexes**: `mission_id` unique + `(user_id, created_at desc)` compound
+- **XP Rules**: `mission_logged: +10`, `mission_converted: +40` (PATCH new→converted adds +30 delta)
+- **Endpoints**:
+  - `GET /api/missions` — user's mission list (owner-scoped)
+  - `POST /api/missions` — create, auto-generate google_maps_url from lat/lng, awards XP, auto-progress prospect challenges
+  - `PATCH /api/missions/{id}` — status/notes update; XP delta on conversion
+  - `DELETE /api/missions/{id}` — owner-only, 404 for others (data isolation verified)
+- **Photo storage**: base64 data URL inline in MongoDB, 1.5MB limit (returns 413 if exceeded), client-side JPEG compression to ≤1200px @ 0.72 quality
+- **Frontend**:
+  - `/missions` page with 4-way filter chips (All/New/Follow-up/Converted)
+  - **Live GPS capture** via navigator.geolocation with accuracy display + refresh button + Google Maps preview link
+  - **Camera capture** via `<input type=file accept="image/*" capture="environment">` for direct mobile camera
+  - Card grid history (3 col desktop / 2 tablet / 1 mobile) with photo thumbnail, status chip, GPS badge, phone tap-to-call, map link, inline status edit, delete
+  - Detail modal on card click showing full photo + all fields
+  - Added to sidebar nav (Crosshair icon) + mobile bottom nav (2nd slot)
+
+### Test Results
+- Backend: 13/13 mission tests passing (after index fix)
+- Frontend: verified via screenshot (missions page + modal render correctly, GPS permission flow works)
