@@ -17,6 +17,9 @@ import Teams from "@/pages/Teams";
 import MyTeam from "@/pages/MyTeam";
 import Reports from "@/pages/Reports";
 import Missions from "@/pages/Missions";
+import WeeklyAttendance from "@/pages/WeeklyAttendance";
+import Seasons from "@/pages/Seasons";
+import Tasks from "@/pages/Tasks";
 import "@/App.css";
 
 function Router() {
@@ -122,6 +125,30 @@ function Router() {
                 element={
                     <ProtectedRoute>
                         <AppLayout><Missions /></AppLayout>
+                    </ProtectedRoute>
+                }
+            />
+            <Route
+                path="/weekly-attendance"
+                element={
+                    <ProtectedRoute>
+                        <AppLayout><WeeklyAttendance /></AppLayout>
+                    </ProtectedRoute>
+                }
+            />
+            <Route
+                path="/seasons"
+                element={
+                    <ProtectedRoute>
+                        <AppLayout><Seasons /></AppLayout>
+                    </ProtectedRoute>
+                }
+            />
+            <Route
+                path="/tasks"
+                element={
+                    <ProtectedRoute>
+                        <AppLayout><Tasks /></AppLayout>
                     </ProtectedRoute>
                 }
             />

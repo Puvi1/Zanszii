@@ -175,6 +175,47 @@ class MissionUpdate(BaseModel):
     notes: Optional[str] = None
 
 
+# --- Weekly Attendance / Seasons / Tasks models ---
+class WeeklyEventIn(BaseModel):
+    name: str
+    weekday: int = Field(ge=0, le=6)  # 0=Mon..6=Sun
+    is_believer: bool = False
+    active: bool = True
+
+
+class WeeklyEventUpdate(BaseModel):
+    name: Optional[str] = None
+    weekday: Optional[int] = Field(default=None, ge=0, le=6)
+    is_believer: Optional[bool] = None
+    active: Optional[bool] = None
+
+
+class EventAttendanceMark(BaseModel):
+    event_id: str
+    event_date: str  # YYYY-MM-DD
+    status: Literal["present", "absent", "na"]
+    season_id: Optional[str] = None
+
+
+class SeasonIn(BaseModel):
+    name: str
+    start_date: str  # YYYY-MM-DD
+    end_date: str
+    is_believer: bool = False
+
+
+class TaskIn(BaseModel):
+    title: str
+    description: str
+    assigned_to: str  # user_id
+    due_date: str  # YYYY-MM-DD
+    xp_reward: int = Field(default=25, ge=0, le=1000)
+
+
+class BelieverUpdate(BaseModel):
+    is_believer: bool
+
+
 class ChallengeIn(BaseModel):
     title: str
     description: str
@@ -1225,6 +1266,344 @@ async def admin_analytics(request: Request):
     }
 
 
+# ---------- Weekly Attendance / Seasons / Tasks ----------
+try:
+    from zoneinfo import ZoneInfo
+    LOCAL_TZ = ZoneInfo("Asia/Kolkata")
+except Exception:
+    LOCAL_TZ = timezone.utc
+
+LOCK_HOUR = 8  # 8 AM IST
+
+
+def _is_locked(event_date_str: str) -> bool:
+    """True if attendance for event_date is closed (>= 8 AM IST on that date)."""
+    try:
+        d = date.fromisoformat(event_date_str)
+    except Exception:
+        return True
+    cutoff = datetime.combine(d, datetime.min.time().replace(hour=LOCK_HOUR), tzinfo=LOCAL_TZ)
+    return datetime.now(LOCAL_TZ) >= cutoff
+
+
+def _weekday_name(w: int) -> str:
+    return ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"][w]
+
+
+def _dates_for_week(anchor: date):
+    """Return Mon..Sun dates for the week containing anchor (Mon=0)."""
+    monday = anchor - timedelta(days=anchor.weekday())
+    return [monday + timedelta(days=i) for i in range(7)]
+
+
+# --- Weekly Events (admin managed) ---
+@api.get("/weekly-events")
+async def list_weekly_events(request: Request):
+    await get_current_user(request, db)
+    events = await db.weekly_events.find({"active": True}, {"_id": 0}).sort("weekday", 1).to_list(100)
+    for e in events:
+        e["weekday_name"] = _weekday_name(e["weekday"])
+    return events
+
+
+@api.post("/weekly-events")
+async def create_weekly_event(payload: WeeklyEventIn, request: Request):
+    user = await get_current_user(request, db)
+    require_role(user, ["super_admin"])
+    doc = payload.model_dump()
+    doc.update({"event_id": str(uuid.uuid4()), "created_at": _iso(datetime.now(timezone.utc))})
+    await db.weekly_events.insert_one(doc)
+    return _clean(doc)
+
+
+@api.patch("/weekly-events/{event_id}")
+async def update_weekly_event(event_id: str, payload: WeeklyEventUpdate, request: Request):
+    user = await get_current_user(request, db)
+    require_role(user, ["super_admin"])
+    updates = {k: v for k, v in payload.model_dump().items() if v is not None}
+    if not updates:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    r = await db.weekly_events.update_one({"event_id": event_id}, {"$set": updates})
+    if r.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Event not found")
+    return {"ok": True}
+
+
+@api.delete("/weekly-events/{event_id}")
+async def delete_weekly_event(event_id: str, request: Request):
+    user = await get_current_user(request, db)
+    require_role(user, ["super_admin"])
+    r = await db.weekly_events.delete_one({"event_id": event_id})
+    if r.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Event not found")
+    return {"ok": True}
+
+
+# --- Event Attendance ---
+@api.get("/event-attendance/week")
+async def week_attendance(request: Request, week_of: Optional[str] = None):
+    """Returns this week's events with the current user's marks."""
+    user = await get_current_user(request, db)
+    anchor = date.fromisoformat(week_of) if week_of else date.today()
+    week_dates = _dates_for_week(anchor)
+    events = await db.weekly_events.find({"active": True}, {"_id": 0}).sort("weekday", 1).to_list(100)
+    # Build occurrences: for each event, use week_dates[weekday]
+    occurrences = []
+    for e in events:
+        occ_date = week_dates[e["weekday"]]
+        occ_date_str = occ_date.isoformat()
+        mark = await db.event_attendance.find_one(
+            {"user_id": user["user_id"], "event_id": e["event_id"], "event_date": occ_date_str},
+            {"_id": 0},
+        )
+        occurrences.append({
+            "event_id": e["event_id"],
+            "name": e["name"],
+            "weekday": e["weekday"],
+            "weekday_name": _weekday_name(e["weekday"]),
+            "is_believer": e.get("is_believer", False),
+            "event_date": occ_date_str,
+            "status": mark["status"] if mark else None,
+            "locked": _is_locked(occ_date_str),
+            "marked_at": mark.get("updated_at") if mark else None,
+        })
+    return {
+        "week_start": week_dates[0].isoformat(),
+        "week_end": week_dates[6].isoformat(),
+        "occurrences": occurrences,
+    }
+
+
+@api.post("/event-attendance/mark")
+async def mark_attendance(payload: EventAttendanceMark, request: Request):
+    user = await get_current_user(request, db)
+    if _is_locked(payload.event_date):
+        raise HTTPException(status_code=403, detail=f"Attendance locked. Cutoff is {LOCK_HOUR}:00 IST on {payload.event_date}.")
+    # Validate event exists
+    ev = await db.weekly_events.find_one({"event_id": payload.event_id, "active": True}, {"_id": 0})
+    if not ev:
+        raise HTTPException(status_code=404, detail="Event not found")
+    # Auto-detect season if not passed
+    season_id = payload.season_id
+    if not season_id:
+        s = await db.seasons.find_one({
+            "start_date": {"$lte": payload.event_date},
+            "end_date": {"$gte": payload.event_date},
+            "$or": [{"is_believer": ev.get("is_believer", False)}, {"is_believer": False}],
+        }, {"_id": 0})
+        if s:
+            season_id = s["season_id"]
+    now = _iso(datetime.now(timezone.utc))
+    key = {"user_id": user["user_id"], "event_id": payload.event_id, "event_date": payload.event_date}
+    await db.event_attendance.update_one(
+        key,
+        {"$set": {**key, "status": payload.status, "season_id": season_id, "updated_at": now},
+         "$setOnInsert": {"attendance_id": str(uuid.uuid4()), "created_at": now}},
+        upsert=True,
+    )
+    return {"ok": True, "locks_at": f"{payload.event_date} {LOCK_HOUR:02d}:00 IST"}
+
+
+# --- Seasons ---
+def _season_range_dates(s: dict):
+    start = date.fromisoformat(s["start_date"])
+    end = date.fromisoformat(s["end_date"])
+    return start, end
+
+
+async def _compute_report(user_id: str, season: dict, believer_only: bool = False):
+    start, end = _season_range_dates(season)
+    days = (end - start).days + 1
+    # Get relevant weekly events
+    ev_query = {"active": True}
+    if believer_only:
+        ev_query["is_believer"] = True
+    events = await db.weekly_events.find(ev_query, {"_id": 0}).to_list(50)
+    ev_by_wd = {}
+    for e in events:
+        ev_by_wd.setdefault(e["weekday"], []).append(e)
+    total = 0
+    per_event = {e["event_id"]: {"event_id": e["event_id"], "name": e["name"], "weekday": e["weekday"],
+                                  "present": 0, "absent": 0, "na": 0, "unmarked": 0, "total": 0}
+                 for e in events}
+    for i in range(days):
+        d = start + timedelta(days=i)
+        for e in ev_by_wd.get(d.weekday(), []):
+            total += 1
+            per_event[e["event_id"]]["total"] += 1
+            occ_date = d.isoformat()
+            mark = await db.event_attendance.find_one(
+                {"user_id": user_id, "event_id": e["event_id"], "event_date": occ_date}, {"_id": 0}
+            )
+            if mark:
+                st = mark["status"]
+                per_event[e["event_id"]][st] += 1
+            else:
+                per_event[e["event_id"]]["unmarked"] += 1
+    present = sum(v["present"] for v in per_event.values())
+    absent = sum(v["absent"] for v in per_event.values())
+    na = sum(v["na"] for v in per_event.values())
+    unmarked = sum(v["unmarked"] for v in per_event.values())
+    countable = present + absent  # NA and unmarked excluded from %
+    pct = round((present / countable) * 100, 1) if countable else 0.0
+    return {
+        "total_events": total, "present": present, "absent": absent, "na": na, "unmarked": unmarked,
+        "attendance_pct": pct, "per_event": list(per_event.values()),
+    }
+
+
+@api.get("/seasons")
+async def list_seasons(request: Request):
+    await get_current_user(request, db)
+    seasons = await db.seasons.find({}, {"_id": 0}).sort("start_date", -1).to_list(200)
+    return seasons
+
+
+@api.post("/seasons")
+async def create_season(payload: SeasonIn, request: Request):
+    user = await get_current_user(request, db)
+    require_role(user, ["super_admin"])
+    try:
+        s = date.fromisoformat(payload.start_date)
+        e = date.fromisoformat(payload.end_date)
+        if e < s:
+            raise ValueError()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid dates (end must be >= start)")
+    doc = payload.model_dump()
+    doc.update({
+        "season_id": str(uuid.uuid4()),
+        "created_by": user["user_id"],
+        "created_at": _iso(datetime.now(timezone.utc)),
+    })
+    await db.seasons.insert_one(doc)
+    return _clean(doc)
+
+
+@api.delete("/seasons/{season_id}")
+async def delete_season(season_id: str, request: Request):
+    user = await get_current_user(request, db)
+    require_role(user, ["super_admin"])
+    r = await db.seasons.delete_one({"season_id": season_id})
+    if r.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Season not found")
+    return {"ok": True}
+
+
+@api.get("/seasons/{season_id}/my-report")
+async def my_season_report(season_id: str, request: Request):
+    user = await get_current_user(request, db)
+    season = await db.seasons.find_one({"season_id": season_id}, {"_id": 0})
+    if not season:
+        raise HTTPException(status_code=404, detail="Season not found")
+    believer_only = bool(season.get("is_believer"))
+    report = await _compute_report(user["user_id"], season, believer_only=believer_only)
+    return {"season": season, "user": {"user_id": user["user_id"], "name": user["name"]}, **report}
+
+
+@api.get("/seasons/{season_id}/team-report")
+async def team_season_report(season_id: str, request: Request):
+    user = await get_current_user(request, db)
+    require_role(user, ["super_admin", "team_leader"])
+    season = await db.seasons.find_one({"season_id": season_id}, {"_id": 0})
+    if not season:
+        raise HTTPException(status_code=404, detail="Season not found")
+    believer_only = bool(season.get("is_believer"))
+    # Scope users
+    if user["role"] == "team_leader":
+        team = await _my_team_or_403(user)
+        users = await db.users.find({"team_id": team["team_id"]}, {"_id": 0, "password_hash": 0}).to_list(500)
+    else:
+        query = {"is_believer": True} if believer_only else {}
+        users = await db.users.find(query, {"_id": 0, "password_hash": 0}).to_list(1000)
+    rows = []
+    for u in users:
+        rep = await _compute_report(u["user_id"], season, believer_only=believer_only)
+        rows.append({
+            "user_id": u["user_id"], "name": u["name"], "team": u.get("team"),
+            "is_believer": u.get("is_believer", False),
+            "present": rep["present"], "absent": rep["absent"], "na": rep["na"],
+            "unmarked": rep["unmarked"], "total_events": rep["total_events"],
+            "attendance_pct": rep["attendance_pct"],
+        })
+    rows.sort(key=lambda r: r["attendance_pct"], reverse=True)
+    return {"season": season, "members": rows}
+
+
+# --- Believer flag update ---
+@api.patch("/admin/users/{uid}/believer")
+async def set_believer(uid: str, payload: BelieverUpdate, request: Request):
+    user = await get_current_user(request, db)
+    require_role(user, ["super_admin"])
+    r = await db.users.update_one({"user_id": uid}, {"$set": {"is_believer": payload.is_believer}})
+    if r.matched_count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+    return {"ok": True}
+
+
+# --- Tasks (super_admin assigns to members) ---
+@api.get("/tasks")
+async def list_tasks(request: Request, all_users: bool = False):
+    user = await get_current_user(request, db)
+    if all_users:
+        require_role(user, ["super_admin"])
+        tasks = await db.tasks.find({}, {"_id": 0}).sort("created_at", -1).to_list(500)
+    else:
+        tasks = await db.tasks.find({"assigned_to": user["user_id"]}, {"_id": 0}).sort("due_date", 1).to_list(500)
+    # Enrich with assignee/assigner names
+    for t in tasks:
+        if t.get("assigned_to"):
+            au = await db.users.find_one({"user_id": t["assigned_to"]}, {"_id": 0, "name": 1, "email": 1})
+            t["assignee"] = {"name": au["name"], "email": au["email"]} if au else None
+    return tasks
+
+
+@api.post("/tasks")
+async def create_task(payload: TaskIn, request: Request):
+    user = await get_current_user(request, db)
+    require_role(user, ["super_admin"])
+    assignee = await db.users.find_one({"user_id": payload.assigned_to}, {"_id": 0})
+    if not assignee:
+        raise HTTPException(status_code=404, detail="Assignee not found")
+    doc = payload.model_dump()
+    doc.update({
+        "task_id": str(uuid.uuid4()),
+        "assigned_by": user["user_id"],
+        "status": "pending",
+        "completed_at": None,
+        "created_at": _iso(datetime.now(timezone.utc)),
+    })
+    await db.tasks.insert_one(doc)
+    return _clean(doc)
+
+
+@api.patch("/tasks/{task_id}/complete")
+async def complete_task(task_id: str, request: Request):
+    user = await get_current_user(request, db)
+    t = await db.tasks.find_one({"task_id": task_id}, {"_id": 0})
+    if not t:
+        raise HTTPException(status_code=404, detail="Task not found")
+    if t.get("status") == "completed":
+        raise HTTPException(status_code=400, detail="Already completed")
+    if t.get("assigned_to") != user["user_id"] and user["role"] != "super_admin":
+        raise HTTPException(status_code=403, detail="Not your task")
+    now = _iso(datetime.now(timezone.utc))
+    await db.tasks.update_one({"task_id": task_id}, {"$set": {"status": "completed", "completed_at": now}})
+    xp = await award_xp(t["assigned_to"], int(t.get("xp_reward", 0)), f"task:{task_id}")
+    updated = await db.tasks.find_one({"task_id": task_id}, {"_id": 0})
+    return {"task": updated, "xp": xp}
+
+
+@api.delete("/tasks/{task_id}")
+async def delete_task(task_id: str, request: Request):
+    user = await get_current_user(request, db)
+    require_role(user, ["super_admin"])
+    r = await db.tasks.delete_one({"task_id": task_id})
+    if r.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return {"ok": True}
+
+
 @api.get("/")
 async def root():
     return {"message": "Spartans Growth League API", "version": "1.0"}
@@ -1252,6 +1631,12 @@ async def seed_admin_and_indexes():
     await db.attendance.create_index([("user_id", 1), ("event_date", -1)])
     await db.missions.create_index("mission_id", unique=True)
     await db.missions.create_index([("user_id", 1), ("created_at", -1)])
+    await db.weekly_events.create_index("event_id", unique=True)
+    await db.event_attendance.create_index([("user_id", 1), ("event_id", 1), ("event_date", 1)], unique=True)
+    await db.event_attendance.create_index([("event_date", 1)])
+    await db.seasons.create_index("season_id", unique=True)
+    await db.tasks.create_index("task_id", unique=True)
+    await db.tasks.create_index([("assigned_to", 1), ("due_date", 1)])
     await db.challenges.create_index([("start_date", 1), ("end_date", 1)])
     await db.challenge_progress.create_index([("user_id", 1), ("challenge_id", 1)], unique=True)
     await db.xp_events.create_index([("user_id", 1), ("created_at", -1)])
@@ -1372,6 +1757,21 @@ async def seed_admin_and_indexes():
              "start_date": today.isoformat(), "end_date": (today + timedelta(days=30)).isoformat(),
              "xp_reward": 500, "badge_reward": None,
              "created_by": "system", "created_at": _iso(datetime.now(timezone.utc))},
+        ])
+
+    # Seed default 3 weekly events (Tue/Thu/Sat) if empty
+    we_count = await db.weekly_events.count_documents({})
+    if we_count == 0:
+        await db.weekly_events.insert_many([
+            {"event_id": str(uuid.uuid4()), "name": "Believer Season Meeting", "weekday": 1,
+             "is_believer": True, "active": True,
+             "created_at": _iso(datetime.now(timezone.utc))},
+            {"event_id": str(uuid.uuid4()), "name": "MCM (Meta Champion Meet)", "weekday": 3,
+             "is_believer": False, "active": True,
+             "created_at": _iso(datetime.now(timezone.utc))},
+            {"event_id": str(uuid.uuid4()), "name": "Spartans Team Meeting", "weekday": 5,
+             "is_believer": False, "active": True,
+             "created_at": _iso(datetime.now(timezone.utc))},
         ])
 
 
