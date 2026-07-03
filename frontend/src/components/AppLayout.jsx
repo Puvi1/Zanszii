@@ -2,13 +2,14 @@ import { Link, NavLink, useNavigate } from "react-router-dom";
 import {
     House, Target, Phone, Trophy, User, ChartLine,
     Sword, SignOut, ShieldStar, Calendar, Fire,
-    Users, UsersThree, ChartBar,
+    Users, UsersThree, ChartBar, Crosshair,
 } from "@phosphor-icons/react";
 import { useAuth } from "@/context/AuthContext";
 import { motion } from "framer-motion";
 
 const BASE_NAV = [
     { to: "/", icon: House, label: "Dashboard", testId: "nav-dashboard" },
+    { to: "/missions", icon: Crosshair, label: "Missions", testId: "nav-missions" },
     { to: "/prospects", icon: Target, label: "Prospects", testId: "nav-prospects" },
     { to: "/followups", icon: Phone, label: "Follow-Ups", testId: "nav-followups" },
     { to: "/attendance", icon: Calendar, label: "Attendance", testId: "nav-attendance" },

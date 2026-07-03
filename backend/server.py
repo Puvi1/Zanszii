@@ -69,6 +69,8 @@ XP_RULES = {
     "followup_done": 8,
     "attendance": 15,
     "challenge_completed": 100,
+    "mission_logged": 10,
+    "mission_converted": 40,
 }
 
 # Master badge catalog (seeded)
@@ -154,6 +156,22 @@ class AttendanceIn(BaseModel):
     event_name: str
     event_date: str  # ISO date
     event_type: Literal["meeting", "training", "webinar", "call"] = "meeting"
+    notes: Optional[str] = None
+
+
+class MissionIn(BaseModel):
+    prospect_name: str = Field(min_length=1)
+    mobile_number: Optional[str] = None
+    notes: Optional[str] = None
+    status: Literal["new", "followup", "converted"] = "new"
+    lat: Optional[float] = None
+    lng: Optional[float] = None
+    photo_data: Optional[str] = None  # base64 data URL (data:image/jpeg;base64,...)
+    accuracy: Optional[float] = None
+
+
+class MissionUpdate(BaseModel):
+    status: Optional[Literal["new", "followup", "converted"]] = None
     notes: Optional[str] = None
 
 
@@ -612,6 +630,72 @@ async def add_attendance(payload: AttendanceIn, request: Request):
     xp = await award_xp(user["user_id"], XP_RULES["attendance"], "attendance")
     await _update_challenge_progress(user["user_id"], "attendance", 1)
     return {"attendance": _clean(doc), "xp": xp}
+
+
+# ---------- Missions (GPS + Photo tracked field submissions) ----------
+MAX_PHOTO_BYTES = 1_500_000  # ~1.5 MB base64
+
+
+def _maps_url(lat: Optional[float], lng: Optional[float]) -> Optional[str]:
+    if lat is None or lng is None:
+        return None
+    return f"https://www.google.com/maps?q={lat},{lng}"
+
+
+@api.get("/missions")
+async def list_missions(request: Request, limit: int = 100):
+    user = await get_current_user(request, db)
+    items = await db.missions.find(
+        {"user_id": user["user_id"]},
+        {"_id": 0},
+    ).sort("created_at", -1).limit(limit).to_list(limit)
+    return items
+
+
+@api.post("/missions")
+async def create_mission(payload: MissionIn, request: Request):
+    user = await get_current_user(request, db)
+    if payload.photo_data and len(payload.photo_data) > MAX_PHOTO_BYTES:
+        raise HTTPException(status_code=413, detail="Photo too large (max ~1MB). Please retake.")
+    doc = payload.model_dump()
+    doc.update({
+        "mission_id": str(uuid.uuid4()),
+        "user_id": user["user_id"],
+        "google_maps_url": _maps_url(payload.lat, payload.lng),
+        "created_at": _iso(datetime.now(timezone.utc)),
+        "updated_at": _iso(datetime.now(timezone.utc)),
+    })
+    await db.missions.insert_one(doc)
+    xp_reason = "mission_converted" if payload.status == "converted" else "mission_logged"
+    xp_amount = XP_RULES["mission_converted"] if payload.status == "converted" else XP_RULES["mission_logged"]
+    xp = await award_xp(user["user_id"], xp_amount, xp_reason)
+    await _update_challenge_progress(user["user_id"], "prospects", 1)
+    return {"mission": _clean(doc), "xp": xp}
+
+
+@api.patch("/missions/{mid}")
+async def update_mission(mid: str, payload: MissionUpdate, request: Request):
+    user = await get_current_user(request, db)
+    existing = await db.missions.find_one({"mission_id": mid, "user_id": user["user_id"]}, {"_id": 0})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Mission not found")
+    updates = {k: v for k, v in payload.model_dump().items() if v is not None}
+    updates["updated_at"] = _iso(datetime.now(timezone.utc))
+    await db.missions.update_one({"mission_id": mid}, {"$set": updates})
+    xp_event = None
+    if updates.get("status") == "converted" and existing.get("status") != "converted":
+        xp_event = await award_xp(user["user_id"], XP_RULES["mission_converted"] - XP_RULES["mission_logged"], "mission_converted")
+    updated = await db.missions.find_one({"mission_id": mid}, {"_id": 0})
+    return {"mission": updated, "xp": xp_event}
+
+
+@api.delete("/missions/{mid}")
+async def delete_mission(mid: str, request: Request):
+    user = await get_current_user(request, db)
+    r = await db.missions.delete_one({"mission_id": mid, "user_id": user["user_id"]})
+    if r.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Mission not found")
+    return {"ok": True}
 
 
 # ---------- Challenges ----------

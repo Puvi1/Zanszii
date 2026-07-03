@@ -16,6 +16,7 @@ import Admin from "@/pages/Admin";
 import Teams from "@/pages/Teams";
 import MyTeam from "@/pages/MyTeam";
 import Reports from "@/pages/Reports";
+import Missions from "@/pages/Missions";
 import "@/App.css";
 
 function Router() {
@@ -113,6 +114,14 @@ function Router() {
                 element={
                     <ProtectedRoute>
                         <AppLayout><Reports /></AppLayout>
+                    </ProtectedRoute>
+                }
+            />
+            <Route
+                path="/missions"
+                element={
+                    <ProtectedRoute>
+                        <AppLayout><Missions /></AppLayout>
                     </ProtectedRoute>
                 }
             />
