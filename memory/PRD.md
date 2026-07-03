@@ -143,3 +143,44 @@ Gamified performance tracking & accountability platform for a Crypto Network Mar
 ### Test Coverage
 - Backend: **30/30** (100%) — /app/backend/tests/test_weekly_attendance.py
 - Frontend: **30/30** (100%) across all 3 roles + mobile responsive at 375x812
+
+## Team League + Reward Store + Profile Completion + Report Exports (Feb 2026)
+
+### Team League
+- `GET /api/team-league` returns ranked teams with: xp, weekly_xp, monthly_xp, weekly_attendance_pct, monthly_attendance_pct, attendance_bonus_xp, streak, members
+- **Attendance → Bonus XP** table: 100%→50, 90%→40, 80%→30, 70%→20, 60%→10, <60%→0
+- Rank sorted by (monthly_attendance_pct + xp/1000) desc
+- SPARTANS team seeded alongside Alpha/Bravo/Command/Delta
+- Frontend `/team-league` page with tier table, ranked team rows, per-team attendance bars, "Your team" indicator
+
+### Reward Store (2 new collections)
+- `rewards` — reward_id, name, description, cost_xp, category (dinner/movie/outing/voucher/other), stock, image_url, active, created_by
+- `redemptions` — redemption_id, user_id, user_name, reward_id, reward_name, cost_xp, status (pending/fulfilled), fulfilled_at, fulfilled_by
+- 4 default rewards seeded: Team Dinner Voucher (300), Movie Ticket (500), Team Outing Pass (1500), Amazon Gift Voucher ₹500 (2000)
+- Endpoints:
+  - `GET/POST/PATCH/DELETE /api/rewards[/<id>]` (super_admin for mutations)
+  - `POST /api/rewards/{id}/redeem` (member) — checks XP, deducts, decrements stock, logs xp_events(-cost_xp), creates pending redemption
+  - `GET /api/redemptions` (own) / `?all_users=true` (admin)
+  - `PATCH /api/redemptions/{id}/fulfill` (super_admin)
+- Frontend `/rewards` page with Store/My Redemptions/All Redemptions tabs, category-themed cards, XP balance chip, admin CRUD modal
+
+### Profile Completion
+- Fields tracked: name, email, avatar_url, team_id, phone, bio (6 total)
+- Backend `GET /api/profile/completion` returns filled/total/pct/missing/completion_xp_awarded
+- Backend `PATCH /api/profile` updates {phone, bio, avatar_url}; awards one-time +50 XP when reaching 100% (idempotent via profile_completed_awarded flag)
+- Frontend widget in Profile page: progress bar, missing-field chips, Edit form with confetti + toast on completion
+
+### Report Exports (CSV + PDF)
+- Dependencies added: `reportlab==5.0.0`, `openpyxl==3.1.5` (in requirements.txt)
+- Endpoints (all require super_admin or team_leader):
+  - `GET /api/exports/team-performance?format=csv|pdf`
+  - `GET /api/exports/attendance?season_id=...&format=csv|pdf`
+  - `GET /api/exports/xp-leaderboard?scope=weekly|monthly|all&format=csv|pdf`
+  - `GET /api/exports/daily?day=YYYY-MM-DD&format=csv|pdf`
+- CSV: `StreamingResponse` with proper `Content-Disposition`, Excel-compatible
+- PDF: reportlab landscape A4, branded header, striped table rows, gold header row
+- Frontend: `ExportBar` component in Reports page (visible to admin/leader only) with Excel/CSV + PDF buttons that trigger browser download
+
+### Test Coverage
+- Backend: **18/18** (100%) — attendance bonus formula, redeem XP deduction, insufficient XP 400, stock=0 400, admin-only mutations, PDF/CSV Content-Type checks, profile completion idempotency
+- Frontend: **14/14** (100%) — sidebar nav, role visibility, admin CRUD flow, member redeem UI, export downloads, mobile responsive
