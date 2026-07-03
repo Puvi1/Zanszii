@@ -1066,7 +1066,7 @@ async def report_global(request: Request):
             "prospects": total_prospects, "won": total_won,
             "conversion_rate": round((total_won / total_prospects) * 100, 1) if total_prospects else 0.0,
         },
-        "teams": per_team,
+        "teams": sorted(per_team, key=lambda t: t["xp"], reverse=True),
     }
 
 
