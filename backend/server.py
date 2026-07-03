@@ -173,6 +173,21 @@ class RoleUpdate(BaseModel):
     role: Literal["super_admin", "team_leader", "member"]
 
 
+class TeamIn(BaseModel):
+    name: str
+    leader_id: Optional[str] = None
+
+
+class TeamUpdate(BaseModel):
+    name: Optional[str] = None
+    leader_id: Optional[str] = None
+
+
+class TeamAssign(BaseModel):
+    user_id: str
+    is_leader: bool = False
+
+
 # ---------- Utility ----------
 def _iso(dt: datetime) -> str:
     return dt.astimezone(timezone.utc).isoformat()
@@ -677,12 +692,22 @@ async def _update_challenge_progress(user_id: str, goal_type: str, inc: int):
 
 # ---------- Leaderboard ----------
 @api.get("/leaderboard")
-async def leaderboard(request: Request, scope: str = "all", limit: int = 50):
-    await get_current_user(request, db)  # auth check
+async def leaderboard(request: Request, scope: str = "all", limit: int = 50, team_id: Optional[str] = None):
+    user = await get_current_user(request, db)
+    # Team scoping: build member_id filter if requested
+    member_ids = None
+    if team_id:
+        # Any authenticated user can request a team leaderboard (transparency)
+        team = await _team_by_id(team_id)
+        team_users = await db.users.find({"team_id": team["team_id"]}, {"_id": 0, "user_id": 1}).to_list(1000)
+        member_ids = [t["user_id"] for t in team_users]
     if scope == "weekly":
         since = _iso(datetime.now(timezone.utc) - timedelta(days=7))
+        match = {"created_at": {"$gte": since}}
+        if member_ids is not None:
+            match["user_id"] = {"$in": member_ids}
         pipeline = [
-            {"$match": {"created_at": {"$gte": since}}},
+            {"$match": match},
             {"$group": {"_id": "$user_id", "xp": {"$sum": "$amount"}}},
             {"$sort": {"xp": -1}},
             {"$limit": limit},
@@ -703,8 +728,11 @@ async def leaderboard(request: Request, scope: str = "all", limit: int = 50):
         return result
     elif scope == "monthly":
         since = _iso(datetime.now(timezone.utc) - timedelta(days=30))
+        match = {"created_at": {"$gte": since}}
+        if member_ids is not None:
+            match["user_id"] = {"$in": member_ids}
         pipeline = [
-            {"$match": {"created_at": {"$gte": since}}},
+            {"$match": match},
             {"$group": {"_id": "$user_id", "xp": {"$sum": "$amount"}}},
             {"$sort": {"xp": -1}},
             {"$limit": limit},
@@ -724,7 +752,10 @@ async def leaderboard(request: Request, scope: str = "all", limit: int = 50):
                            "streak_current": u.get("streak_current", 0)})
         return result
     else:
-        users = await db.users.find({}, {"_id": 0, "password_hash": 0}).sort("xp", -1).limit(limit).to_list(limit)
+        query = {}
+        if member_ids is not None:
+            query["user_id"] = {"$in": member_ids}
+        users = await db.users.find(query, {"_id": 0, "password_hash": 0}).sort("xp", -1).limit(limit).to_list(limit)
         return [{"rank": i + 1, "user_id": u["user_id"], "name": u["name"],
                  "avatar_url": u.get("avatar_url") or u.get("picture"),
                  "team": u.get("team"), "xp": u.get("xp", 0), "level": u.get("level", 1),
@@ -752,12 +783,305 @@ async def list_badges(request: Request):
     return [{**b, "unlocked": b["key"] in owned} for b in BADGE_CATALOG]
 
 
+# ---------- Teams ----------
+async def _team_by_id(team_id: str):
+    t = await db.teams.find_one({"team_id": team_id}, {"_id": 0})
+    if not t:
+        raise HTTPException(status_code=404, detail="Team not found")
+    return t
+
+
+async def _my_team_or_403(user: dict) -> dict:
+    """Return the team the given team_leader leads, or 403."""
+    require_role(user, ["team_leader", "super_admin"])
+    if user["role"] == "super_admin":
+        raise HTTPException(status_code=400, detail="Super admin has no single team")
+    team = await db.teams.find_one({"leader_id": user["user_id"]}, {"_id": 0})
+    if not team:
+        raise HTTPException(status_code=404, detail="You do not lead a team yet")
+    return team
+
+
+@api.get("/teams")
+async def list_teams(request: Request):
+    user = await get_current_user(request, db)
+    require_role(user, ["super_admin"])
+    teams = await db.teams.find({}, {"_id": 0}).sort("name", 1).to_list(200)
+    # Attach member counts + leader info
+    for t in teams:
+        t["member_count"] = await db.users.count_documents({"team_id": t["team_id"]})
+        if t.get("leader_id"):
+            leader = await db.users.find_one({"user_id": t["leader_id"]}, {"_id": 0, "password_hash": 0})
+            t["leader"] = {"user_id": leader["user_id"], "name": leader["name"], "email": leader["email"]} if leader else None
+        else:
+            t["leader"] = None
+    return teams
+
+
+@api.post("/teams")
+async def create_team(payload: TeamIn, request: Request):
+    user = await get_current_user(request, db)
+    require_role(user, ["super_admin"])
+    exists = await db.teams.find_one({"name": payload.name})
+    if exists:
+        raise HTTPException(status_code=400, detail="Team name already exists")
+    doc = {
+        "team_id": str(uuid.uuid4()),
+        "name": payload.name,
+        "leader_id": payload.leader_id,
+        "created_at": _iso(datetime.now(timezone.utc)),
+    }
+    await db.teams.insert_one(doc)
+    if payload.leader_id:
+        await db.users.update_one(
+            {"user_id": payload.leader_id},
+            {"$set": {"role": "team_leader", "team_id": doc["team_id"], "team": payload.name}},
+        )
+    return _clean(doc)
+
+
+@api.patch("/teams/{team_id}")
+async def update_team(team_id: str, payload: TeamUpdate, request: Request):
+    user = await get_current_user(request, db)
+    require_role(user, ["super_admin"])
+    team = await _team_by_id(team_id)
+    updates = {k: v for k, v in payload.model_dump().items() if v is not None}
+    if not updates:
+        return team
+    if "name" in updates and updates["name"] != team["name"]:
+        clash = await db.teams.find_one({"name": updates["name"]})
+        if clash:
+            raise HTTPException(status_code=400, detail="Team name already exists")
+        # Propagate name change to users
+        await db.users.update_many({"team_id": team_id}, {"$set": {"team": updates["name"]}})
+    if "leader_id" in updates:
+        new_leader = updates["leader_id"]
+        # Demote previous leader if any
+        if team.get("leader_id") and team["leader_id"] != new_leader:
+            prev = await db.users.find_one({"user_id": team["leader_id"]}, {"_id": 0})
+            if prev and prev.get("role") == "team_leader":
+                await db.users.update_one({"user_id": team["leader_id"]}, {"$set": {"role": "member"}})
+        if new_leader:
+            await db.users.update_one(
+                {"user_id": new_leader},
+                {"$set": {"role": "team_leader", "team_id": team_id, "team": updates.get("name", team["name"])}},
+            )
+    await db.teams.update_one({"team_id": team_id}, {"$set": updates})
+    return await _team_by_id(team_id)
+
+
+@api.delete("/teams/{team_id}")
+async def delete_team(team_id: str, request: Request):
+    user = await get_current_user(request, db)
+    require_role(user, ["super_admin"])
+    team = await _team_by_id(team_id)
+    # Un-assign all members
+    await db.users.update_many({"team_id": team_id}, {"$set": {"team_id": None, "team": None}})
+    # Demote leader
+    if team.get("leader_id"):
+        await db.users.update_one(
+            {"user_id": team["leader_id"], "role": "team_leader"},
+            {"$set": {"role": "member"}},
+        )
+    await db.teams.delete_one({"team_id": team_id})
+    return {"ok": True}
+
+
+@api.post("/teams/{team_id}/assign")
+async def assign_to_team(team_id: str, payload: TeamAssign, request: Request):
+    user = await get_current_user(request, db)
+    require_role(user, ["super_admin"])
+    team = await _team_by_id(team_id)
+    target = await db.users.find_one({"user_id": payload.user_id}, {"_id": 0})
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+    updates = {"team_id": team_id, "team": team["name"]}
+    if payload.is_leader:
+        updates["role"] = "team_leader"
+        # Demote previous leader if different
+        if team.get("leader_id") and team["leader_id"] != payload.user_id:
+            await db.users.update_one(
+                {"user_id": team["leader_id"], "role": "team_leader"},
+                {"$set": {"role": "member"}},
+            )
+        await db.teams.update_one({"team_id": team_id}, {"$set": {"leader_id": payload.user_id}})
+    await db.users.update_one({"user_id": payload.user_id}, {"$set": updates})
+    return {"ok": True}
+
+
+@api.delete("/teams/{team_id}/members/{user_id}")
+async def remove_from_team(team_id: str, user_id: str, request: Request):
+    admin = await get_current_user(request, db)
+    require_role(admin, ["super_admin"])
+    team = await _team_by_id(team_id)
+    target = await db.users.find_one({"user_id": user_id}, {"_id": 0})
+    if not target or target.get("team_id") != team_id:
+        raise HTTPException(status_code=404, detail="User is not on this team")
+    updates = {"team_id": None, "team": None}
+    if team.get("leader_id") == user_id:
+        updates["role"] = "member"
+        await db.teams.update_one({"team_id": team_id}, {"$set": {"leader_id": None}})
+    await db.users.update_one({"user_id": user_id}, {"$set": updates})
+    return {"ok": True}
+
+
+@api.get("/my-team")
+async def my_team(request: Request):
+    user = await get_current_user(request, db)
+    team = await _my_team_or_403(user)
+    members = await db.users.find(
+        {"team_id": team["team_id"]}, {"_id": 0, "password_hash": 0}
+    ).sort("xp", -1).to_list(500)
+    return {"team": team, "members": members}
+
+
+# ---------- Reports ----------
+async def _user_report(uid: str):
+    checkins = await db.checkins.count_documents({"user_id": uid})
+    prospects = await db.prospects.count_documents({"user_id": uid})
+    won = await db.prospects.count_documents({"user_id": uid, "status": "won"})
+    lost = await db.prospects.count_documents({"user_id": uid, "status": "lost"})
+    followups_done = await db.followups.count_documents({"user_id": uid, "status": "done"})
+    followups_pending = await db.followups.count_documents({"user_id": uid, "status": "pending"})
+    attendance = await db.attendance.count_documents({"user_id": uid})
+    since = _iso(datetime.now(timezone.utc) - timedelta(days=30))
+    xp_30d = await db.xp_events.aggregate([
+        {"$match": {"user_id": uid, "created_at": {"$gte": since}}},
+        {"$group": {"_id": None, "xp": {"$sum": "$amount"}}},
+    ]).to_list(1)
+    # Timeline: last 14 days daily XP
+    days = 14
+    day_start = date.today() - timedelta(days=days - 1)
+    timeline = []
+    for i in range(days):
+        d = day_start + timedelta(days=i)
+        d_start = _iso(datetime.combine(d, datetime.min.time()).replace(tzinfo=timezone.utc))
+        d_end = _iso(datetime.combine(d + timedelta(days=1), datetime.min.time()).replace(tzinfo=timezone.utc))
+        agg = await db.xp_events.aggregate([
+            {"$match": {"user_id": uid, "created_at": {"$gte": d_start, "$lt": d_end}}},
+            {"$group": {"_id": None, "xp": {"$sum": "$amount"}}},
+        ]).to_list(1)
+        timeline.append({"date": d.isoformat(), "xp": agg[0]["xp"] if agg else 0})
+    return {
+        "checkins": checkins, "prospects": prospects, "won": won, "lost": lost,
+        "conversion_rate": round((won / prospects) * 100, 1) if prospects else 0.0,
+        "followups_done": followups_done, "followups_pending": followups_pending,
+        "attendance": attendance,
+        "xp_30d": xp_30d[0]["xp"] if xp_30d else 0,
+        "timeline": timeline,
+    }
+
+
+@api.get("/reports/me")
+async def report_me(request: Request):
+    user = await get_current_user(request, db)
+    stats = await _user_report(user["user_id"])
+    return {"user": user, **stats}
+
+
+@api.get("/reports/team")
+async def report_team(request: Request, team_id: Optional[str] = None):
+    """Team-scoped report. team_leader: their team only. super_admin: any team via team_id."""
+    user = await get_current_user(request, db)
+    require_role(user, ["team_leader", "super_admin"])
+    if user["role"] == "team_leader":
+        team = await _my_team_or_403(user)
+    else:
+        if not team_id:
+            raise HTTPException(status_code=400, detail="team_id required for super_admin")
+        team = await _team_by_id(team_id)
+
+    members = await db.users.find(
+        {"team_id": team["team_id"]}, {"_id": 0, "password_hash": 0}
+    ).sort("xp", -1).to_list(500)
+    member_ids = [m["user_id"] for m in members]
+
+    total_prospects = await db.prospects.count_documents({"user_id": {"$in": member_ids}})
+    total_won = await db.prospects.count_documents({"user_id": {"$in": member_ids}, "status": "won"})
+    total_checkins = await db.checkins.count_documents({"user_id": {"$in": member_ids}})
+    total_attendance = await db.attendance.count_documents({"user_id": {"$in": member_ids}})
+    total_followups_done = await db.followups.count_documents({"user_id": {"$in": member_ids}, "status": "done"})
+    total_xp = sum(m.get("xp", 0) for m in members)
+    active_today = await db.checkins.count_documents({
+        "user_id": {"$in": member_ids}, "date": date.today().isoformat()
+    })
+
+    # Per-member breakdown
+    member_stats = []
+    for m in members:
+        m_prospects = await db.prospects.count_documents({"user_id": m["user_id"]})
+        m_won = await db.prospects.count_documents({"user_id": m["user_id"], "status": "won"})
+        m_followups = await db.followups.count_documents({"user_id": m["user_id"], "status": "done"})
+        m_attendance = await db.attendance.count_documents({"user_id": m["user_id"]})
+        member_stats.append({
+            "user_id": m["user_id"], "name": m["name"], "email": m["email"],
+            "role": m["role"], "xp": m.get("xp", 0), "level": m.get("level", 1),
+            "streak_current": m.get("streak_current", 0),
+            "prospects": m_prospects, "won": m_won,
+            "followups_done": m_followups, "attendance": m_attendance,
+        })
+
+    return {
+        "team": team,
+        "totals": {
+            "members": len(members), "prospects": total_prospects, "won": total_won,
+            "checkins": total_checkins, "attendance": total_attendance,
+            "followups_done": total_followups_done, "xp": total_xp,
+            "active_today": active_today,
+            "conversion_rate": round((total_won / total_prospects) * 100, 1) if total_prospects else 0.0,
+        },
+        "members": member_stats,
+    }
+
+
+@api.get("/reports/global")
+async def report_global(request: Request):
+    """Super admin only — full org-wide report grouped by team."""
+    user = await get_current_user(request, db)
+    require_role(user, ["super_admin"])
+
+    teams = await db.teams.find({}, {"_id": 0}).to_list(200)
+    per_team = []
+    for t in teams:
+        members = await db.users.find({"team_id": t["team_id"]}, {"_id": 0, "password_hash": 0}).to_list(500)
+        mids = [m["user_id"] for m in members]
+        prospects = await db.prospects.count_documents({"user_id": {"$in": mids}}) if mids else 0
+        won = await db.prospects.count_documents({"user_id": {"$in": mids}, "status": "won"}) if mids else 0
+        xp = sum(m.get("xp", 0) for m in members)
+        per_team.append({
+            "team_id": t["team_id"], "name": t["name"], "members": len(members),
+            "prospects": prospects, "won": won, "xp": xp,
+            "conversion_rate": round((won / prospects) * 100, 1) if prospects else 0.0,
+        })
+
+    # Org totals
+    total_users = await db.users.count_documents({})
+    total_prospects = await db.prospects.count_documents({})
+    total_won = await db.prospects.count_documents({"status": "won"})
+    total_teams = await db.teams.count_documents({})
+
+    return {
+        "totals": {
+            "users": total_users, "teams": total_teams,
+            "prospects": total_prospects, "won": total_won,
+            "conversion_rate": round((total_won / total_prospects) * 100, 1) if total_prospects else 0.0,
+        },
+        "teams": per_team,
+    }
+
+
 # ---------- Admin ----------
 @api.get("/admin/users")
 async def admin_users(request: Request):
     user = await get_current_user(request, db)
     require_role(user, ["super_admin", "team_leader"])
-    users = await db.users.find({}, {"_id": 0, "password_hash": 0}).sort("xp", -1).to_list(1000)
+    if user["role"] == "team_leader":
+        team = await _my_team_or_403(user)
+        users = await db.users.find(
+            {"team_id": team["team_id"]}, {"_id": 0, "password_hash": 0}
+        ).sort("xp", -1).to_list(1000)
+    else:
+        users = await db.users.find({}, {"_id": 0, "password_hash": 0}).sort("xp", -1).to_list(1000)
     return users
 
 
@@ -775,19 +1099,41 @@ async def admin_update_role(uid: str, payload: RoleUpdate, request: Request):
 async def admin_analytics(request: Request):
     user = await get_current_user(request, db)
     require_role(user, ["super_admin", "team_leader"])
-    total_users = await db.users.count_documents({})
-    total_prospects = await db.prospects.count_documents({})
-    total_won = await db.prospects.count_documents({"status": "won"})
-    total_attendance = await db.attendance.count_documents({})
-    total_checkins = await db.checkins.count_documents({})
-    active_today = await db.checkins.count_documents({"date": date.today().isoformat()})
-    since = _iso(datetime.now(timezone.utc) - timedelta(days=7))
-    weekly = await db.xp_events.aggregate([
-        {"$match": {"created_at": {"$gte": since}}},
-        {"$group": {"_id": None, "xp": {"$sum": "$amount"}}},
-    ]).to_list(1)
+
+    # Team-leader scoped
+    if user["role"] == "team_leader":
+        team = await _my_team_or_403(user)
+        member_ids = [
+            m["user_id"] async for m in db.users.find({"team_id": team["team_id"]}, {"_id": 0, "user_id": 1})
+        ]
+        match = {"user_id": {"$in": member_ids}} if member_ids else {"user_id": {"$in": []}}
+        total_users = len(member_ids)
+        total_prospects = await db.prospects.count_documents(match)
+        total_won = await db.prospects.count_documents({**match, "status": "won"})
+        total_attendance = await db.attendance.count_documents(match)
+        total_checkins = await db.checkins.count_documents(match)
+        active_today = await db.checkins.count_documents({**match, "date": date.today().isoformat()})
+        since = _iso(datetime.now(timezone.utc) - timedelta(days=7))
+        weekly = await db.xp_events.aggregate([
+            {"$match": {**match, "created_at": {"$gte": since}}},
+            {"$group": {"_id": None, "xp": {"$sum": "$amount"}}},
+        ]).to_list(1)
+    else:
+        total_users = await db.users.count_documents({})
+        total_prospects = await db.prospects.count_documents({})
+        total_won = await db.prospects.count_documents({"status": "won"})
+        total_attendance = await db.attendance.count_documents({})
+        total_checkins = await db.checkins.count_documents({})
+        active_today = await db.checkins.count_documents({"date": date.today().isoformat()})
+        since = _iso(datetime.now(timezone.utc) - timedelta(days=7))
+        weekly = await db.xp_events.aggregate([
+            {"$match": {"created_at": {"$gte": since}}},
+            {"$group": {"_id": None, "xp": {"$sum": "$amount"}}},
+        ]).to_list(1)
+
     weekly_xp = weekly[0]["xp"] if weekly else 0
     return {
+        "scope": "team" if user["role"] == "team_leader" else "global",
         "total_users": total_users, "total_prospects": total_prospects, "total_won": total_won,
         "total_attendance": total_attendance, "total_checkins": total_checkins,
         "active_today": active_today, "weekly_xp": weekly_xp,
@@ -826,8 +1172,11 @@ async def seed_admin_and_indexes():
     await db.user_sessions.create_index("session_token", unique=True)
     await db.password_reset_tokens.create_index("expires_at", expireAfterSeconds=0)
     await db.login_attempts.create_index("identifier")
+    await db.teams.create_index("name", unique=True)
+    await db.teams.create_index("team_id", unique=True)
+    await db.users.create_index("team_id")
 
-    async def upsert_seed_user(email, password, name, role, team):
+    async def upsert_seed_user(email, password, name, role, team, team_id=None):
         existing = await db.users.find_one({"email": email})
         if existing is None:
             await db.users.insert_one({
@@ -835,20 +1184,51 @@ async def seed_admin_and_indexes():
                 "password_hash": hash_password(password), "role": role,
                 "avatar_url": None, "picture": None, "xp": 0, "level": 1,
                 "streak_current": 0, "streak_longest": 0, "last_checkin_date": None,
-                "team": team, "badges": [],
+                "team": team, "team_id": team_id, "badges": [],
                 "created_at": _iso(datetime.now(timezone.utc)), "active": True,
             })
         else:
-            updates = {"role": role, "name": name}
+            updates = {"role": role, "name": name, "team": team, "team_id": team_id}
             if not existing.get("password_hash") or not verify_password(password, existing["password_hash"]):
                 updates["password_hash"] = hash_password(password)
             await db.users.update_one({"email": email}, {"$set": updates})
 
+    # Seed teams first (idempotent by name)
+    async def upsert_team(name):
+        existing = await db.teams.find_one({"name": name})
+        if existing:
+            return existing["team_id"]
+        tid = str(uuid.uuid4())
+        await db.teams.insert_one({
+            "team_id": tid, "name": name, "leader_id": None,
+            "created_at": _iso(datetime.now(timezone.utc)),
+        })
+        return tid
+
+    team_ids = {
+        "Command": await upsert_team("Command"),
+        "Alpha": await upsert_team("Alpha"),
+        "Bravo": await upsert_team("Bravo"),
+        "Delta": await upsert_team("Delta"),
+    }
+
+    # Backfill team_id for users with a team name but no team_id (from earlier seeds)
+    for name, tid in team_ids.items():
+        await db.users.update_many(
+            {"team": name, "$or": [{"team_id": None}, {"team_id": {"$exists": False}}]},
+            {"$set": {"team_id": tid}},
+        )
+
     await upsert_seed_user(os.environ.get("ADMIN_EMAIL", "admin@spartans.com"),
                            os.environ.get("ADMIN_PASSWORD", "Spartan123!"),
-                           "Spartan Commander", "super_admin", "Command")
-    await upsert_seed_user("leader@spartans.com", "Leader123!", "Team Leader Leonidas", "team_leader", "Alpha")
-    await upsert_seed_user("member@spartans.com", "Member123!", "Spartan Recruit", "member", "Alpha")
+                           "Spartan Commander", "super_admin", "Command", team_ids["Command"])
+    await upsert_seed_user("leader@spartans.com", "Leader123!", "Team Leader Leonidas", "team_leader", "Alpha", team_ids["Alpha"])
+    await upsert_seed_user("member@spartans.com", "Member123!", "Spartan Recruit", "member", "Alpha", team_ids["Alpha"])
+
+    # Assign Alpha leader
+    leader = await db.users.find_one({"email": "leader@spartans.com"}, {"_id": 0})
+    if leader:
+        await db.teams.update_one({"team_id": team_ids["Alpha"]}, {"$set": {"leader_id": leader["user_id"]}})
 
     # Seed a few demo members if we have very few users
     users_count = await db.users.count_documents({})
@@ -871,7 +1251,7 @@ async def seed_admin_and_indexes():
                 "password_hash": hash_password("Demo123!"), "role": "member",
                 "avatar_url": None, "picture": None, "xp": xp, "level": level_from_xp(xp),
                 "streak_current": streak, "streak_longest": streak, "last_checkin_date": None,
-                "team": team, "badges": [],
+                "team": team, "team_id": team_ids.get(team), "badges": [],
                 "created_at": _iso(datetime.now(timezone.utc)), "active": True,
             })
             # Seed some xp events distributed across last month

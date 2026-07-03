@@ -13,6 +13,9 @@ import Challenges from "@/pages/Challenges";
 import Leaderboard from "@/pages/Leaderboard";
 import Profile from "@/pages/Profile";
 import Admin from "@/pages/Admin";
+import Teams from "@/pages/Teams";
+import MyTeam from "@/pages/MyTeam";
+import Reports from "@/pages/Reports";
 import "@/App.css";
 
 function Router() {
@@ -84,8 +87,32 @@ function Router() {
             <Route
                 path="/admin"
                 element={
-                    <ProtectedRoute roles={["super_admin", "team_leader"]}>
+                    <ProtectedRoute roles={["super_admin"]}>
                         <AppLayout><Admin /></AppLayout>
+                    </ProtectedRoute>
+                }
+            />
+            <Route
+                path="/teams"
+                element={
+                    <ProtectedRoute roles={["super_admin"]}>
+                        <AppLayout><Teams /></AppLayout>
+                    </ProtectedRoute>
+                }
+            />
+            <Route
+                path="/my-team"
+                element={
+                    <ProtectedRoute roles={["team_leader"]}>
+                        <AppLayout><MyTeam /></AppLayout>
+                    </ProtectedRoute>
+                }
+            />
+            <Route
+                path="/reports"
+                element={
+                    <ProtectedRoute>
+                        <AppLayout><Reports /></AppLayout>
                     </ProtectedRoute>
                 }
             />

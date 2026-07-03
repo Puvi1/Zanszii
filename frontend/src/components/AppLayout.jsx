@@ -2,27 +2,36 @@ import { Link, NavLink, useNavigate } from "react-router-dom";
 import {
     House, Target, Phone, Trophy, User, ChartLine,
     Sword, SignOut, ShieldStar, Calendar, Fire,
+    Users, UsersThree, ChartBar,
 } from "@phosphor-icons/react";
 import { useAuth } from "@/context/AuthContext";
 import { motion } from "framer-motion";
 
-const NAV = [
+const BASE_NAV = [
     { to: "/", icon: House, label: "Dashboard", testId: "nav-dashboard" },
     { to: "/prospects", icon: Target, label: "Prospects", testId: "nav-prospects" },
     { to: "/followups", icon: Phone, label: "Follow-Ups", testId: "nav-followups" },
     { to: "/attendance", icon: Calendar, label: "Attendance", testId: "nav-attendance" },
     { to: "/challenges", icon: Fire, label: "Challenges", testId: "nav-challenges" },
     { to: "/leaderboard", icon: Trophy, label: "Leaderboard", testId: "nav-leaderboard" },
+    { to: "/reports", icon: ChartBar, label: "Reports", testId: "nav-reports" },
     { to: "/profile", icon: User, label: "Profile", testId: "nav-profile" },
 ];
 
-const ADMIN_NAV = { to: "/admin", icon: ChartLine, label: "Admin", testId: "nav-admin" };
+const LEADER_NAV = { to: "/my-team", icon: UsersThree, label: "My Team", testId: "nav-my-team" };
+const ADMIN_USERS_NAV = { to: "/admin", icon: Users, label: "All Users", testId: "nav-admin" };
+const ADMIN_TEAMS_NAV = { to: "/teams", icon: ChartLine, label: "Teams", testId: "nav-teams" };
+
+function navForRole(role) {
+    if (role === "super_admin") return [...BASE_NAV, ADMIN_USERS_NAV, ADMIN_TEAMS_NAV];
+    if (role === "team_leader") return [...BASE_NAV, LEADER_NAV];
+    return BASE_NAV;
+}
 
 export default function AppLayout({ children }) {
     const { user, logout } = useAuth();
     const navigate = useNavigate();
-    const showAdmin = user && (user.role === "super_admin" || user.role === "team_leader");
-    const nav = showAdmin ? [...NAV, ADMIN_NAV] : NAV;
+    const nav = navForRole(user?.role);
 
     const initials = (user?.name || "S").split(" ").map((s) => s[0]).slice(0, 2).join("").toUpperCase();
 
@@ -132,7 +141,7 @@ export default function AppLayout({ children }) {
             {/* Mobile Bottom Nav */}
             <nav className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-[#08080b]/95 backdrop-blur-2xl border-t border-white/10">
                 <div className="grid grid-cols-5 gap-1 px-2 py-2">
-                    {NAV.slice(0, 5).map((item) => (
+                    {BASE_NAV.slice(0, 5).map((item) => (
                         <NavLink
                             key={item.to}
                             to={item.to}
