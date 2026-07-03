@@ -1,0 +1,22 @@
+{
+  "summary": "Backend tests for expanded Member Profile System + Celebrations endpoints. All 11/11 tests passed. Verified registration accepts new optional fields (phone/dob/gender/city/state) and persists them; PATCH /api/profile accepts and stores all 16+ new fields; enum validation returns 422 for invalid club_type, marital_status, gender; /profile/completion reports 16 total fields with correct pct math; /celebrations/me correctly flags is_birthday and is_anniversary (only when married); /celebrations/today lists Achilles under birthdays (today=07-03) and excludes him from anniversaries when marital_status=unmarried; endpoints require auth (401/403).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_profile_celebrations.py",
+    "/app/test_reports/pytest/profile_celeb.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "PATCH /api/profile silently ignores unknown keys (extra='ignore' via Pydantic default) — fine, but consider explicit 'extra=forbid' to catch typos in client",
+    "profile_completion uses field 'team_id' but registration/seed stores 'team' — that field will always count as missing (verify PROFILE_FIELDS alignment with actual stored keys); PATCH also doesn't allow updating team_id/email so max reachable pct may be capped below 100 for regular users, which could block the +50 XP one-time award",
+    "server.py has grown to 2296 lines — recommend splitting into routers (profile, auth, celebrations, missions, etc.) for maintainability"
+  ],
+  "updated_files": ["/app/backend/tests/test_profile_celebrations.py"],
+  "success_rate": {"backend": "100%", "frontend": "not tested (per request)"},
+  "test_credentials": "member@spartans.com/Member123!, achilles@spartans.com/Demo123! (used from request)",
+  "seed_data_creation": "Created transient TEST_reg_* user via /auth/register; also toggled Achilles marital_status during tests and restored to 'married' at end.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Server date is 2026-07-03 UTC so Achilles (dob=1988-07-03) triggers birthday celebrations. Tests toggle Achilles.marital_status and restore to 'married'. PROFILE_FIELDS list uses 'team_id' but stored user doc uses 'team' — 100% completion is likely unreachable for standard users, worth flagging to main agent."
+}

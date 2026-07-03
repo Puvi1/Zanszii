@@ -111,6 +111,11 @@ class RegisterIn(BaseModel):
     email: EmailStr
     password: str = Field(min_length=6)
     name: str = Field(min_length=1)
+    phone: Optional[str] = None
+    dob: Optional[str] = None
+    gender: Optional[Literal["male", "female", "other", "prefer_not"]] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
 
 
 class LoginIn(BaseModel):
@@ -237,9 +242,27 @@ class RewardUpdate(BaseModel):
 
 
 class ProfileUpdate(BaseModel):
+    # Basic
+    name: Optional[str] = None
     phone: Optional[str] = None
-    bio: Optional[str] = None
+    dob: Optional[str] = None  # YYYY-MM-DD
+    gender: Optional[Literal["male", "female", "other", "prefer_not"]] = None
+    marital_status: Optional[Literal["married", "unmarried"]] = None
+    anniversary_date: Optional[str] = None  # YYYY-MM-DD
+    anniversary_photo: Optional[str] = None  # base64 data URL
     avatar_url: Optional[str] = None
+    avatar_photo: Optional[str] = None  # base64 alternative
+    city: Optional[str] = None
+    state: Optional[str] = None
+    # Business
+    joining_date: Optional[str] = None
+    club_type: Optional[Literal["decider", "believer", "converter", "builder"]] = None
+    position: Optional[str] = None
+    # Personal
+    favourite_food: Optional[str] = None
+    favourite_place: Optional[str] = None
+    favourite_hobby: Optional[str] = None
+    bio: Optional[str] = None
 
 
 class ChallengeIn(BaseModel):
@@ -396,6 +419,11 @@ async def register(payload: RegisterIn, response: Response):
         "streak_longest": 0,
         "last_checkin_date": None,
         "team": "Alpha",
+        "phone": payload.phone,
+        "dob": payload.dob,
+        "gender": payload.gender,
+        "city": payload.city,
+        "state": payload.state,
         "badges": [],
         "created_at": _iso(datetime.now(timezone.utc)),
         "active": True,
@@ -1817,7 +1845,10 @@ async def team_league(request: Request):
 
 
 # ---------- Profile Completion ----------
-PROFILE_FIELDS = ["name", "email", "avatar_url", "team_id", "phone", "bio"]
+PROFILE_FIELDS = ["name", "email", "avatar_url", "team_id", "phone", "bio",
+                  "dob", "gender", "marital_status", "city", "state",
+                  "club_type", "position",
+                  "favourite_food", "favourite_place", "favourite_hobby"]
 PROFILE_COMPLETION_XP = 50
 
 
@@ -1999,6 +2030,52 @@ async def export_daily(request: Request, format: str = "csv", day: Optional[str]
     if format == "pdf":
         return _pdf_response(filename + ".pdf", f"Daily Report — {d}", headers, rows)
     return _csv_response(filename + ".csv", headers, rows)
+
+
+# ---------- Celebrations ----------
+def _md(iso_date: str) -> str:
+    """Return MM-DD from a YYYY-MM-DD string."""
+    try:
+        return iso_date[5:10]
+    except Exception:
+        return ""
+
+
+@api.get("/celebrations/me")
+async def my_celebrations(request: Request):
+    user = await get_current_user(request, db)
+    today_md = date.today().strftime("%m-%d")
+    is_birthday = user.get("dob") and _md(user["dob"]) == today_md
+    is_anniversary = (
+        user.get("marital_status") == "married"
+        and user.get("anniversary_date")
+        and _md(user["anniversary_date"]) == today_md
+    )
+    return {"is_birthday": bool(is_birthday), "is_anniversary": bool(is_anniversary),
+            "user": {"user_id": user["user_id"], "name": user["name"]}}
+
+
+@api.get("/celebrations/today")
+async def team_celebrations(request: Request):
+    """List all users whose birthday or anniversary is today."""
+    await get_current_user(request, db)
+    today_md = date.today().strftime("%m-%d")
+    users = await db.users.find({}, {"_id": 0, "password_hash": 0}).to_list(2000)
+    birthdays = []
+    anniversaries = []
+    for u in users:
+        if u.get("dob") and _md(u["dob"]) == today_md:
+            birthdays.append({"user_id": u["user_id"], "name": u["name"],
+                              "avatar_url": u.get("avatar_url") or u.get("avatar_photo"),
+                              "team": u.get("team")})
+        if (u.get("marital_status") == "married"
+                and u.get("anniversary_date")
+                and _md(u["anniversary_date"]) == today_md):
+            anniversaries.append({"user_id": u["user_id"], "name": u["name"],
+                                  "avatar_url": u.get("avatar_url") or u.get("avatar_photo"),
+                                  "anniversary_photo": u.get("anniversary_photo"),
+                                  "team": u.get("team")})
+    return {"date": date.today().isoformat(), "birthdays": birthdays, "anniversaries": anniversaries}
 
 
 @api.get("/")

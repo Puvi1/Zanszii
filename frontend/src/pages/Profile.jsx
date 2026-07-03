@@ -29,14 +29,37 @@ export default function Profile() {
 
     useEffect(() => {
         if (user) {
-            setForm({ phone: user.phone || "", bio: user.bio || "", avatar_url: user.avatar_url || "" });
+            setForm({
+                name: user.name || "",
+                phone: user.phone || "",
+                bio: user.bio || "",
+                avatar_url: user.avatar_url || "",
+                dob: user.dob || "",
+                gender: user.gender || "",
+                marital_status: user.marital_status || "",
+                anniversary_date: user.anniversary_date || "",
+                anniversary_photo: user.anniversary_photo || "",
+                city: user.city || "",
+                state: user.state || "",
+                joining_date: user.joining_date || "",
+                club_type: user.club_type || "",
+                position: user.position || "",
+                favourite_food: user.favourite_food || "",
+                favourite_place: user.favourite_place || "",
+                favourite_hobby: user.favourite_hobby || "",
+            });
         }
     }, [user]);
 
     const saveProfile = async (e) => {
         e.preventDefault();
         try {
-            const { data } = await api.patch("/profile", form);
+            // Strip empty strings to null so backend sees them as intentional
+            const payload = {};
+            Object.entries(form).forEach(([k, v]) => {
+                if (v !== "" && v !== null && v !== undefined) payload[k] = v;
+            });
+            const { data } = await api.patch("/profile", payload);
             if (data.xp) {
                 fireBigConfetti();
                 toast.success("Profile complete! +50 XP");
@@ -53,7 +76,12 @@ export default function Profile() {
 
     const initials = user.name.split(" ").map((s) => s[0]).slice(0, 2).join("").toUpperCase();
     const unlocked = badges.filter((b) => b.unlocked);
-    const missingLabels = { avatar_url: "Avatar", team_id: "Team", phone: "Phone", bio: "Bio" };
+    const missingLabels = {
+        avatar_url: "Avatar", team_id: "Team", phone: "Phone", bio: "Bio",
+        dob: "Date of Birth", gender: "Gender", marital_status: "Marital status",
+        city: "City", state: "State", club_type: "Club Type", position: "Position",
+        favourite_food: "Fav. Food", favourite_place: "Fav. Place", favourite_hobby: "Fav. Hobby",
+    };
     const locked = badges.filter((b) => !b.unlocked);
 
     const circumference = 2 * Math.PI * 88;
@@ -152,22 +180,109 @@ export default function Profile() {
                     <ProgressBar value={completion.pct} max={100} color="gold" testId="completion-progress" />
 
                     {editing ? (
-                        <form onSubmit={saveProfile} className="mt-6 space-y-3">
-                            <div>
-                                <label className="text-[10px] uppercase tracking-widest text-zinc-500 block mb-1">Avatar URL</label>
-                                <input type="url" placeholder="https://..." value={form.avatar_url} onChange={(e)=>setForm({...form, avatar_url: e.target.value})} className="field" data-testid="profile-avatar-input" />
-                            </div>
-                            <div>
-                                <label className="text-[10px] uppercase tracking-widest text-zinc-500 block mb-1">Phone</label>
-                                <input type="tel" placeholder="+91 98765 43210" value={form.phone} onChange={(e)=>setForm({...form, phone: e.target.value})} className="field" data-testid="profile-phone-input" />
-                            </div>
-                            <div>
-                                <label className="text-[10px] uppercase tracking-widest text-zinc-500 block mb-1">Bio</label>
-                                <textarea rows={3} placeholder="Your story, your mission..." value={form.bio} onChange={(e)=>setForm({...form, bio: e.target.value})} className="field resize-none" data-testid="profile-bio-input" />
-                            </div>
-                            <button type="submit" className="btn-gold w-full mt-2" data-testid="save-profile-btn">
-                                <Check size={16} weight="bold" /> Save
-                                {!completion.completion_xp_awarded && completion.pct < 100 && <span className="ml-1 text-xs opacity-80">· complete for +50 XP</span>}
+                        <form onSubmit={saveProfile} className="mt-6 space-y-6">
+                            <FormSection title="Basic Info">
+                                <FormRow>
+                                    <Field label="Full Name" testId="profile-name-input">
+                                        <input required value={form.name} onChange={(e)=>setForm({...form, name: e.target.value})} className="field" />
+                                    </Field>
+                                    <Field label="Mobile Number" testId="profile-phone-input">
+                                        <input type="tel" placeholder="+91 98765 43210" value={form.phone} onChange={(e)=>setForm({...form, phone: e.target.value})} className="field" />
+                                    </Field>
+                                </FormRow>
+                                <FormRow>
+                                    <Field label="Date of Birth" testId="profile-dob-input">
+                                        <input type="date" value={form.dob} onChange={(e)=>setForm({...form, dob: e.target.value})} className="field" />
+                                    </Field>
+                                    <Field label="Gender" testId="profile-gender-input">
+                                        <select value={form.gender} onChange={(e)=>setForm({...form, gender: e.target.value})} className="field">
+                                            <option value="">Select...</option>
+                                            <option value="male">Male</option>
+                                            <option value="female">Female</option>
+                                            <option value="other">Other</option>
+                                            <option value="prefer_not">Prefer not to say</option>
+                                        </select>
+                                    </Field>
+                                </FormRow>
+                                <FormRow>
+                                    <Field label="Marital Status" testId="profile-marital-input">
+                                        <select value={form.marital_status} onChange={(e)=>setForm({...form, marital_status: e.target.value})} className="field">
+                                            <option value="">Select...</option>
+                                            <option value="unmarried">Unmarried</option>
+                                            <option value="married">Married</option>
+                                        </select>
+                                    </Field>
+                                    {form.marital_status === "married" && (
+                                        <Field label="Wedding Anniversary" testId="profile-anniversary-input">
+                                            <input type="date" value={form.anniversary_date} onChange={(e)=>setForm({...form, anniversary_date: e.target.value})} className="field" />
+                                        </Field>
+                                    )}
+                                </FormRow>
+                                {form.marital_status === "married" && (
+                                    <Field label="Anniversary Photo (URL)" testId="profile-anniversary-photo-input">
+                                        <input type="url" placeholder="https://..." value={form.anniversary_photo} onChange={(e)=>setForm({...form, anniversary_photo: e.target.value})} className="field" />
+                                    </Field>
+                                )}
+                                <Field label="Profile Photo (URL)" testId="profile-avatar-input">
+                                    <input type="url" placeholder="https://..." value={form.avatar_url} onChange={(e)=>setForm({...form, avatar_url: e.target.value})} className="field" />
+                                </Field>
+                                <FormRow>
+                                    <Field label="City" testId="profile-city-input">
+                                        <input value={form.city} onChange={(e)=>setForm({...form, city: e.target.value})} className="field" />
+                                    </Field>
+                                    <Field label="State" testId="profile-state-input">
+                                        <input value={form.state} onChange={(e)=>setForm({...form, state: e.target.value})} className="field" />
+                                    </Field>
+                                </FormRow>
+                            </FormSection>
+
+                            <FormSection title="Business">
+                                <FormRow>
+                                    <Field label="Joining Date" testId="profile-joining-input">
+                                        <input type="date" value={form.joining_date} onChange={(e)=>setForm({...form, joining_date: e.target.value})} className="field" />
+                                    </Field>
+                                    <Field label="Position" testId="profile-position-input">
+                                        <input placeholder="e.g. Regional Commander" value={form.position} onChange={(e)=>setForm({...form, position: e.target.value})} className="field" />
+                                    </Field>
+                                </FormRow>
+                                <Field label="Club Type" testId="profile-club-input">
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                        {["decider", "believer", "converter", "builder"].map((c) => (
+                                            <button
+                                                key={c} type="button"
+                                                onClick={() => setForm({...form, club_type: c})}
+                                                className={`p-3 rounded-xl border font-bold text-xs uppercase tracking-widest transition-all ${
+                                                    form.club_type === c
+                                                        ? "bg-yellow-500 text-black border-yellow-500 shadow-[0_0_12px_rgba(234,179,8,0.4)]"
+                                                        : "bg-white/5 text-zinc-400 border-white/10 hover:border-white/20"
+                                                }`}
+                                                data-testid={`profile-club-${c}`}
+                                            >{c}</button>
+                                        ))}
+                                    </div>
+                                </Field>
+                            </FormSection>
+
+                            <FormSection title="Personal Favourites">
+                                <FormRow>
+                                    <Field label="Favourite Food" testId="profile-food-input">
+                                        <input placeholder="Biryani" value={form.favourite_food} onChange={(e)=>setForm({...form, favourite_food: e.target.value})} className="field" />
+                                    </Field>
+                                    <Field label="Favourite Place" testId="profile-place-input">
+                                        <input placeholder="Goa" value={form.favourite_place} onChange={(e)=>setForm({...form, favourite_place: e.target.value})} className="field" />
+                                    </Field>
+                                </FormRow>
+                                <Field label="Favourite Hobby" testId="profile-hobby-input">
+                                    <input placeholder="Cricket, Reading, Hiking..." value={form.favourite_hobby} onChange={(e)=>setForm({...form, favourite_hobby: e.target.value})} className="field" />
+                                </Field>
+                                <Field label="Bio" testId="profile-bio-input">
+                                    <textarea rows={3} placeholder="Your story, your mission..." value={form.bio} onChange={(e)=>setForm({...form, bio: e.target.value})} className="field resize-none" />
+                                </Field>
+                            </FormSection>
+
+                            <button type="submit" className="btn-gold w-full" data-testid="save-profile-btn">
+                                <Check size={16} weight="bold" /> Save Profile
+                                {!completion.completion_xp_awarded && completion.pct < 100 && <span className="ml-1 text-xs opacity-80">· complete all for +50 XP</span>}
                             </button>
                         </form>
                     ) : completion.missing.length > 0 ? (
@@ -179,6 +294,36 @@ export default function Profile() {
                     ) : (
                         <div className="mt-4 text-sm text-emerald-400 flex items-center gap-2">
                             <Check size={14} weight="bold" /> All fields filled. You're a full Spartan.
+                        </div>
+                    )}
+                </section>
+            )}
+
+            {/* Personal Details view */}
+            {!editing && (user.dob || user.city || user.club_type || user.favourite_food) && (
+                <section className="glass p-6" data-testid="profile-details">
+                    <div className="mb-5">
+                        <div className="heading-eyebrow">Dossier</div>
+                        <h3 className="font-display font-black text-2xl mt-1">Personal Details</h3>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {user.dob && <DetailRow label="Date of Birth" value={user.dob} />}
+                        {user.gender && <DetailRow label="Gender" value={user.gender.replace("_", " ")} />}
+                        {user.marital_status && <DetailRow label="Marital Status" value={user.marital_status} />}
+                        {user.anniversary_date && <DetailRow label="Anniversary" value={user.anniversary_date} />}
+                        {user.phone && <DetailRow label="Mobile" value={user.phone} />}
+                        {(user.city || user.state) && <DetailRow label="Location" value={[user.city, user.state].filter(Boolean).join(", ")} />}
+                        {user.joining_date && <DetailRow label="Joined" value={user.joining_date} />}
+                        {user.club_type && <DetailRow label="Club Type" value={user.club_type} chip="chip-gold" />}
+                        {user.position && <DetailRow label="Position" value={user.position} />}
+                        {user.favourite_food && <DetailRow label="Fav. Food" value={user.favourite_food} />}
+                        {user.favourite_place && <DetailRow label="Fav. Place" value={user.favourite_place} />}
+                        {user.favourite_hobby && <DetailRow label="Fav. Hobby" value={user.favourite_hobby} />}
+                    </div>
+                    {user.anniversary_photo && (
+                        <div className="mt-6">
+                            <div className="heading-eyebrow mb-2">Anniversary Memory</div>
+                            <img src={user.anniversary_photo} alt="Anniversary" className="rounded-2xl max-h-64 object-cover border border-white/10" data-testid="anniversary-photo" />
                         </div>
                     )}
                 </section>
@@ -196,6 +341,41 @@ export default function Profile() {
                     ))}
                 </div>
             </section>
+        </div>
+    );
+}
+
+function FormSection({ title, children }) {
+    return (
+        <div className="space-y-3">
+            <div className="heading-eyebrow border-b border-white/5 pb-2">{title}</div>
+            {children}
+        </div>
+    );
+}
+
+function FormRow({ children }) {
+    return <div className="grid grid-cols-1 md:grid-cols-2 gap-3">{children}</div>;
+}
+
+function Field({ label, testId, children }) {
+    return (
+        <div data-testid={testId}>
+            <label className="text-[10px] uppercase tracking-widest text-zinc-500 block mb-1">{label}</label>
+            {children}
+        </div>
+    );
+}
+
+function DetailRow({ label, value, chip }) {
+    return (
+        <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5">
+            <div className="text-[10px] uppercase tracking-widest text-zinc-500">{label}</div>
+            {chip ? (
+                <div className="mt-1"><span className={chip}>{value}</span></div>
+            ) : (
+                <div className="mt-1 text-sm font-semibold text-white capitalize">{value}</div>
+            )}
         </div>
     );
 }

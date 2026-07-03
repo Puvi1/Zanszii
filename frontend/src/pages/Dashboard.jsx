@@ -13,6 +13,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
+import CelebrationBanner from "@/components/CelebrationBanner";
 
 export default function Dashboard() {
     const { user, refreshUser } = useAuth();
