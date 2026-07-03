@@ -1,0 +1,54 @@
+{
+  "summary": "Comprehensive backend testing of Spartans Growth League. Wrote 25 pytest cases covering auth, dashboard, check-in, prospects/followups CRUD & XP, attendance, challenges (RBAC + auto-progress), leaderboard (weekly/monthly/all + teams), badges (auto-unlock), admin (RBAC + analytics), and level formula. 25/25 passing (1 skipped for known proxy issue).",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "POST /api/auth/login",
+        "issue": "Brute force lockout NEVER triggers behind the ingress proxy. Root cause: _login_lockout_check uses `request.client.host` for identifier, but the Kubernetes ingress rotates across multiple internal IPs (e.g. 10.79.138.194, 10.79.138.198). Attempts get sharded across identifiers, so no single identifier reaches 5. Verified by mongosh — multiple login_attempts docs with attempts=1..2 exist for the same fake email from different proxy IPs. Fix: parse `X-Forwarded-For` header (first IP) with fallback to request.client.host, e.g. `ip = (request.headers.get('x-forwarded-for') or '').split(',')[0].strip() or (request.client.host if request.client else 'unknown')`.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": [
+      {
+        "endpoint": "POST /api/auth/google-session",
+        "issue": "response.set_cookie for session_token uses samesite='none' but if REACT_APP_BACKEND_URL is not https on some environments the browser will drop it. Currently OK on the preview URL (https). Only flagging as info."
+      },
+      {
+        "endpoint": "GET /api/leaderboard?scope=weekly|monthly",
+        "issue": "Aggregation groups xp_events by user_id and sums 'amount' but does not filter out seeded 'reason: seed' events, so seeded demo users appear inflated in weekly/monthly boards. Consider excluding reason='seed' or use a distinct seeding approach."
+      },
+      {
+        "endpoint": "POST /api/checkins/daily",
+        "issue": "Race-safe unique index on (user_id,date) prevents duplicates but raises pymongo DuplicateKeyError as 500 on race. Current serial flow returns clean 400 via find_one, but recommend try/except around insert for concurrency."
+      }
+    ]
+  },
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Fix brute force lockout identifier to use X-Forwarded-For (or a hardened IP extractor) so 5-fail rule works behind ingress. This is a security regression — the feature is currently non-functional in the deployed environment.",
+    "Consider excluding 'reason: seed' xp_events from weekly/monthly leaderboard aggregation to avoid demo skew."
+  ],
+  "critical_code_review_comments": [
+    "server.py is 923 lines — approaching split threshold. Consider splitting into routers/ (auth, gamification, admin, crm, challenges).",
+    "Brute force lockout uses proxy IP — see critical issue above.",
+    "on_event('startup') deprecated in newer FastAPI — migrate to lifespan handler eventually (non-blocking).",
+    "CORS uses allow_origins='*' with allow_credentials=True — CORS spec disallows this combo; browsers ignore credentials on wildcard origin. Set explicit origin(s) for production.",
+    "google_session stores emergent session_token as-is in cookies; ensure secure=True on non-HTTPS dev is guarded (currently hardcoded True which is fine for the preview URL over HTTPS).",
+    "Seed data award_xp/award badge upsert logic looks correct; badge XP is also awarded (double-check intentional).",
+    "All endpoints properly exclude _id and password_hash. Good."
+  ],
+  "updated_files": [
+    "/app/backend/tests/backend_test.py"
+  ],
+  "success_rate": {"backend": "96% (24/25 fully passing, 1 skipped due to infra-level brute-force bug)", "frontend": "n/a (skipped per request)"},
+  "test_credentials": "admin@spartans.com/Spartan123!, leader@spartans.com/Leader123!, member@spartans.com/Member123! — all present in /app/memory/test_credentials.md and seeded on startup.",
+  "seed_data_creation": "Backend auto-seeds on startup (admin + leader + member + 7 demo users + 3 demo challenges). Tests create fresh test_* users per test — safe with unique-email index. Did not clean up test_* users afterwards (idempotent naming with uuid, no collisions).",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend fully validated for gamification (XP awards for check-in +10, prospect +5, prospect_won +50, followup_done +8, attendance +15 — all verified end-to-end), badge auto-unlock ('first_step' verified after daily check-in), challenge auto-progress (verified: leader creates 'prospects' challenge, member joins, adds 2 prospects → progress=2, completed=true), RBAC (member 403 on POST /challenges & GET /admin/users, leader 403 on PATCH /admin/users/{id}/role), and level formula (100 XP → level 2 verified). Only outstanding issue is the brute-force lockout under ingress. Frontend testing was explicitly skipped.",
+  "rca of the issue": "Brute force lockout: identifier = f'{request.client.host}:{email}'. Behind the k8s ingress the FastAPI app sees the proxy's internal IP as client.host, and the ingress rotates across at least 2 backing pod IPs. Since MongoDB stores separate docs per identifier, each identifier only accumulates 1-2 attempts before the next request lands on a different proxy IP. Fix: extract the real client IP from `X-Forwarded-For` (or use only the email as identifier for lockout keying, at the cost of enabling denial-of-service on a legit user's account — X-Forwarded-For is the standard choice)."
+}
