@@ -211,3 +211,38 @@ Gamified performance tracking & accountability platform for a Crypto Network Mar
 
 ### Test Coverage
 - Backend: **11/11** (100%) — registration new fields, PATCH accepts all fields, enum 422 rejection, celebrations logic (birthday vs anniversary, married check), 16-field completion pct
+
+## Refactor + PWA (Feb 2026)
+
+### Simplified Signup Flow
+- Register form reduced to **4 fields**: Full Name, Email, Password, Mobile Number
+- All richer fields (DOB, gender, city, state, club, etc.) moved to Profile page
+
+### Force Profile Completion
+- New guard in `ProtectedRoute.jsx`: `REQUIRED_PROFILE_FIELDS = [dob, gender, marital_status, city, state, club_type]`
+- Users missing any of these are auto-redirected to `/profile` with `first_time: true` state
+- Profile page shows a **welcome banner** for first-time users, auto-opens the Edit form
+
+### Team Self-Selection
+- New endpoint `GET /api/teams/public` (any auth user) returns id+name of all teams
+- New endpoint `POST /api/profile/join-team?team_id=<id>` (any auth user) — self-assigns to a team
+- Team dropdown added to Profile edit form's Basic Info section
+
+### Club-Based Nav Hiding
+- `navForRole(role, club_type)` in `AppLayout.jsx` filters BASE_NAV
+- Items marked `requiresSeasonAccess: true` are hidden when `club_type === "decider"`
+- Currently hides `/seasons` for Deciders — matching spec
+
+### Nav Cleanup
+- Renamed sidebar labels: `Weekly` → `Attendance`, `Leaderboard` → `League`
+- Removed duplicate `Attendance` route (was for XP-event logging; the meaningful attendance is now the weekly attendance system)
+
+### PWA Support
+- `/app/frontend/public/manifest.json` — Spartans branding, theme_color #EAB308, standalone display, portrait orientation
+- `/app/frontend/public/service-worker.js` — CACHE_NAME=sgl-v1, network-first for `/api/`, network-first for navigations with cache fallback for offline, cache-first for static assets
+- Registered in `index.js` on `window.load`
+- Meta tags added to `index.html`: theme-color, apple-mobile-web-app-capable, status-bar-style
+
+### Test Coverage
+- Backend: **5/5** (100%) — minimal register, `/teams/public` auth+listing, `/profile/join-team` happy+404
+- Frontend: **20/20** (100%) — simplified form, first-time redirect, admin bypass, team selector, sidebar labels, decider hides Seasons, PWA manifest/SW served + registered
