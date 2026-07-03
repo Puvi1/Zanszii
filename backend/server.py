@@ -310,7 +310,8 @@ async def register(payload: RegisterIn, response: Response):
 @api.post("/auth/login")
 async def login(payload: LoginIn, request: Request, response: Response):
     email = payload.email.lower().strip()
-    ip = request.client.host if request.client else "unknown"
+    xff = request.headers.get("x-forwarded-for", "")
+    ip = xff.split(",")[0].strip() if xff else (request.client.host if request.client else "unknown")
     ident = f"{ip}:{email}"
     await _login_lockout_check(ident)
     user = await db.users.find_one({"email": email})
