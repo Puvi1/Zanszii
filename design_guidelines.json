@@ -1,0 +1,144 @@
+{
+  "project_name": "SPARTANS GROWTH LEAGUE",
+  "theme": "Dark",
+  "archetype": "Luxury & Performance Pro",
+  "color_palette": {
+    "background": {
+      "base": "#050507",
+      "surface": "#121215",
+      "surface_elevated": "#1A1A1E",
+      "glass": "bg-[#121215]/60 backdrop-blur-2xl border border-white/10"
+    },
+    "primary": {
+      "DEFAULT": "#EAB308",
+      "hover": "#CA8A04",
+      "glow": "drop-shadow-[0_0_12px_rgba(234,179,8,0.5)]"
+    },
+    "secondary": {
+      "DEFAULT": "#3B82F6",
+      "hover": "#2563EB",
+      "glow": "drop-shadow-[0_0_12px_rgba(59,130,246,0.5)]"
+    },
+    "text": {
+      "primary": "#FFFFFF",
+      "secondary": "#A1A1AA",
+      "muted": "#71717A",
+      "inverse": "#050507"
+    },
+    "status": {
+      "success": "#10B981",
+      "warning": "#F59E0B",
+      "danger": "#EF4444"
+    }
+  },
+  "typography": {
+    "font_family": {
+      "headings": "'Unbounded', sans-serif",
+      "body": "'Manrope', sans-serif"
+    },
+    "hierarchy": {
+      "h1": "text-4xl sm:text-5xl lg:text-6xl font-black tracking-tighter text-white",
+      "h2": "text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-white",
+      "h3": "text-xl sm:text-2xl font-bold tracking-tight text-white",
+      "h4": "text-lg sm:text-xl font-semibold text-white",
+      "body": "text-base font-normal leading-relaxed text-zinc-400",
+      "small": "text-sm font-bold tracking-[0.2em] text-zinc-500 uppercase"
+    }
+  },
+  "layout_spacing": {
+    "container": "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8",
+    "section_gap": "gap-12 md:gap-24",
+    "card_padding": "p-6 md:p-8",
+    "bento_grid": "grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6"
+  },
+  "components": {
+    "buttons": {
+      "primary": "bg-yellow-500 text-black font-bold hover:bg-yellow-400 transition-all shadow-[0_0_15px_rgba(234,179,8,0.3)] hover:shadow-[0_0_25px_rgba(234,179,8,0.5)] rounded-xl px-6 py-3 flex items-center justify-center gap-2",
+      "secondary": "bg-blue-500 text-white font-bold hover:bg-blue-400 transition-all shadow-[0_0_15px_rgba(59,130,246,0.3)] rounded-xl px-6 py-3 flex items-center justify-center gap-2",
+      "glass": "bg-white/5 border border-white/10 text-white hover:bg-white/10 backdrop-blur-md rounded-xl px-6 py-3 transition-colors flex items-center justify-center gap-2",
+      "ghost": "text-zinc-400 hover:text-white hover:bg-white/5 rounded-xl px-6 py-3 transition-colors"
+    },
+    "cards": {
+      "glass_panel": "bg-[#121215]/80 backdrop-blur-xl border border-white/5 rounded-2xl p-6 shadow-2xl relative overflow-hidden",
+      "achievement_card": "bg-gradient-to-br from-yellow-500/10 to-transparent border border-yellow-500/30 rounded-2xl p-6 flex flex-col items-center text-center hover:border-yellow-500/60 transition-all",
+      "metric_card": "bg-[#1A1A1E] border border-white/5 rounded-xl p-6 flex items-start justify-between"
+    },
+    "progress_bars": {
+      "xp_bar": "h-4 bg-zinc-900 rounded-full overflow-hidden relative shadow-inner border border-white/5",
+      "xp_fill": "h-full bg-gradient-to-r from-yellow-500 to-yellow-300 relative before:absolute before:inset-0 before:bg-[length:20px_20px] before:bg-[linear-gradient(45deg,rgba(255,255,255,0.15)_25%,transparent_25%,transparent_50%,rgba(255,255,255,0.15)_50%,rgba(255,255,255,0.15)_75%,transparent_75%,transparent)] before:animate-[move-bg_1s_linear_infinite] shadow-[0_0_10px_rgba(234,179,8,0.5)]"
+    },
+    "badges": {
+      "rank_gold": "px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-yellow-500/20 text-yellow-500 border border-yellow-500/30",
+      "rank_blue": "px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-blue-500/20 text-blue-400 border border-blue-500/30",
+      "status_active": "px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+    }
+  },
+  "animations": {
+    "hover_lift": "hover:-translate-y-1 hover:shadow-lg transition-all duration-300",
+    "confetti": "canvas-confetti package. Trigger fire() on achievement unlock, level up, or goal completion. Use gold (#EAB308) and blue (#3B82F6) colors.",
+    "page_transition": "Framer Motion: <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} />",
+    "streak_flame": "Framer Motion: animate scale [1, 1.1, 1] and opacity for a pulsing effect on the streak flame icon.",
+    "progress_fill": "Framer Motion: initial={{ width: 0 }} animate={{ width: `${percentage}%` }} transition={{ duration: 1, ease: 'easeOut' }}"
+  },
+  "icons": {
+    "library": "@phosphor-icons/react",
+    "usage": "Use Duotone weight for active/achieved states (gives that premium 2-tone look), Regular or Light for inactive. Examples: Sword, ShieldStar, Trophy, Fire (for streak), Target, TrendUp."
+  },
+  "image_urls": [
+    {
+      "url": "https://images.unsplash.com/photo-1708778002477-75611274f23d?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1ODB8MHwxfHNlYXJjaHwyfHxkYXJrJTIwYWJzdHJhY3QlMjBnZW9tZXRyaWMlMjBnb2xkJTIwYmx1ZXxlbnwwfHx8fDE3ODMxMDE4Mjl8MA&ixlib=rb-4.1.0&q=85",
+      "description": "Dark geometric texture. Use as a subtle background pattern with low opacity (e.g. 5%) across the app to break flatness.",
+      "category": "background_pattern"
+    },
+    {
+      "url": "https://images.unsplash.com/photo-1579548122080-c35fd6820ecb?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxODF8MHwxfHNlYXJjaHwxfHxkYXJrJTIwbmVvbiUyMGJsdWUlMjBnZW9tZXRyaWMlMjBhYnN0cmFjdHxlbnwwfHx8fDE3ODMxMDE4MzR8MA&ixlib=rb-4.1.0&q=85",
+      "description": "Dark neon blue abstract. Perfect for the Auth hero background or the Leaderboard banner background with a dark gradient overlay.",
+      "category": "auth_hero_background"
+    }
+  ],
+  "pages": {
+    "Auth": {
+      "layout": "Mobile: Stacked. Desktop: Split screen (Left: Branding/Gamified Value Prop over auth_hero_background + black/50 overlay. Right: Glass UI Login/Signup Form).",
+      "features": ["Email/Password inputs", "Google Social Login button (Ghost/Glass style)"]
+    },
+    "MemberDashboard": {
+      "layout": "Control Room Grid. Top/Hero: User Level + XP Bar + Streak Flame. Middle: Bento Grid (Daily Check-in, Next Achievement, Mini-Leaderboard). Bottom: Upcoming Follow-ups.",
+      "features": ["Animated XP Bar", "Streak pulsing icon", "Check-in Button that triggers confetti"]
+    },
+    "ProspectingTracker": {
+      "layout": "Data Dense layout. Header with Stats (Total, Won, Lost). Below: Tabs for Pipeline/List. Main: Drag-Drop Kanban or clear Data Table.",
+      "features": ["Status Badges", "Add Prospect Modal"]
+    },
+    "FollowUpTracker": {
+      "layout": "List View grouped by date. Clear red/yellow/green indicators for urgency.",
+      "features": ["Action buttons per row (Mark Done, Reschedule)"]
+    },
+    "AttendanceTracker": {
+      "layout": "Calendar grid or upcoming events list.",
+      "features": ["Log Attendance button (triggers XP gain)"]
+    },
+    "ChallengesLeaderboard": {
+      "layout": "Top: Podium UI for top 3 users (Avatars with Gold/Silver/Bronze borders). Bottom: List of ranks 4-10.",
+      "features": ["Weekly/Monthly Toggle"]
+    },
+    "Profile": {
+      "layout": "Centered large Avatar surrounded by a circular XP progress ring. Below: Grid of unlocked and locked badges (locked are grayscale/opacity-50).",
+      "features": ["Badge Showcase", "Lifetime Stats"]
+    },
+    "AdminPanel": {
+      "layout": "Sidebar navigation (Desktop), Hamburger/Bottom nav (Mobile). Data-heavy tables.",
+      "features": ["Team Analytics", "Create Challenge Form", "Verify Attendance"]
+    }
+  },
+  "instructions_to_main_agent": [
+    "Install required dependencies: `yarn add @phosphor-icons/react canvas-confetti framer-motion @radix-ui/react-icons clsx tailwind-merge`.",
+    "Implement Shadcn components: button, card, input, form, checkbox, dialog, tabs, table, progress, avatar, badge.",
+    "Setup routing (react-router-dom) with a layout wrapper that includes a bottom-nav for mobile (Mobile First!) and a sidebar for desktop.",
+    "Do NOT use pure black (#000000), use the defined #050507 tinted black base.",
+    "Ensure ALL interactive elements (buttons, inputs, tabs, check-ins) have `data-testid` attributes in kebab-case (e.g. data-testid='daily-checkin-btn').",
+    "For typography, include the Google Fonts for 'Unbounded' and 'Manrope' in index.html.",
+    "Use framer-motion for page transitions and micro-interactions (hover, tap, progress bar fill).",
+    "Integrate canvas-confetti specifically on the 'Daily Check-in' button and 'Achievement Unlock' events.",
+    "Do not generate empty placeholder pages. Populate them with functional, production-ready layouts, forms, and tables using Shadcn."
+  ]
+}
