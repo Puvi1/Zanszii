@@ -231,8 +231,8 @@ export default function AuthPage() {
                     </div>
 
                     <div className="mt-6 p-3 rounded-xl bg-blue-500/5 border border-blue-500/20 text-[11px] text-zinc-500 leading-relaxed">
-                        <span className="text-blue-400 font-bold uppercase tracking-widest">Demo:</span>{" "}
-                        admin@spartans.com / Spartan123!
+                        <span className="text-blue-400 font-bold uppercase tracking-widest">Nexus ID required</span>{" "}
+                        for new sign-ups. Existing warriors — enlist through your team leader.
                     </div>
                 </motion.div>
             </div>

@@ -3676,6 +3676,15 @@ async def root():
     return {"message": "Spartans Growth League API", "version": "1.0"}
 
 
+@api.post("/admin/dedupe-data")
+async def admin_dedupe_data(request: Request):
+    user = await get_current_user(request, db)
+    require_role(user, ["super_admin"])
+    breakdown = await dedupe_all_collections(return_breakdown=True)
+    total = sum(breakdown.values())
+    return {"ok": True, "duplicates_removed": total, "breakdown": breakdown}
+
+
 app.include_router(api)
 
 # --- CORS (security hardened) ------------------------------------------------
@@ -3701,14 +3710,6 @@ app.add_middleware(
 )
 
 
-@api.post("/admin/dedupe-data")
-async def admin_dedupe_data(request: Request):
-    user = await get_current_user(request, db)
-    require_role(user, ["super_admin"])
-    n = await dedupe_all_collections()
-    return {"ok": True, "duplicates_removed": n}
-
-
 # ---------- Startup ----------
 async def _dedupe_collection(collection, key_fields: list, keep: str = "first"):
     """Remove duplicate documents based on a composite key. Returns count removed."""
@@ -3727,7 +3728,7 @@ async def _dedupe_collection(collection, key_fields: list, keep: str = "first"):
     return removed
 
 
-async def dedupe_all_collections():
+async def dedupe_all_collections(return_breakdown: bool = False):
     """One-time / repeatable clean of any duplicate rows before unique indexes can be enforced."""
     dedupes = [
         (db.users, ["email"]),
@@ -3743,16 +3744,19 @@ async def dedupe_all_collections():
         (db.missions, ["mission_id"]),
         (db.goal_templates, ["template_id"]),
     ]
+    breakdown: dict = {}
     total = 0
     for coll, keys in dedupes:
         try:
             n = await _dedupe_collection(coll, keys)
             if n:
                 logger.info(f"Deduped {coll.name}: removed {n} duplicates on {keys}")
-                total += n
+            breakdown[f"{coll.name}:{'+'.join(keys)}"] = n
+            total += n
         except Exception as e:
             logger.warning(f"Dedupe skipped for {coll.name} on {keys}: {e}")
-    return total
+            breakdown[f"{coll.name}:{'+'.join(keys)}"] = -1  # sentinel for skipped
+    return breakdown if return_breakdown else total
 
 
 async def seed_admin_and_indexes():

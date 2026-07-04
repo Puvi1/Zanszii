@@ -1,0 +1,22 @@
+{
+  "summary": "Focused retest of iteration_15 routing fix. Created /app/backend/tests/test_dedupe_retest.py with 11 tests covering all 3 auth scenarios for POST /api/admin/dedupe-data, smoke checks on 6 other routes, xlsx export MIME, and old/new password policy. All 11 tests PASSED.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_dedupe_retest.py",
+    "/app/test_reports/pytest/dedupe_retest.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Route ordering fix verified: @api.post('/admin/dedupe-data') now correctly registered before app.include_router(api).",
+    "Reminder: server.py is 3890 lines — should be split into modular routers for maintainability."
+  ],
+  "updated_files": ["/app/backend/tests/test_dedupe_retest.py"],
+  "success_rate": {"backend": "100% (11/11)", "frontend": "N/A (skipped per request)"},
+  "test_credentials": "admin@spartans.com / Sp4rt@n-Cmd-2026!F0rge (super_admin) — from request. Created TEST_dedupe_member@example.com/MemberPass123! for 403 test.",
+  "seed_data_creation": "Registered one member user via /api/auth/register for 403 test.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iteration_16 verifies dedupe routing fix. POST /api/admin/dedupe-data returns 200 with {ok, duplicates_removed, breakdown} for admin, 403 for member, 401 no-auth. All smoke routes (GET /api/, /admin/analytics, /spartans-league/individual, /reports/global, /notifications, /exports/missions?format=xlsx) return 200. Password policy: old Spartan123! -> 401, new Sp4rt@n-Cmd-2026!F0rge -> 200. Signup endpoint is /api/auth/register (not /auth/signup) with body {email,password,name,nexus_id}. Frontend AuthPage demo hint verification was NOT executed (backend-only per request); main agent should self-verify the string change if needed.",
+  "rca of the issue": "Iteration_15 root cause: @api.post decorator was placed AFTER app.include_router(api), so the route was never registered (returned 404). Fix moved decorator ABOVE include_router. Retest confirms all three auth scenarios (401/403/200) now behave correctly and no other route was regressed by the reordering."
+}
