@@ -3,6 +3,7 @@ import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { Plus, Trash, Users, X, Crown, PencilSimple, ShieldCheck } from "@phosphor-icons/react";
 import { motion, AnimatePresence } from "framer-motion";
+import Avatar from "@/components/Avatar";
 
 export default function Teams() {
     const [teams, setTeams] = useState([]);
@@ -208,9 +209,7 @@ function TeamCard({ team, users, onEdit, onAssign, onRemove, onRemoveMember }) {
                 <div className="space-y-1 max-h-52 overflow-y-auto pr-1">
                     {members.map((m) => (
                         <div key={m.user_id} className="flex items-center gap-2 p-2 rounded-lg bg-white/[0.02] border border-white/5 text-sm">
-                            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-yellow-500 to-blue-500 grid place-items-center font-bold text-black text-[10px]">
-                                {m.name[0]}
-                            </div>
+                            <Avatar user={m} size={28} />
                             <div className="flex-1 min-w-0">
                                 <div className="text-xs font-semibold truncate">{m.name}</div>
                                 <div className="text-[10px] text-zinc-500">{m.role.replace("_", " ")}</div>

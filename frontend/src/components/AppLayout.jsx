@@ -7,6 +7,7 @@ import {
 import { useAuth } from "@/context/AuthContext";
 import { motion } from "framer-motion";
 import NotificationBell from "@/components/NotificationBell";
+import Avatar from "@/components/Avatar";
 
 const BASE_NAV = [
     { to: "/", icon: House, label: "Dashboard", testId: "nav-dashboard" },
@@ -27,11 +28,12 @@ const BASE_NAV = [
 const LEADER_NAV = { to: "/my-team", icon: UsersThree, label: "My Team", testId: "nav-my-team" };
 const ADMIN_USERS_NAV = { to: "/admin", icon: Users, label: "All Users", testId: "nav-admin" };
 const ADMIN_TEAMS_NAV = { to: "/teams", icon: ChartLine, label: "Teams", testId: "nav-teams" };
+const ADMIN_GOAL_SETTINGS_NAV = { to: "/goal-settings", icon: Flag, label: "Goal Settings", testId: "nav-goal-settings" };
 
 function navForRole(role, club) {
     // Filter out Seasons for Decider club
     const base = BASE_NAV.filter((n) => !n.requiresSeasonAccess || club !== "decider");
-    if (role === "super_admin") return [...base, ADMIN_USERS_NAV, ADMIN_TEAMS_NAV];
+    if (role === "super_admin") return [...base, ADMIN_USERS_NAV, ADMIN_TEAMS_NAV, ADMIN_GOAL_SETTINGS_NAV];
     if (role === "team_leader") return [...base, LEADER_NAV];
     return base;
 }
@@ -88,9 +90,7 @@ export default function AppLayout({ children }) {
                 </nav>
                 <div className="p-4 border-t border-white/5">
                     <div className="flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/5">
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-yellow-500 to-blue-500 grid place-items-center font-bold text-black text-sm">
-                            {initials}
-                        </div>
+                        <Avatar user={user} size={40} />
                         <div className="flex-1 min-w-0">
                             <div className="text-sm font-semibold text-white truncate" data-testid="sidebar-user-name">{user?.name}</div>
                             <div className="text-[10px] uppercase tracking-widest text-yellow-500/80">

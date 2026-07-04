@@ -1,0 +1,43 @@
+{
+  "summary": "Feb 2026 Goal Templates + Avatar refactor tested end-to-end. Backend: 14/15 pytest cases pass; 1 real bug uncovered in DELETE /api/goals/{gid} for personal (non-admin) goals (returns 404 due to projection returning empty dict). Frontend: /goal-settings admin page fully functional (stat cards, tabs, create modal, table, HQ ASSIGNED chip on /goals, hidden delete for admin-assigned goals, non-admin redirect blocked, mobile 390 has no overflow, sidebar link admin-only). Profile page URL inputs removed, avatar-upload-btn present. All 9 regression routes load without console errors.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "DELETE /api/goals/{gid}",
+        "issue": "Personal (non-admin) goals cannot be deleted — always returns 404 'Goal not found'. Root cause: find_one uses projection {'_id': 0, 'assigned_by_admin': 1}; when the doc lacks assigned_by_admin, MongoDB returns an EMPTY dict {} which is falsy in Python, so `if not g:` fires and raises 404. Fix: use `if g is None:` OR add goal_id to the projection, OR remove the projection entirely.",
+        "priority": "HIGH",
+        "repro": "1) Register user, 2) POST /api/goals with title/target/period, 3) DELETE /api/goals/{returned_goal_id} -> 404 (should be 200). Verified against live backend."
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/goal-settings (non-admin redirect)", "issues": ["Spec asked for redirect to /goals for non-admin; actual redirect is to /profile because the incomplete-profile guard on ProtectedRoute fires first. Effective protection is still enforced (page is unreachable + sidebar link hidden). Consider redirecting to /goals only when profile is already complete."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_goal_templates_feb2026.py",
+    "/app/test_reports/pytest/goal_templates.xml"
+  ],
+  "action_items": [
+    "Fix DELETE /api/goals/{gid} projection bug so personal goals can be deleted. Recommended: change `if not g:` to `if g is None:` in server.py::delete_goal (~line 3287) OR broaden the projection to include goal_id."
+  ],
+  "critical_code_review_comments": [
+    "server.py::delete_goal uses `if not g:` on a find_one() with a narrow projection — pattern is fragile whenever the projected field is absent. Audit other endpoints that use narrow projections + truthiness checks.",
+    "GoalTemplateUpdate strips falsy values via `if v is not None` — good; but `active: False` still needs to flow through (it does since None-check, not truthy-check). Verified.",
+    "_sync_template_to_users always sets `assigned_by_admin: True` — good. New members auto-receive templates via hooks in /auth/register and /team-leader/add-member."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_goal_templates_feb2026.py (new)"
+  ],
+  "success_rate": {"backend": "93% (14/15)", "frontend": "100% of critical flows"},
+  "test_credentials": "admin@spartans.com / Spartan123! (only seeded user). Test members created + cleaned up per run.",
+  "seed_data_creation": "Created + deleted TEST_ templates and TEST_/example.com users during runs. All cleaned up at end.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Goal Templates feature fully working. Only outstanding issue is the delete_goal 404 bug for personal goals (projection returns {} -> falsy). Backend tests live at /app/backend/tests/test_goal_templates_feb2026.py. Note email validation on /api/auth/register rejects .test TLD — must use example.com or real domains.",
+  "rca of the issue": "In server.py line 3286: `g = await db.goals.find_one({'goal_id': gid, 'user_id': user['user_id']}, {'_id': 0, 'assigned_by_admin': 1})`. When a personal goal doc has no `assigned_by_admin` field, MongoDB returns `{}` because projection includes only that field and excludes _id. Python evaluates `not {}` as True, so `raise HTTPException(404)` fires. Reproduced live: POST /api/goals -> DELETE /api/goals/{gid} returns 404 even though GET /api/goals shows the goal exists. Fix: `if g is None:` or add another field to projection so at least one key is always present."
+}

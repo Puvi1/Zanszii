@@ -547,6 +547,13 @@ async def register(payload: RegisterIn, response: Response):
         "active": True,
     }
     await db.users.insert_one(doc)
+    # Auto-assign active admin goal templates to the new member
+    try:
+        active_templates = await db.goal_templates.find({"active": True}, {"_id": 0}).to_list(200)
+        for tpl in active_templates:
+            await _sync_template_to_users(tpl)
+    except Exception as e:
+        logger.warning(f"Failed to auto-assign goal templates: {e}")
     at = create_access_token(user_id, email)
     rt = create_refresh_token(user_id)
     set_auth_cookies(response, at, rt)
@@ -1314,6 +1321,8 @@ async def report_team(request: Request, team_id: Optional[str] = None):
             "user_id": m["user_id"], "name": m["name"], "email": m["email"],
             "role": m["role"], "xp": m.get("xp", 0), "level": m.get("level", 1),
             "streak_current": m.get("streak_current", 0),
+            "avatar_url": m.get("avatar_url") or m.get("picture"),
+            "position_badges": m.get("position_badges", []),
             "prospects": m_prospects, "won": m_won,
             "followups_done": m_followups, "attendance": m_attendance,
         })
@@ -2773,6 +2782,12 @@ async def leader_add_member(payload: AddMemberIn, request: Request):
         "added_by_leader": user["user_id"],
     }
     await db.users.insert_one(doc)
+    # Auto-assign active admin goal templates
+    try:
+        for tpl in await db.goal_templates.find({"active": True}, {"_id": 0}).to_list(200):
+            await _sync_template_to_users(tpl)
+    except Exception as e:
+        logger.warning(f"Failed to auto-assign goal templates: {e}")
     return {"ok": True, "user": _clean(doc)}
 
 
@@ -3268,10 +3283,164 @@ async def update_goal_progress(gid: str, payload: GoalProgress, request: Request
 @api.delete("/goals/{gid}")
 async def delete_goal(gid: str, request: Request):
     user = await get_current_user(request, db)
-    r = await db.goals.delete_one({"goal_id": gid, "user_id": user["user_id"]})
-    if r.deleted_count == 0:
+    g = await db.goals.find_one({"goal_id": gid, "user_id": user["user_id"]}, {"_id": 0, "assigned_by_admin": 1})
+    if not g:
         raise HTTPException(status_code=404, detail="Goal not found")
+    if g.get("assigned_by_admin"):
+        raise HTTPException(status_code=403, detail="HQ-assigned goals can only be removed from Goal Settings by an admin")
+    await db.goals.delete_one({"goal_id": gid, "user_id": user["user_id"]})
     return {"ok": True}
+
+
+# ---------- Goal Templates (Super Admin — pushes goals to every member) ----------
+class GoalTemplateIn(BaseModel):
+    title: str = Field(min_length=1, max_length=120)
+    target: int = Field(gt=0)
+    xp_reward: int = Field(ge=0, default=0)
+    period: Literal["weekly", "monthly"]
+    start_date: str  # YYYY-MM-DD
+    end_date: str    # YYYY-MM-DD
+    active: bool = True
+
+    @field_validator("start_date", "end_date")
+    @classmethod
+    def v_date(cls, v):
+        try:
+            date.fromisoformat(v)
+        except Exception:
+            raise ValueError("Date must be YYYY-MM-DD")
+        return v
+
+
+class GoalTemplateUpdate(BaseModel):
+    title: Optional[str] = Field(default=None, min_length=1, max_length=120)
+    target: Optional[int] = Field(default=None, gt=0)
+    xp_reward: Optional[int] = Field(default=None, ge=0)
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    active: Optional[bool] = None
+
+
+async def _sync_template_to_users(template: dict):
+    """For an active template, ensure every active member has a matching goal doc."""
+    if not template.get("active"):
+        return 0
+    users = await db.users.find({"active": {"$ne": False}}, {"_id": 0, "user_id": 1}).to_list(5000)
+    created = 0
+    now = _iso(datetime.now(timezone.utc))
+    for u in users:
+        exists = await db.goals.find_one(
+            {"user_id": u["user_id"], "template_id": template["template_id"]},
+            {"_id": 0, "goal_id": 1},
+        )
+        if exists:
+            continue
+        await db.goals.insert_one({
+            "goal_id": str(uuid.uuid4()),
+            "template_id": template["template_id"],
+            "user_id": u["user_id"],
+            "title": template["title"],
+            "target": template["target"],
+            "xp_reward": template["xp_reward"],
+            "period": template["period"],
+            "period_start": template["start_date"],
+            "period_end": template["end_date"],
+            "progress": 0,
+            "status": "active",
+            "completed_at": None,
+            "assigned_by_admin": True,
+            "created_at": now,
+        })
+        created += 1
+    return created
+
+
+@api.get("/admin/goal-templates")
+async def admin_list_goal_templates(request: Request):
+    user = await get_current_user(request, db)
+    require_role(user, ["super_admin"])
+    items = await db.goal_templates.find({}, {"_id": 0}).sort("created_at", -1).to_list(500)
+    # Attach live counts
+    for t in items:
+        t["assigned_count"] = await db.goals.count_documents({"template_id": t["template_id"]})
+        t["completed_count"] = await db.goals.count_documents({
+            "template_id": t["template_id"], "status": "completed",
+        })
+    return items
+
+
+@api.post("/admin/goal-templates")
+async def admin_create_goal_template(payload: GoalTemplateIn, request: Request):
+    user = await get_current_user(request, db)
+    require_role(user, ["super_admin"])
+    if date.fromisoformat(payload.end_date) < date.fromisoformat(payload.start_date):
+        raise HTTPException(status_code=400, detail="End date must be on or after start date")
+    doc = payload.model_dump()
+    doc.update({
+        "template_id": str(uuid.uuid4()),
+        "created_at": _iso(datetime.now(timezone.utc)),
+        "created_by": user["user_id"],
+    })
+    await db.goal_templates.insert_one(doc)
+    assigned = await _sync_template_to_users(doc)
+    return {"template": _clean(doc), "assigned_to": assigned}
+
+
+@api.patch("/admin/goal-templates/{template_id}")
+async def admin_update_goal_template(template_id: str, payload: GoalTemplateUpdate, request: Request):
+    user = await get_current_user(request, db)
+    require_role(user, ["super_admin"])
+    t = await db.goal_templates.find_one({"template_id": template_id}, {"_id": 0})
+    if not t:
+        raise HTTPException(status_code=404, detail="Template not found")
+    updates = {k: v for k, v in payload.model_dump(exclude_unset=True).items() if v is not None}
+    if not updates:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    await db.goal_templates.update_one({"template_id": template_id}, {"$set": updates})
+    # Propagate metadata edits to non-completed user goals
+    cascade = {k: v for k, v in updates.items()
+               if k in ("title", "target", "xp_reward", "start_date", "end_date")}
+    if cascade:
+        remap = {"start_date": "period_start", "end_date": "period_end"}
+        cascade = {remap.get(k, k): v for k, v in cascade.items()}
+        await db.goals.update_many(
+            {"template_id": template_id, "status": {"$ne": "completed"}},
+            {"$set": cascade},
+        )
+    # If newly activated, backfill for any existing users
+    if updates.get("active") is True:
+        merged = {**t, **updates}
+        await _sync_template_to_users(merged)
+    return {"ok": True}
+
+
+@api.delete("/admin/goal-templates/{template_id}")
+async def admin_delete_goal_template(template_id: str, request: Request, cascade: bool = True):
+    user = await get_current_user(request, db)
+    require_role(user, ["super_admin"])
+    r = await db.goal_templates.delete_one({"template_id": template_id})
+    if r.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Template not found")
+    removed = 0
+    if cascade:
+        # Only delete open (non-completed) goals so completed history + XP remain intact
+        result = await db.goals.delete_many({
+            "template_id": template_id, "status": {"$ne": "completed"},
+        })
+        removed = result.deleted_count
+    return {"ok": True, "removed_open_goals": removed}
+
+
+@api.post("/admin/goal-templates/{template_id}/resync")
+async def admin_resync_goal_template(template_id: str, request: Request):
+    """Push any active template to newly added members."""
+    user = await get_current_user(request, db)
+    require_role(user, ["super_admin"])
+    t = await db.goal_templates.find_one({"template_id": template_id}, {"_id": 0})
+    if not t:
+        raise HTTPException(status_code=404, detail="Template not found")
+    n = await _sync_template_to_users(t)
+    return {"ok": True, "assigned_to": n}
 
 
 @api.get("/")

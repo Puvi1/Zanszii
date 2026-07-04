@@ -24,6 +24,7 @@ import TeamLeague from "@/pages/TeamLeague";
 import SpartansLeague from "@/pages/SpartansLeague";
 import Rewards from "@/pages/Rewards";
 import Goals from "@/pages/Goals";
+import GoalSettings from "@/pages/GoalSettings";
 import "@/App.css";
 
 function Router() {
@@ -185,6 +186,14 @@ function Router() {
                 element={
                     <ProtectedRoute>
                         <AppLayout><Goals /></AppLayout>
+                    </ProtectedRoute>
+                }
+            />
+            <Route
+                path="/goal-settings"
+                element={
+                    <ProtectedRoute>
+                        <AppLayout><GoalSettings /></AppLayout>
                     </ProtectedRoute>
                 }
             />

@@ -3,6 +3,7 @@ import { api } from "@/lib/api";
 import { motion, AnimatePresence } from "framer-motion";
 import { Cake, HeartStraight, X, Sparkle } from "@phosphor-icons/react";
 import { fireBigConfetti } from "@/lib/confetti";
+import Avatar from "./Avatar";
 
 const DISMISSED_KEY = "sgl_celeb_dismissed";
 
@@ -65,9 +66,7 @@ export default function CelebrationBanner() {
                                 <div className="flex flex-wrap gap-2">
                                     {birthdays.map((u) => (
                                         <div key={u.user_id} className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10">
-                                            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-yellow-500 to-blue-500 grid place-items-center font-bold text-black text-[10px]">
-                                                {u.name?.[0]}
-                                            </div>
+                                            <Avatar user={u} size={24} />
                                             <span className="text-sm font-semibold">{u.name}</span>
                                         </div>
                                     ))}
@@ -86,9 +85,7 @@ export default function CelebrationBanner() {
                                 <div className="flex flex-wrap gap-2">
                                     {anniversaries.map((u) => (
                                         <div key={u.user_id} className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10">
-                                            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-red-500 to-yellow-500 grid place-items-center font-bold text-black text-[10px]">
-                                                {u.name?.[0]}
-                                            </div>
+                                            <Avatar user={u} size={24} />
                                             <span className="text-sm font-semibold">{u.name}</span>
                                         </div>
                                     ))}

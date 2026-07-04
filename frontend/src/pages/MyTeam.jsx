@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import StatCard from "@/components/StatCard";
 import ProgressBar from "@/components/ProgressBar";
 import PositionBadges from "@/components/PositionBadges";
+import Avatar from "@/components/Avatar";
 
 export default function MyTeam() {
     const [data, setData] = useState(null);
@@ -132,9 +133,7 @@ export default function MyTeam() {
                                 <motion.tr key={m.user_id} whileHover={{ backgroundColor: "rgba(255,255,255,0.03)" }} className="border-t border-white/5" data-testid={`team-member-${m.user_id}`}>
                                     <td className="py-3 px-3">
                                         <div className="flex items-center gap-3">
-                                            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-yellow-500 to-blue-500 grid place-items-center font-bold text-black text-xs">
-                                                {m.name[0]}
-                                            </div>
+                                            <Avatar user={m} size={36} />
                                             <div>
                                                 <div className="text-sm font-semibold flex items-center gap-2 flex-wrap">
                                                     {m.name}

@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { Link } from "react-router-dom";
 import CelebrationBanner from "@/components/CelebrationBanner";
 import PositionBadges from "@/components/PositionBadges";
+import Avatar from "@/components/Avatar";
 
 export default function Dashboard() {
     const { user, refreshUser } = useAuth();
@@ -165,9 +166,7 @@ export default function Dashboard() {
                                 }`}>
                                     {row.rank}
                                 </div>
-                                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-yellow-500 to-blue-500 grid place-items-center font-bold text-black text-xs">
-                                    {row.name?.[0]}
-                                </div>
+                                <Avatar user={row} size={36} />
                                 <div className="flex-1 min-w-0">
                                     <div className="text-sm font-semibold truncate">{row.name}</div>
                                     <div className="text-[10px] uppercase tracking-widest text-zinc-500">

@@ -143,22 +143,29 @@ export default function Goals() {
 
 function GoalRow({ g, onBump, onRemove }) {
     const pct = Math.round((g.progress / g.target) * 100);
+    const isAdmin = g.assigned_by_admin;
     return (
-        <motion.div initial={{opacity:0,y:8}} animate={{opacity:1,y:0}} className="p-4 rounded-xl bg-white/[0.02] border border-white/5" data-testid={`goal-row-${g.goal_id}`}>
+        <motion.div initial={{opacity:0,y:8}} animate={{opacity:1,y:0}} className={`p-4 rounded-xl bg-white/[0.02] border ${isAdmin ? "border-yellow-500/30" : "border-white/5"}`} data-testid={`goal-row-${g.goal_id}`}>
             <div className="flex items-start justify-between gap-3 mb-3">
                 <div className="flex-1 min-w-0">
-                    <div className="font-bold">{g.title}</div>
+                    <div className="font-bold flex items-center gap-2 flex-wrap">
+                        {g.title}
+                        {isAdmin && <span className="chip-gold text-[9px] px-2 py-0.5">HQ ASSIGNED</span>}
+                    </div>
                     <div className="text-[10px] uppercase tracking-widest text-zinc-500 mt-0.5">
                         {g.period} · +{g.xp_reward} XP on completion
+                        {g.period_end && <> · ends {g.period_end}</>}
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
                     <button onClick={() => onBump(-1)} className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 grid place-items-center text-zinc-400" data-testid={`goal-decr-${g.goal_id}`}>-</button>
                     <div className="font-mono font-bold text-white w-16 text-center" data-testid={`goal-progress-${g.goal_id}`}>{g.progress}/{g.target}</div>
                     <button onClick={() => onBump(1)} className="w-8 h-8 rounded-lg bg-yellow-500 hover:bg-yellow-400 text-black grid place-items-center font-bold" data-testid={`goal-incr-${g.goal_id}`}>+</button>
-                    <button onClick={onRemove} className="p-2 rounded-lg text-red-400 hover:bg-red-500/10">
-                        <Trash size={14} />
-                    </button>
+                    {!isAdmin && (
+                        <button onClick={onRemove} className="p-2 rounded-lg text-red-400 hover:bg-red-500/10" data-testid={`goal-delete-${g.goal_id}`}>
+                            <Trash size={14} />
+                        </button>
+                    )}
                 </div>
             </div>
             <ProgressBar value={g.progress} max={g.target} color="gold" testId={`goal-bar-${g.goal_id}`} />
