@@ -3284,7 +3284,7 @@ async def update_goal_progress(gid: str, payload: GoalProgress, request: Request
 async def delete_goal(gid: str, request: Request):
     user = await get_current_user(request, db)
     g = await db.goals.find_one({"goal_id": gid, "user_id": user["user_id"]}, {"_id": 0, "assigned_by_admin": 1})
-    if not g:
+    if g is None:
         raise HTTPException(status_code=404, detail="Goal not found")
     if g.get("assigned_by_admin"):
         raise HTTPException(status_code=403, detail="HQ-assigned goals can only be removed from Goal Settings by an admin")

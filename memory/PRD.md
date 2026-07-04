@@ -324,3 +324,31 @@ Gamified performance tracking & accountability platform for a Crypto Network Mar
 - Short-lived signed URLs instead of `?auth=<jwt>` on file downloads.
 - Replace HTML5 date inputs on Seasons modal with shadcn `<Calendar>` for UI consistency.
 - Optional external notification channels (email, WhatsApp) — currently in-app only.
+
+---
+
+## Iteration 14 — Feb 2026 (Goal Settings + Avatar Rollout)
+
+**Delivered:**
+- **Goal Settings page (`/goal-settings`)** — super_admin-only.
+  - Admin CRUD for weekly & monthly goal templates (Title, Target, XP Reward, Start Date, End Date, Active).
+  - Creating a template auto-populates a matching goal for every active member (via `_sync_template_to_users`).
+  - New sign-ups (register + team-leader/add-member) automatically inherit all active templates.
+  - Per-template stats: Templates / Active / Assigned / Completed. Re-sync + Edit + Delete + Status toggle in-line.
+  - Editing metadata cascades to open user goals; completed history preserved on delete.
+  - User Goals page marks HQ-assigned goals with "HQ ASSIGNED" chip and hides the delete button.
+  - Backend: `DELETE /api/goals/{gid}` returns 403 if the goal is admin-assigned.
+- **Avatar consistency pass:**
+  - `<Avatar>` (which routes `/api/files/<id>?auth=<token>` via localStorage token) is now used everywhere: Dashboard hero + Top Warriors, Sidebar user chip, Teams roster, MyTeam member table, CelebrationBanner (birthday & anniversary chips), Admin roster, Spartans League podium + rows + team leader.
+  - Backend `/reports/team` now returns `avatar_url` + `position_badges` per member so the roster renders full photos.
+  - No user-visible surface still shows a bare "initial in a gradient circle" — the fallback is inside `<Avatar>` itself when `avatar_url` / `picture` is null.
+
+**Bug fixed (found by testing agent iteration_14):**
+- `DELETE /api/goals/{gid}` was returning 404 for personal (non-admin) goals due to `if not g:` on a projection that returned an empty dict when `assigned_by_admin` field was absent. Changed to `if g is None:`. Verified with live curl (`created … status=200`).
+
+**Testing status:** iteration_14 → 14/15 backend PASS + all critical frontend flows verified; the 1 fail (delete personal goal) was the projection bug now fixed. Retest via `testing_agent_v3` recommended before next feature drop.
+
+**Next backlog:**
+- P2: Modularize `server.py` into routers.
+- P2: Short-lived signed URLs for `/api/files/<id>`.
+- P2: Move ProtectedRoute profile-completion check AFTER role redirect so `/goal-settings` non-admin visitor lands on `/goals` even when their profile is incomplete.
