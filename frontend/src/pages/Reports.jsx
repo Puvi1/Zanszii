@@ -123,12 +123,6 @@ export default function Reports() {
                     <h1 className="font-display font-black text-3xl md:text-4xl tracking-tighter mt-1">Reports</h1>
                     <p className="text-zinc-400 mt-2 text-sm">Data-driven proof of your rise.</p>
                 </div>
-                {canTeam && (
-                    <div className="flex flex-wrap items-center gap-4">
-                        <ExportBar scope="daily" />
-                        <ExportBar scope="team-performance" />
-                    </div>
-                )}
             </div>
 
             <div className="flex bg-white/5 border border-white/10 rounded-xl p-1 w-fit">

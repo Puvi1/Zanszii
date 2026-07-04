@@ -2838,21 +2838,29 @@ async def seed_admin_and_indexes():
     await db.teams.create_index("team_id", unique=True)
     await db.users.create_index("team_id")
 
-    async def upsert_seed_user(email, password, name, role, team, team_id=None):
+    async def upsert_seed_user(email, password, name, role, team, team_id=None, extras=None):
         existing = await db.users.find_one({"email": email})
         if existing is None:
-            await db.users.insert_one({
+            doc = {
                 "user_id": f"user_{uuid.uuid4().hex[:12]}", "email": email, "name": name,
                 "password_hash": hash_password(password), "role": role,
                 "avatar_url": None, "picture": None, "xp": 0, "level": 1,
                 "streak_current": 0, "streak_longest": 0, "last_checkin_date": None,
                 "team": team, "team_id": team_id, "badges": [],
                 "created_at": _iso(datetime.now(timezone.utc)), "active": True,
-            })
+            }
+            if extras:
+                doc.update(extras)
+            await db.users.insert_one(doc)
         else:
             updates = {"role": role, "name": name, "team": team, "team_id": team_id}
             if not existing.get("password_hash") or not verify_password(password, existing["password_hash"]):
                 updates["password_hash"] = hash_password(password)
+            if extras:
+                # Only fill fields that are currently missing to avoid overwriting user edits.
+                for k, v in extras.items():
+                    if not existing.get(k):
+                        updates[k] = v
             await db.users.update_one({"email": email}, {"$set": updates})
 
     # Seed teams first (idempotent by name)
@@ -2882,11 +2890,25 @@ async def seed_admin_and_indexes():
             {"$set": {"team_id": tid}},
         )
 
+    seed_profile = {
+        "phone": "9876543210", "bio": "Forged in discipline.",
+        "dob": "1990-01-15", "gender": "male", "marital_status": "single",
+        "city": "Athens", "state": "Attica", "club_type": "Elite",
+        "favourite_food": "Steak", "favourite_place": "Sparta", "favourite_hobby": "Training",
+        "joining_date": "2024-01-01",
+    }
+    admin_profile = {**seed_profile, "bio": "Commanding the league.", "dob": "1985-05-10"}
+    leader_profile = {**seed_profile, "bio": "Lead by iron will.", "dob": "1988-03-22", "city": "Thermopylae"}
+    member_profile = {**seed_profile, "bio": "Rising warrior.", "dob": "1995-08-08"}
+
     await upsert_seed_user(os.environ.get("ADMIN_EMAIL", "admin@spartans.com"),
                            os.environ.get("ADMIN_PASSWORD", "Spartan123!"),
-                           "Spartan Commander", "super_admin", "Command", team_ids["Command"])
-    await upsert_seed_user("leader@spartans.com", "Leader123!", "Team Leader Leonidas", "team_leader", "Alpha", team_ids["Alpha"])
-    await upsert_seed_user("member@spartans.com", "Member123!", "Spartan Recruit", "member", "Alpha", team_ids["Alpha"])
+                           "Spartan Commander", "super_admin", "Command", team_ids["Command"],
+                           extras=admin_profile)
+    await upsert_seed_user("leader@spartans.com", "Leader123!", "Team Leader Leonidas", "team_leader", "Alpha", team_ids["Alpha"],
+                           extras=leader_profile)
+    await upsert_seed_user("member@spartans.com", "Member123!", "Spartan Recruit", "member", "Alpha", team_ids["Alpha"],
+                           extras=member_profile)
 
     # Assign Alpha leader
     leader = await db.users.find_one({"email": "leader@spartans.com"}, {"_id": 0})

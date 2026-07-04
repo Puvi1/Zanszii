@@ -246,3 +246,33 @@ Gamified performance tracking & accountability platform for a Crypto Network Mar
 ### Test Coverage
 - Backend: **5/5** (100%) — minimal register, `/teams/public` auth+listing, `/profile/join-team` happy+404
 - Frontend: **20/20** (100%) — simplified form, first-time redirect, admin bypass, team selector, sidebar labels, decider hides Seasons, PWA manifest/SW served + registered
+
+---
+
+## Iteration 12 — Feb 2026 (Spartans League v2 batch)
+
+**Completed:**
+- Phase 1 — Verify & Finish In-Progress Work:
+  - Removed old "Current Position" text input from Profile edit form; replaced by admin-controlled Position Badges chip on Profile & Dashboard headers.
+  - Dropped `position` from PROFILE_FIELDS (completion now 15 fields).
+  - New MyTeam page with Recruit Warrior modal (backend `POST /api/team-leader/add-member`), Search input, Sort dropdown, PositionBadges next to member names.
+- Phase 2 — Spartans League System (P0):
+  - Backend endpoints: `/api/spartans-league/active-season`, `/api/spartans-league/individual`, `/api/spartans-league/team` (formula 40% XP + 25% Attendance + 15% Missions + 10% Tasks + 10% Goals, all scoped to season).
+  - New `/spartans-league` page with 3 tabs (Individual / Team / Season) and podium, breakdown expander per team, season selector.
+  - Consolidated old `/leaderboard` and `/team-league` nav into single "Spartans League" entry.
+- Phase 3 — Admin Dashboard Widgets (P1):
+  - Backend `/api/admin/dashboard-widgets` returns missions_today, missions_converted_today, pending_tasks, overdue_tasks, top_individual, top_team, season_champion, upcoming_birthdays (14d), upcoming_anniversaries (14d).
+  - Admin.jsx renders 6 widget cards (ActivityCard, ChampionCard x3, UpcomingCard x2) plus improved roster with position-badges column and modal editor.
+- Phase 4 — Unified Reports & Export Center (P1):
+  - New backend exports: `/api/exports/missions`, `/tasks`, `/goals`, `/followups`, `/spartans-league?scope=individual|team` (CSV + PDF).
+  - Reports.jsx now has "Report Export Center" section with 11 report types (each with CSV + PDF buttons).
+- Phase 5 — Team Members Enhancements (P2): Search + Sort in MyTeam.jsx.
+
+**Seed data improvements:** Leader/Member/Admin seed users now have complete profiles (phone, dob, gender, marital_status, city, state, club_type, joining_date) so ProtectedRoute doesn't block on fresh sessions.
+
+**Testing:** iteration_12.json — 24/24 backend pytest PASS, all critical frontend flows verified including mobile 390x844 responsiveness.
+
+**Next backlog:**
+- P1: Season history archive (auto-snapshot standings when season ends).
+- P2: Export button next to each Admin widget for granular CSV/PDF snapshots.
+- P2: Email/SMS notifications for birthdays/anniversaries.
