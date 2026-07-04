@@ -912,10 +912,76 @@ async def update_mission(mid: str, payload: MissionUpdate, request: Request):
 @api.delete("/missions/{mid}")
 async def delete_mission(mid: str, request: Request):
     user = await get_current_user(request, db)
-    r = await db.missions.delete_one({"mission_id": mid, "user_id": user["user_id"]})
-    if r.deleted_count == 0:
+    existing = await db.missions.find_one({"mission_id": mid, "user_id": user["user_id"]}, {"_id": 0})
+    if not existing:
         raise HTTPException(status_code=404, detail="Mission not found")
-    return {"ok": True}
+    # Reverse the XP that was originally awarded for this mission.
+    if existing.get("status") == "converted":
+        reversal = -(XP_RULES["mission_converted"])
+    else:
+        reversal = -(XP_RULES["mission_logged"])
+    await award_xp(user["user_id"], reversal, "mission_deleted")
+    await db.missions.delete_one({"mission_id": mid})
+    return {"ok": True, "xp_reversed": abs(reversal)}
+
+
+# ---------- Admin Missions CRUD (Super Admin can manage any member's mission) ----------
+@api.get("/admin/missions")
+async def admin_list_all_missions(request: Request, limit: int = 500, status: Optional[str] = None):
+    caller = await get_current_user(request, db)
+    require_role(caller, ["super_admin"])
+    q = {}
+    if status:
+        q["status"] = status
+    items = await db.missions.find(q, {"_id": 0}).sort("created_at", -1).limit(limit).to_list(limit)
+    uids = list({m["user_id"] for m in items})
+    users = await db.users.find({"user_id": {"$in": uids}}, {"_id": 0, "user_id": 1, "name": 1, "team": 1, "avatar_url": 1, "picture": 1}).to_list(len(uids) or 1)
+    umap = {u["user_id"]: u for u in users}
+    for m in items:
+        u = umap.get(m["user_id"], {})
+        m["owner_name"] = u.get("name")
+        m["owner_team"] = u.get("team")
+        m["owner_avatar_url"] = u.get("avatar_url") or u.get("picture")
+    return items
+
+
+@api.patch("/admin/missions/{mid}")
+async def admin_update_mission(mid: str, payload: MissionUpdate, request: Request):
+    caller = await get_current_user(request, db)
+    require_role(caller, ["super_admin"])
+    existing = await db.missions.find_one({"mission_id": mid}, {"_id": 0})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Mission not found")
+    updates = {k: v for k, v in payload.model_dump().items() if v is not None}
+    updates["updated_at"] = _iso(datetime.now(timezone.utc))
+    updates["edited_by_admin"] = caller["user_id"]
+    xp_delta = 0
+    if updates.get("status") == "converted" and existing.get("status") != "converted":
+        xp_delta = XP_RULES["mission_converted"] - XP_RULES["mission_logged"]
+        await award_xp(existing["user_id"], xp_delta, "mission_converted_admin")
+    elif updates.get("status") and updates["status"] != "converted" and existing.get("status") == "converted":
+        # Downgrading a converted mission — reverse the conversion bonus
+        xp_delta = -(XP_RULES["mission_converted"] - XP_RULES["mission_logged"])
+        await award_xp(existing["user_id"], xp_delta, "mission_downgraded_admin")
+    await db.missions.update_one({"mission_id": mid}, {"$set": updates})
+    return {"ok": True, "xp_delta": xp_delta}
+
+
+@api.delete("/admin/missions/{mid}")
+async def admin_delete_mission(mid: str, request: Request):
+    caller = await get_current_user(request, db)
+    require_role(caller, ["super_admin"])
+    existing = await db.missions.find_one({"mission_id": mid}, {"_id": 0})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Mission not found")
+    # Reverse XP originally awarded
+    if existing.get("status") == "converted":
+        reversal = -(XP_RULES["mission_converted"])
+    else:
+        reversal = -(XP_RULES["mission_logged"])
+    await award_xp(existing["user_id"], reversal, "mission_deleted_admin")
+    await db.missions.delete_one({"mission_id": mid})
+    return {"ok": True, "xp_reversed": abs(reversal), "owner": existing["user_id"]}
 
 
 # ---------- Challenges ----------
@@ -1591,16 +1657,22 @@ try:
 except Exception:
     LOCAL_TZ = timezone.utc
 
-LOCK_HOUR = 8  # 8 AM IST
+LOCK_HOUR = 8  # 8 AM IST default cutoff
+SATURDAY_LOCK_HOUR = 22  # 10 PM IST — Spartans Team Meeting stays open all day
+
+
+def _lock_hour_for_weekday(wd: int) -> int:
+    return SATURDAY_LOCK_HOUR if wd == 5 else LOCK_HOUR  # Mon=0 ... Sat=5
 
 
 def _is_locked(event_date_str: str) -> bool:
-    """True if attendance for event_date is closed (>= 8 AM IST on that date)."""
+    """True if attendance for event_date is closed. Saturday (Spartans Team Meeting) locks at 22:00; others at 08:00."""
     try:
         d = date.fromisoformat(event_date_str)
     except Exception:
         return True
-    cutoff = datetime.combine(d, datetime.min.time().replace(hour=LOCK_HOUR), tzinfo=LOCAL_TZ)
+    hour = _lock_hour_for_weekday(d.weekday())
+    cutoff = datetime.combine(d, datetime.min.time().replace(hour=hour), tzinfo=LOCAL_TZ)
     return datetime.now(LOCAL_TZ) >= cutoff
 
 
@@ -1717,7 +1789,9 @@ async def mark_attendance(payload: EventAttendanceMark, request: Request):
     if ev_date < today:
         raise HTTPException(status_code=403, detail="Past meeting attendance is locked (read-only history)")
     if _is_locked(payload.event_date):
-        raise HTTPException(status_code=403, detail=f"Attendance locked. Cutoff is {LOCK_HOUR}:00 IST on {payload.event_date}.")
+        ev_wd = date.fromisoformat(payload.event_date).weekday()
+        hh = _lock_hour_for_weekday(ev_wd)
+        raise HTTPException(status_code=403, detail=f"Attendance locked. Cutoff is {hh:02d}:00 IST on {payload.event_date}.")
     # Validate event exists
     ev = await db.weekly_events.find_one({"event_id": payload.event_id, "active": True}, {"_id": 0})
     if not ev:
@@ -1740,7 +1814,116 @@ async def mark_attendance(payload: EventAttendanceMark, request: Request):
          "$setOnInsert": {"attendance_id": str(uuid.uuid4()), "created_at": now}},
         upsert=True,
     )
-    return {"ok": True, "locks_at": f"{payload.event_date} {LOCK_HOUR:02d}:00 IST"}
+    ev_hour = _lock_hour_for_weekday(ev_date.weekday())
+    return {"ok": True, "locks_at": f"{payload.event_date} {ev_hour:02d}:00 IST"}
+
+
+# ---------- Admin / Team Leader mark-for-member attendance ----------
+class MarkForMemberIn(BaseModel):
+    user_id: str
+    event_id: str
+    event_date: str
+    status: Literal["present", "absent", "excused"]
+    season_id: Optional[str] = None
+
+
+@api.post("/event-attendance/mark-for-member")
+async def mark_attendance_for_member(payload: MarkForMemberIn, request: Request):
+    """Super Admin can mark attendance for any member.
+    Team Leaders can mark attendance for members of their own team."""
+    caller = await get_current_user(request, db)
+    require_role(caller, ["super_admin", "team_leader"])
+    target = await db.users.find_one({"user_id": payload.user_id}, {"_id": 0})
+    if not target:
+        raise HTTPException(status_code=404, detail="Target user not found")
+    if caller["role"] == "team_leader":
+        team = await _my_team_or_403(caller)
+        if target.get("team_id") != team["team_id"]:
+            raise HTTPException(status_code=403, detail="You can only mark attendance for your own team")
+    try:
+        ev_date = date.fromisoformat(payload.event_date)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid event_date")
+    today = date.today()
+    if ev_date > today:
+        raise HTTPException(status_code=403, detail="Cannot mark attendance for a future meeting")
+    # Super admin bypass for retroactive past-date marks; team_leader still respects lock.
+    if caller["role"] != "super_admin":
+        if ev_date < today:
+            raise HTTPException(status_code=403, detail="Past meeting attendance is locked")
+        if _is_locked(payload.event_date):
+            hh = _lock_hour_for_weekday(ev_date.weekday())
+            raise HTTPException(status_code=403, detail=f"Attendance locked. Cutoff is {hh:02d}:00 IST on {payload.event_date}.")
+    ev = await db.weekly_events.find_one({"event_id": payload.event_id, "active": True}, {"_id": 0})
+    if not ev:
+        raise HTTPException(status_code=404, detail="Event not found")
+    season_id = payload.season_id
+    if not season_id:
+        s = await db.seasons.find_one({
+            "start_date": {"$lte": payload.event_date},
+            "end_date": {"$gte": payload.event_date},
+        }, {"_id": 0})
+        if s:
+            season_id = s["season_id"]
+    now = _iso(datetime.now(timezone.utc))
+    key = {"user_id": payload.user_id, "event_id": payload.event_id, "event_date": payload.event_date}
+    await db.event_attendance.update_one(
+        key,
+        {"$set": {**key, "status": payload.status, "season_id": season_id, "updated_at": now,
+                  "marked_by": caller["user_id"], "marked_by_role": caller["role"]},
+         "$setOnInsert": {"attendance_id": str(uuid.uuid4()), "created_at": now}},
+        upsert=True,
+    )
+    return {"ok": True, "target": payload.user_id, "status": payload.status}
+
+
+@api.get("/event-attendance/team-week")
+async def team_week_attendance(request: Request, week_of: Optional[str] = None):
+    """Return team-scoped attendance grid for admin & team-leader:
+    columns = occurrences this week, rows = members, cells = mark status."""
+    caller = await get_current_user(request, db)
+    require_role(caller, ["super_admin", "team_leader"])
+    anchor = date.fromisoformat(week_of) if week_of else date.today()
+    week_dates = _dates_for_week(anchor)
+    events = await db.weekly_events.find({"active": True}, {"_id": 0}).sort("weekday", 1).to_list(100)
+    if caller["role"] == "team_leader":
+        team = await _my_team_or_403(caller)
+        members = await db.users.find({"team_id": team["team_id"]}, {"_id": 0, "password_hash": 0}).to_list(500)
+    else:
+        members = await db.users.find({}, {"_id": 0, "password_hash": 0}).sort("name", 1).to_list(5000)
+    # Build occurrences (all — admin/leader can view full week grid)
+    occurrences = [{
+        "event_id": e["event_id"], "name": e["name"], "weekday": e["weekday"],
+        "weekday_name": _weekday_name(e["weekday"]),
+        "event_date": week_dates[e["weekday"]].isoformat(),
+        "is_believer": e.get("is_believer", False),
+        "is_locked": _is_locked(week_dates[e["weekday"]].isoformat()),
+        "lock_hour": _lock_hour_for_weekday(e["weekday"]),
+    } for e in events]
+    # Fetch existing marks for these members + dates
+    dates_iso = [o["event_date"] for o in occurrences]
+    marks = await db.event_attendance.find({
+        "user_id": {"$in": [m["user_id"] for m in members]},
+        "event_date": {"$in": dates_iso},
+    }, {"_id": 0}).to_list(20000)
+    marks_map = {(m["user_id"], m["event_id"], m["event_date"]): m for m in marks}
+    grid = []
+    for m in members:
+        row = {
+            "user_id": m["user_id"], "name": m["name"], "team": m.get("team"),
+            "avatar_url": m.get("avatar_url") or m.get("picture"),
+            "position_badges": m.get("position_badges", []),
+            "role": m.get("role"),
+            "marks": {},
+        }
+        for o in occurrences:
+            mk = marks_map.get((m["user_id"], o["event_id"], o["event_date"]))
+            row["marks"][o["event_id"]] = {
+                "status": mk["status"] if mk else None,
+                "marked_by_role": mk.get("marked_by_role") if mk else None,
+            }
+        grid.append(row)
+    return {"occurrences": occurrences, "grid": grid}
 
 
 # --- Seasons ---
@@ -2407,9 +2590,16 @@ async def self_join_team(request: Request, team_id: str):
     return {"ok": True, "team": team}
 
 
-# ---------- Exports (CSV + PDF) ----------
+# ---------- Exports (CSV + PDF + XLSX) ----------
 import io
 import csv
+
+
+def _sanitize_cell(v):
+    """Neutralize CSV formula injection: prefix a leading = + - @ tab with a single quote."""
+    if isinstance(v, str) and v and v[0] in ("=", "+", "-", "@", "\t", "\r"):
+        return "'" + v
+    return v
 
 
 def _csv_response(filename: str, headers: list, rows: list):
@@ -2418,13 +2608,54 @@ def _csv_response(filename: str, headers: list, rows: list):
     w = csv.writer(buf)
     w.writerow(headers)
     for r in rows:
-        w.writerow(r)
+        w.writerow([_sanitize_cell(c) for c in r])
     buf.seek(0)
     return StreamingResponse(
         iter([buf.getvalue()]),
         media_type="text/csv",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+def _xlsx_response(filename: str, title: str, headers: list, rows: list):
+    from fastapi.responses import StreamingResponse
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment
+    wb = Workbook()
+    ws = wb.active
+    ws.title = (title or "Report")[:31]
+    header_font = Font(bold=True, color="FFFFFFFF", size=11)
+    header_fill = PatternFill(start_color="FF1F2937", end_color="FF1F2937", fill_type="solid")
+    for i, h in enumerate(headers, start=1):
+        c = ws.cell(row=1, column=i, value=str(h))
+        c.font = header_font
+        c.fill = header_fill
+        c.alignment = Alignment(horizontal="center", vertical="center")
+    for r_idx, row in enumerate(rows, start=2):
+        for c_idx, val in enumerate(row, start=1):
+            ws.cell(row=r_idx, column=c_idx, value=_sanitize_cell(val))
+    # Auto width
+    for col in ws.columns:
+        length = max((len(str(cell.value)) if cell.value is not None else 0) for cell in col)
+        ws.column_dimensions[col[0].column_letter].width = min(60, max(10, length + 2))
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return StreamingResponse(
+        iter([buf.getvalue()]),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+def _export_response(fmt: str, filename_stem: str, title: str, headers: list, rows: list):
+    """Unified dispatch: fmt in {csv, pdf, xlsx, excel}."""
+    fmt = (fmt or "csv").lower()
+    if fmt == "pdf":
+        return _pdf_response(filename_stem + ".pdf", title, headers, rows)
+    if fmt in ("xlsx", "excel"):
+        return _xlsx_response(filename_stem + ".xlsx", title, headers, rows)
+    return _csv_response(filename_stem + ".csv", headers, rows)
 
 
 def _pdf_response(filename: str, title: str, headers: list, rows: list):
@@ -2474,9 +2705,7 @@ async def export_team_performance(request: Request, format: str = "csv"):
              r["weekly_attendance_pct"], r["monthly_attendance_pct"], r["attendance_bonus_xp"],
              r["streak"]] for r in league["teams"]]
     filename = f"team-performance-{date.today().isoformat()}"
-    if format == "pdf":
-        return _pdf_response(filename + ".pdf", "Team Performance Report", headers, rows)
-    return _csv_response(filename + ".csv", headers, rows)
+    return _export_response(format, filename, "Team Performance Report", headers, rows)
 
 
 @api.get("/exports/attendance")
@@ -2508,9 +2737,7 @@ async def export_attendance(request: Request, format: str = "csv", season_id: Op
     rows.sort(key=lambda r: r[7], reverse=True)
     headers = ["Name", "Team", "Present", "Absent", "N/A", "Unmarked", "Total Events", "Attendance %"]
     filename = f"attendance-{season['name'].replace(' ', '_')}-{date.today().isoformat()}"
-    if format == "pdf":
-        return _pdf_response(filename + ".pdf", f"Attendance Report — {season['name']}", headers, rows)
-    return _csv_response(filename + ".csv", headers, rows)
+    return _export_response(format, filename, f"Attendance Report — {season['name']}", headers, rows)
 
 
 @api.get("/exports/xp-leaderboard")
@@ -2522,9 +2749,7 @@ async def export_xp_leaderboard(request: Request, format: str = "csv", scope: st
     rows = [[r["rank"], r["name"], r.get("team") or "-", r["level"], r["xp"], r["streak_current"]]
             for r in lb]
     filename = f"xp-leaderboard-{scope}-{date.today().isoformat()}"
-    if format == "pdf":
-        return _pdf_response(filename + ".pdf", f"XP Leaderboard — {scope.title()}", headers, rows)
-    return _csv_response(filename + ".csv", headers, rows)
+    return _export_response(format, filename, f"XP Leaderboard — {scope.title()}", headers, rows)
 
 
 @api.get("/exports/daily")
@@ -2551,9 +2776,7 @@ async def export_daily(request: Request, format: str = "csv", day: Optional[str]
     rows.sort(key=lambda r: r[3], reverse=True)
     headers = ["Name", "Team", "Actions", "XP Earned"]
     filename = f"daily-report-{d}"
-    if format == "pdf":
-        return _pdf_response(filename + ".pdf", f"Daily Report — {d}", headers, rows)
-    return _csv_response(filename + ".csv", headers, rows)
+    return _export_response(format, filename, f"Daily Report — {d}", headers, rows)
 
 
 # ---------- Unified Report Exports (Missions/Tasks/Goals/Followups/League) ----------
@@ -2593,9 +2816,7 @@ async def export_missions(request: Request, format: str = "csv"):
             f"{m.get('lat', '')},{m.get('lng', '')}" if m.get("lat") else "-",
         ])
     filename = f"missions-{date.today().isoformat()}"
-    if format == "pdf":
-        return _pdf_response(filename + ".pdf", "Missions Report", headers, rows)
-    return _csv_response(filename + ".csv", headers, rows)
+    return _export_response(format, filename, "Missions Report", headers, rows)
 
 
 @api.get("/exports/tasks")
@@ -2619,9 +2840,7 @@ async def export_tasks(request: Request, format: str = "csv", status: Optional[s
                      t.get("due_date", ""), t.get("status", ""), t.get("xp_reward", 0),
                      (t.get("completed_at") or "")[:19]])
     filename = f"tasks-{date.today().isoformat()}"
-    if format == "pdf":
-        return _pdf_response(filename + ".pdf", "Tasks Report", headers, rows)
-    return _csv_response(filename + ".csv", headers, rows)
+    return _export_response(format, filename, "Tasks Report", headers, rows)
 
 
 @api.get("/exports/goals")
@@ -2642,9 +2861,7 @@ async def export_goals(request: Request, format: str = "csv"):
                      g.get("status", ""), g.get("xp_reward", 0),
                      (g.get("completed_at") or "")[:19]])
     filename = f"goals-{date.today().isoformat()}"
-    if format == "pdf":
-        return _pdf_response(filename + ".pdf", "Goals Report", headers, rows)
-    return _csv_response(filename + ".csv", headers, rows)
+    return _export_response(format, filename, "Goals Report", headers, rows)
 
 
 @api.get("/exports/followups")
@@ -2663,9 +2880,7 @@ async def export_followups(request: Request, format: str = "csv"):
         rows.append([f.get("title", ""), u.get("name", "?"), u.get("team", "-"),
                      f.get("due_date", ""), f.get("status", ""), (f.get("notes") or "")[:100]])
     filename = f"followups-{date.today().isoformat()}"
-    if format == "pdf":
-        return _pdf_response(filename + ".pdf", "Follow-Ups Report", headers, rows)
-    return _csv_response(filename + ".csv", headers, rows)
+    return _export_response(format, filename, "Follow-Ups Report", headers, rows)
 
 
 @api.get("/exports/spartans-league")
@@ -2687,9 +2902,7 @@ async def export_spartans_league(request: Request, format: str = "csv", scope: s
                  r["xp"], r["missions"], r["tasks"], r["goals"], r["attendance_pct"]] for r in data["rows"]]
         title = "Spartans League — Individual"
         filename = f"spartans-league-individual-{date.today().isoformat()}"
-    if format == "pdf":
-        return _pdf_response(filename + ".pdf", title, headers, rows)
-    return _csv_response(filename + ".csv", headers, rows)
+    return _export_response(format, filename, title, headers, rows)
 
 
 # ---------- Celebrations ----------
@@ -2872,17 +3085,32 @@ async def upload_avatar(request: Request, file: UploadFile = File(...)):
 @api.get("/files/{file_id}")
 async def download_file(file_id: str, request: Request, auth: Optional[str] = None):
     # Support ?auth=<token> because <img> tags cannot pass Authorization headers.
+    caller_user_id = None
+    caller_role = None
     if auth:
         try:
             claims = jwt.decode(auth, get_jwt_secret(), algorithms=["HS256"])
-            _ = claims["sub"]
+            if claims.get("type") != "access":
+                raise HTTPException(status_code=401, detail="Invalid token type")
+            caller_user_id = claims["sub"]
+            u = await db.users.find_one({"user_id": caller_user_id}, {"_id": 0, "role": 1})
+            caller_role = u.get("role") if u else None
+        except HTTPException:
+            raise
         except Exception:
             raise HTTPException(status_code=401, detail="Invalid token")
     else:
-        await get_current_user(request, db)
+        current = await get_current_user(request, db)
+        caller_user_id = current["user_id"]
+        caller_role = current["role"]
     rec = await db.files.find_one({"file_id": file_id, "is_deleted": False}, {"_id": 0})
     if not rec:
         raise HTTPException(status_code=404, detail="File not found")
+    # ACL: super_admin can view any avatar. Otherwise, avatars are public within the app
+    # (all authenticated users) because they render throughout leaderboards & rosters.
+    # Non-avatar file purposes (future) get strict owner-only access.
+    if rec.get("purpose") != "avatar" and caller_role != "super_admin" and rec.get("user_id") != caller_user_id:
+        raise HTTPException(status_code=403, detail="Forbidden")
     data, ctype = _get_object(rec["storage_path"])
     return Response(content=data, media_type=rec.get("content_type") or ctype)
 
@@ -3450,17 +3678,86 @@ async def root():
 
 app.include_router(api)
 
+# --- CORS (security hardened) ------------------------------------------------
+_raw_origins = os.environ.get("CORS_ORIGINS", "").strip()
+if not _raw_origins or _raw_origins == "*":
+    # Never combine wildcard with credentials — silently degrade to a safe default
+    # rather than fail deploy. Emergent preview + localhost dev.
+    _default = os.environ.get("EMERGENT_APP_URL") or "http://localhost:3000"
+    _allowed_origins = [o.strip() for o in _default.split(",") if o.strip()]
+    logger.warning(
+        f"CORS_ORIGINS not configured or wildcard — falling back to {_allowed_origins}. "
+        "Set CORS_ORIGINS in .env to your production domain(s)."
+    )
+else:
+    _allowed_origins = [o.strip() for o in _raw_origins.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=os.environ.get("CORS_ORIGINS", "*").split(","),
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=_allowed_origins,
+    allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-Requested-With"],
 )
 
 
+@api.post("/admin/dedupe-data")
+async def admin_dedupe_data(request: Request):
+    user = await get_current_user(request, db)
+    require_role(user, ["super_admin"])
+    n = await dedupe_all_collections()
+    return {"ok": True, "duplicates_removed": n}
+
+
 # ---------- Startup ----------
+async def _dedupe_collection(collection, key_fields: list, keep: str = "first"):
+    """Remove duplicate documents based on a composite key. Returns count removed."""
+    pipeline = [
+        {"$group": {"_id": {f: f"${f}" for f in key_fields}, "ids": {"$push": "$_id"}, "n": {"$sum": 1}}},
+        {"$match": {"n": {"$gt": 1}}},
+    ]
+    removed = 0
+    async for group in collection.aggregate(pipeline):
+        ids = group["ids"]
+        # Keep the first, delete the rest (or last if keep=="last")
+        to_drop = ids[1:] if keep == "first" else ids[:-1]
+        if to_drop:
+            r = await collection.delete_many({"_id": {"$in": to_drop}})
+            removed += r.deleted_count
+    return removed
+
+
+async def dedupe_all_collections():
+    """One-time / repeatable clean of any duplicate rows before unique indexes can be enforced."""
+    dedupes = [
+        (db.users, ["email"]),
+        (db.users, ["user_id"]),
+        (db.teams, ["name"]),
+        (db.teams, ["team_id"]),
+        (db.event_attendance, ["user_id", "event_id", "event_date"]),
+        (db.checkins, ["user_id", "date"]),
+        (db.goals, ["template_id", "user_id"]),
+        (db.rewards, ["reward_id"]),
+        (db.seasons, ["season_id"]),
+        (db.tasks, ["task_id"]),
+        (db.missions, ["mission_id"]),
+        (db.goal_templates, ["template_id"]),
+    ]
+    total = 0
+    for coll, keys in dedupes:
+        try:
+            n = await _dedupe_collection(coll, keys)
+            if n:
+                logger.info(f"Deduped {coll.name}: removed {n} duplicates on {keys}")
+                total += n
+        except Exception as e:
+            logger.warning(f"Dedupe skipped for {coll.name} on {keys}: {e}")
+    return total
+
+
 async def seed_admin_and_indexes():
+    # Dedupe first so unique index creation doesn't fail on legacy duplicates
+    await dedupe_all_collections()
     await db.users.create_index("email", unique=True)
     await db.users.create_index("user_id", unique=True)
     await db.users.create_index([("xp", -1)])

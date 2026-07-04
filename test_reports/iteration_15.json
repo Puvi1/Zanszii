@@ -1,0 +1,46 @@
+{
+  "summary": "Feb 2026 batch fixes tested end-to-end. Backend 39/41 pytest cases pass (1 skip = no Sat event today, 2 fails = /admin/dedupe-data endpoint NOT MOUNTED due to route decorator placed AFTER app.include_router(api)). Frontend fully verified: sidebar has NO nav-goals, HAS nav-goal-settings, /goals redirects to /, dashboard-goals-widget present, all 11 report scopes render Excel+CSV+PDF buttons, all 16 protected routes load without console errors. Security rotation verified (old password 401, new password 200). All 8 xlsx export scopes + 2 spartans-league xlsx variants return valid workbooks; all 8 pdf scopes + all 8 csv scopes work. CSV formula-injection sanitizer confirmed. Admin missions CRUD + XP reversal works. Member self-CRUD + cross-user 404 works. Admin mark-for-member works. Team-week endpoint returns {occurrences,grid}. Goal progress endpoint works.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "POST /api/admin/dedupe-data",
+        "issue": "Route returns 404 for everyone (admin AND member). Root cause: the @api.post('/admin/dedupe-data') decorator sits at server.py line ~3704, AFTER app.include_router(api) at line 3679. FastAPI/Starlette snapshots the router's routes at include time, so decorators registered afterwards never get mounted on the app. The CORS middleware registration and the dedupe route both got shoved below include_router during the security batch. Fix: move admin_dedupe_data() (and any subsequent @api.* decorators) ABOVE app.include_router(api), OR call app.include_router(api) again at the end (not recommended — duplicates routes), OR restructure so include_router is the last line before startup.",
+        "priority": "CRITICAL"
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/auth login page", "issues": ["DEMO helper text still shows old rotated password 'admin@spartans.com / Spartan123!'. Since the password was rotated to Sp4rt@n-Cmd-2026!F0rge, the demo hint is stale and misleads QA/users trying the demo login. Update or remove the demo hint."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_feb2026_batch.py",
+    "/app/test_reports/pytest/feb2026_batch.xml"
+  ],
+  "action_items": [
+    "MOVE @api.post('/admin/dedupe-data') block (server.py ~L3704) ABOVE app.include_router(api) (L3679). Verify with: curl -X POST -H 'Authorization: Bearer <admin>' /api/admin/dedupe-data -> 200 {ok:true,duplicates_removed:N}. Non-admin -> 403.",
+    "AUDIT server.py L3679-L3760 for any other @api.* decorators registered AFTER app.include_router(api) — they are silently disabled. Grep pattern: awk '/app.include_router\\(api\\)/{f=1} f && /@api\\./' server.py.",
+    "Update /auth login demo hint text: replace 'Spartan123!' with the current rotated password or remove the DEMO block entirely (recommended for production security)."
+  ],
+  "critical_code_review_comments": [
+    "CRITICAL: server.py has @api.post('/admin/dedupe-data') decorator placed AFTER app.include_router(api). This creates a phantom endpoint that is never reachable — 404 forever. Any additional routes added post include_router will suffer the same bug. Enforce a lint/CI check that no @api.* decorator appears below the include_router() call.",
+    "CORSMiddleware.add_middleware call (line ~3696) is placed between app.include_router(api) and the phantom route. While FastAPI/Starlette allow adding middleware after include_router, the code layout is fragile and confusing — CORS + all router registrations should be in a single 'wire-up' block at the bottom of module setup, with all @api.* decorators strictly above.",
+    "server.py is now ~3760 lines — well past the 700-line guideline. Split into routers/ (auth.py, missions.py, attendance.py, goals.py, exports.py, admin.py) for maintainability.",
+    "server.py::admin_dedupe_data does not log which collections had duplicates removed. Return per-collection breakdown ({goals:2, missions:0,...}) so admins can trust the operation.",
+    "PATCH /goals/{gid}/progress returns 400 with 'Already completed' if progress patched twice — but no idempotency for the delta case. Frontend GoalsWidget +/- buttons must handle 400 gracefully."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_feb2026_batch.py (new — 41 tests covering exports/security/missions/attendance/goals/dedupe)"
+  ],
+  "success_rate": {"backend": "95% (39/41 pass, 1 skip, 2 fail — both dedupe due to a single routing bug)", "frontend": "100% of critical flows"},
+  "test_credentials": "admin@spartans.com / Sp4rt@n-Cmd-2026!F0rge (rotated). Old password Spartan123! confirmed rejected with 401.",
+  "seed_data_creation": "Created TEST_a_* and TEST_b_* member users via /api/auth/register for missions/attendance tests. Session-scoped autouse cleanup fixture deletes all TEST_ users at end of run via DELETE /api/admin/users/{uid}.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "The dedupe bug is a pure routing-order bug — no logic issue. Once main agent moves the @api.post('/admin/dedupe-data') decorator ABOVE app.include_router(api) (L3679), the two failing tests will pass. Backend pytest suite is at /app/backend/tests/test_feb2026_batch.py; rerun with `pytest backend/tests/test_feb2026_batch.py -v` to verify. All other 39 tests are green — Excel/PDF/CSV exports for all 8 primary scopes + spartans-league(individual|team), CSV formula sanitizer, admin missions CRUD with XP reversal, member self CRUD, admin mark-for-member (Saturday event today), team-week grid, goals CRUD + progress, security rotation. Today is Sat 2026-07-04 IST; test_admin_marks_for_member exercises the not-yet-locked 22:00 IST Saturday window successfully.",
+  "rca of the issue": "Bug: POST /api/admin/dedupe-data returns 404. RCA: server.py registers the FastAPI APIRouter `api` (prefix=/api), attaches ~150 endpoints via @api.get/@api.post etc, then calls app.include_router(api) at line 3679. FastAPI/Starlette copies the router's route list into the app at that moment. Any @api.* decorator executed AFTER include_router (including admin_dedupe_data at ~L3704) only modifies the router's own list — the app never sees them. This is the same class of bug as calling add_middleware after the app has started. Mitigation: move the decorator block above L3679; add a CI guardrail (grep -A1000 'include_router(api)' server.py | grep '@api\\.' → must be empty)."
+}

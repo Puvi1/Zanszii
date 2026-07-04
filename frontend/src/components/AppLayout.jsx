@@ -15,7 +15,6 @@ const BASE_NAV = [
     { to: "/weekly-attendance", icon: CalendarCheck, label: "Attendance", testId: "nav-weekly" },
     { to: "/seasons", icon: MedalMilitary, label: "Seasons", testId: "nav-seasons", requiresSeasonAccess: true },
     { to: "/tasks", icon: ClipboardText, label: "Tasks", testId: "nav-tasks" },
-    { to: "/goals", icon: Flag, label: "Goals", testId: "nav-goals" },
     { to: "/spartans-league", icon: Trophy, label: "Spartans League", testId: "nav-league" },
     { to: "/rewards", icon: Gift, label: "Rewards", testId: "nav-rewards" },
     { to: "/prospects", icon: Target, label: "Prospects", testId: "nav-prospects" },

@@ -46,28 +46,38 @@ async function compressImage(file, maxDim = 1200, quality = 0.72) {
 }
 
 export default function Missions() {
-    const { refreshUser } = useAuth();
+    const { user, refreshUser } = useAuth();
+    const isAdmin = user?.role === "super_admin";
     const [items, setItems] = useState([]);
     const [modal, setModal] = useState(false);
     const [filter, setFilter] = useState("all");
     const [selected, setSelected] = useState(null);
+    const [scope, setScope] = useState("me"); // "me" | "all" (admin only)
 
     const load = async () => {
-        const { data } = await api.get("/missions");
+        const url = (isAdmin && scope === "all") ? "/admin/missions" : "/missions";
+        const { data } = await api.get(url);
         setItems(data);
     };
-    useEffect(() => { load(); }, []);
+    useEffect(() => { load(); }, [scope]);  // eslint-disable-line react-hooks/exhaustive-deps
 
     const remove = async (id) => {
-        if (!window.confirm("Delete this mission?")) return;
-        await api.delete(`/missions/${id}`);
-        toast.success("Mission removed");
-        await load();
+        if (!window.confirm("Delete this mission permanently? XP will be reversed.")) return;
+        try {
+            const url = (isAdmin && scope === "all") ? `/admin/missions/${id}` : `/missions/${id}`;
+            await api.delete(url);
+            toast.success("Mission deleted · XP updated");
+            await load();
+            await refreshUser?.();
+        } catch (err) {
+            toast.error(err.response?.data?.detail || "Delete failed");
+        }
     };
 
     const updateStatus = async (id, status) => {
         try {
-            await api.patch(`/missions/${id}`, { status });
+            const url = (isAdmin && scope === "all") ? `/admin/missions/${id}` : `/missions/${id}`;
+            await api.patch(url, { status });
             if (status === "converted") {
                 fireBigConfetti();
                 toast.success("Prospect CONVERTED! +40 XP");
@@ -75,7 +85,7 @@ export default function Missions() {
                 toast.success(`Status → ${status}`);
             }
             await load();
-            await refreshUser();
+            await refreshUser?.();
         } catch { toast.error("Update failed"); }
     };
 
@@ -90,9 +100,17 @@ export default function Missions() {
                     <h1 className="font-display font-black text-3xl md:text-4xl tracking-tighter mt-1">Daily Missions</h1>
                     <p className="text-zinc-400 mt-2 text-sm">Log every prospect meeting with GPS proof. Field intelligence = fortune.</p>
                 </div>
-                <button onClick={() => setModal(true)} className="btn-gold" data-testid="add-mission-btn">
-                    <Plus size={18} weight="bold" /> Log Mission
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                    {isAdmin && (
+                        <div className="flex bg-white/5 border border-white/10 rounded-xl p-1">
+                            <button onClick={() => setScope("me")} className={`px-3 py-2 rounded-lg text-xs font-bold uppercase tracking-widest ${scope === "me" ? "bg-yellow-500 text-black" : "text-zinc-400 hover:text-white"}`} data-testid="missions-scope-me">Mine</button>
+                            <button onClick={() => setScope("all")} className={`px-3 py-2 rounded-lg text-xs font-bold uppercase tracking-widest ${scope === "all" ? "bg-yellow-500 text-black" : "text-zinc-400 hover:text-white"}`} data-testid="missions-scope-all">All Members</button>
+                        </div>
+                    )}
+                    <button onClick={() => setModal(true)} className="btn-gold" data-testid="add-mission-btn">
+                        <Plus size={18} weight="bold" /> Log Mission
+                    </button>
+                </div>
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -174,6 +192,11 @@ function MissionCard({ m, onOpen, onDelete, onStatus }) {
                         <UserIcon size={14} className="text-yellow-400" />
                         <span className="font-display font-bold truncate">{m.prospect_name}</span>
                     </div>
+                    {m.owner_name && (
+                        <div className="text-[9px] uppercase tracking-widest text-yellow-500/80 mt-1">
+                            by {m.owner_name}{m.owner_team ? ` · ${m.owner_team}` : ""}
+                        </div>
+                    )}
                 </div>
             </div>
             <div className="p-4 space-y-2">

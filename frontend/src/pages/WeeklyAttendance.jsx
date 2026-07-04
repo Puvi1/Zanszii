@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
-import { CheckCircle, XCircle, MinusCircle, Lock, CaretLeft, CaretRight, Calendar, LockOpen } from "@phosphor-icons/react";
+import { CheckCircle, XCircle, MinusCircle, Lock, CaretLeft, CaretRight, Calendar, LockOpen, Users, User } from "@phosphor-icons/react";
 import { motion } from "framer-motion";
+import { useAuth } from "@/context/AuthContext";
+import Avatar from "@/components/Avatar";
 
 const STATUSES = [
     { key: "present", label: "Present", color: "emerald", icon: CheckCircle },
@@ -13,13 +15,23 @@ const STATUSES = [
 function toISODate(d) { return d.toISOString().slice(0, 10); }
 
 export default function WeeklyAttendance() {
+    const { user } = useAuth();
+    const canManage = user?.role === "super_admin" || user?.role === "team_leader";
     const [weekOf, setWeekOf] = useState(() => toISODate(new Date()));
+    const [mode, setMode] = useState("me");   // "me" | "team"
     const [data, setData] = useState(null);
+    const [teamData, setTeamData] = useState(null);
     const [busy, setBusy] = useState(null);
 
     const load = async (w) => {
         const { data } = await api.get(`/event-attendance/week?week_of=${w}`);
         setData(data);
+        if (canManage) {
+            try {
+                const { data: td } = await api.get(`/event-attendance/team-week?week_of=${w}`);
+                setTeamData(td);
+            } catch { /* silent */ }
+        }
     };
     useEffect(() => { load(weekOf); }, [weekOf]);
 
@@ -29,65 +41,150 @@ export default function WeeklyAttendance() {
         setWeekOf(toISODate(d));
     };
 
-    const mark = async (occ, status) => {
-        if (occ.locked) {
-            toast.error("Attendance locked (past 8 AM IST)");
-            return;
-        }
+    const markSelf = async (occ, status) => {
+        if (occ.locked) { toast.error("Attendance locked"); return; }
         setBusy(occ.event_id + occ.event_date);
         try {
-            await api.post("/event-attendance/mark", {
-                event_id: occ.event_id, event_date: occ.event_date, status,
-            });
+            await api.post("/event-attendance/mark", { event_id: occ.event_id, event_date: occ.event_date, status });
             toast.success(`Marked ${status.toUpperCase()}`);
             await load(weekOf);
-        } catch (err) {
-            toast.error(err.response?.data?.detail || "Failed");
-        } finally {
-            setBusy(null);
-        }
+        } catch (err) { toast.error(err.response?.data?.detail || "Failed"); }
+        finally { setBusy(null); }
+    };
+
+    const markFor = async (userId, eventId, eventDate, status) => {
+        setBusy(userId + eventId + eventDate + status);
+        try {
+            await api.post("/event-attendance/mark-for-member", {
+                user_id: userId, event_id: eventId, event_date: eventDate, status,
+            });
+            toast.success(`${status.toUpperCase()} recorded`);
+            await load(weekOf);
+        } catch (err) { toast.error(err.response?.data?.detail || "Failed"); }
+        finally { setBusy(null); }
     };
 
     if (!data) return <div className="text-zinc-500 text-sm">Loading week...</div>;
 
     return (
         <div className="space-y-6" data-testid="weekly-attendance-page">
-            <div>
-                <div className="heading-eyebrow">Weekly Ritual</div>
-                <h1 className="font-display font-black text-3xl md:text-4xl tracking-tighter mt-1">Weekly Attendance</h1>
-                <p className="text-zinc-400 mt-2 text-sm">Show up, mark it, own your discipline. Locks at 8:00 AM IST daily.</p>
+            <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+                <div>
+                    <div className="heading-eyebrow">Weekly Ritual</div>
+                    <h1 className="font-display font-black text-3xl md:text-4xl tracking-tighter mt-1">Weekly Attendance</h1>
+                    <p className="text-zinc-400 mt-2 text-sm">Tuesday & Thursday lock at 8 AM · Saturday stays open until 10 PM.</p>
+                </div>
+                {canManage && (
+                    <div className="flex bg-white/5 border border-white/10 rounded-xl p-1 self-start">
+                        <button onClick={() => setMode("me")} className={`px-3 py-2 rounded-lg text-xs font-bold uppercase tracking-widest inline-flex items-center gap-2 ${mode === "me" ? "bg-yellow-500 text-black" : "text-zinc-400 hover:text-white"}`} data-testid="attn-mode-me"><User size={14} weight="fill" /> Me</button>
+                        <button onClick={() => setMode("team")} className={`px-3 py-2 rounded-lg text-xs font-bold uppercase tracking-widest inline-flex items-center gap-2 ${mode === "team" ? "bg-yellow-500 text-black" : "text-zinc-400 hover:text-white"}`} data-testid="attn-mode-team"><Users size={14} weight="fill" /> Team</button>
+                    </div>
+                )}
             </div>
 
             <div className="glass p-4 flex items-center justify-between">
-                <button onClick={() => navWeek(-1)} className="btn-ghost" data-testid="week-prev-btn">
-                    <CaretLeft size={16} /> Previous
-                </button>
+                <button onClick={() => navWeek(-1)} className="btn-ghost" data-testid="week-prev-btn"><CaretLeft size={16} /> Previous</button>
                 <div className="text-center">
                     <div className="heading-eyebrow">Week</div>
-                    <div className="font-display font-bold text-sm mt-1" data-testid="week-range">
-                        {data.week_start} → {data.week_end}
-                    </div>
+                    <div className="font-display font-bold text-sm mt-1" data-testid="week-range">{data.week_start} → {data.week_end}</div>
                 </div>
-                <button onClick={() => navWeek(1)} className="btn-ghost" data-testid="week-next-btn">
-                    Next <CaretRight size={16} />
-                </button>
+                <button onClick={() => navWeek(1)} className="btn-ghost" data-testid="week-next-btn">Next <CaretRight size={16} /></button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {data.occurrences.map((occ) => (
-                    <EventCard
-                        key={occ.event_id + occ.event_date}
-                        occ={occ}
-                        busy={busy === occ.event_id + occ.event_date}
-                        onMark={(status) => mark(occ, status)}
-                    />
-                ))}
-            </div>
+            {mode === "me" && (
+                <>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {data.occurrences.length === 0 && <div className="col-span-full text-center text-zinc-500 text-sm py-8">No attendance sessions open right now. Meetings appear on their scheduled day.</div>}
+                        {data.occurrences.map((occ) => (
+                            <EventCard
+                                key={occ.event_id + occ.event_date}
+                                occ={occ}
+                                busy={busy === occ.event_id + occ.event_date}
+                                onMark={(s) => markSelf(occ, s)}
+                            />
+                        ))}
+                    </div>
+                    <div className="glass p-4 text-xs text-zinc-500 flex items-center gap-2">
+                        <Lock size={14} weight="duotone" className="text-yellow-500" />
+                        Saturday Spartans Team Meeting: locks at <span className="text-yellow-400 font-bold">22:00 IST</span>. Tue & Thu: <span className="text-yellow-400 font-bold">08:00 IST</span>.
+                    </div>
+                </>
+            )}
 
-            <div className="glass p-4 text-xs text-zinc-500 flex items-center gap-2">
-                <Lock size={14} weight="duotone" className="text-yellow-500" />
-                Auto-lock: attendance for each event closes at <span className="text-yellow-400 font-bold">8:00 AM IST</span> on the event day.
-            </div>
+            {mode === "team" && teamData && (
+                <TeamGrid data={teamData} onMark={markFor} busyKey={busy} />
+            )}
+        </div>
+    );
+}
+
+function TeamGrid({ data, onMark, busyKey }) {
+    const { occurrences, grid } = data;
+    return (
+        <div className="glass p-3 md:p-4 overflow-x-auto" data-testid="team-attendance-grid">
+            <table className="w-full min-w-[720px]">
+                <thead>
+                    <tr>
+                        <th className="text-left py-2 px-2 text-[10px] uppercase tracking-widest text-zinc-500">Member</th>
+                        {occurrences.map((o) => (
+                            <th key={o.event_id} className="text-center py-2 px-2">
+                                <div className="text-[10px] uppercase tracking-widest text-zinc-500">{o.weekday_name}</div>
+                                <div className="text-xs font-bold mt-0.5">{o.name.split("(")[0].trim()}</div>
+                                <div className="text-[9px] text-zinc-500 flex items-center justify-center gap-1 mt-0.5">
+                                    {o.is_locked ? <><Lock size={10} className="text-red-400" /> Locked</> : <><LockOpen size={10} className="text-emerald-400" /> Open · {o.lock_hour}:00</>}
+                                </div>
+                            </th>
+                        ))}
+                    </tr>
+                </thead>
+                <tbody>
+                    {grid.map((row) => (
+                        <tr key={row.user_id} className="border-t border-white/5" data-testid={`team-attn-row-${row.user_id}`}>
+                            <td className="py-3 px-2">
+                                <div className="flex items-center gap-2">
+                                    <Avatar user={row} size={28} />
+                                    <div>
+                                        <div className="text-sm font-semibold">{row.name}</div>
+                                        <div className="text-[10px] text-zinc-500">{row.team || "-"}</div>
+                                    </div>
+                                </div>
+                            </td>
+                            {occurrences.map((o) => {
+                                const mk = row.marks[o.event_id] || {};
+                                const current = mk.status;
+                                return (
+                                    <td key={o.event_id} className="py-2 px-1 text-center">
+                                        <div className="flex items-center justify-center gap-1">
+                                            {STATUSES.map((s) => {
+                                                const active = current === s.key;
+                                                const key = row.user_id + o.event_id + o.event_date + s.key;
+                                                const clr = s.color === "emerald" ? (active ? "bg-emerald-500 text-black" : "bg-white/5 text-emerald-400") :
+                                                    s.color === "red" ? (active ? "bg-red-500 text-white" : "bg-white/5 text-red-400") :
+                                                    (active ? "bg-zinc-400 text-black" : "bg-white/5 text-zinc-400");
+                                                return (
+                                                    <button
+                                                        key={s.key}
+                                                        disabled={busyKey === key || o.is_locked}
+                                                        onClick={() => onMark(row.user_id, o.event_id, o.event_date, s.key)}
+                                                        className={`w-8 h-8 rounded-lg grid place-items-center transition-all ${clr} hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed`}
+                                                        title={s.label}
+                                                        data-testid={`team-mark-${row.user_id}-${o.event_id}-${s.key}`}
+                                                    >
+                                                        <s.icon size={14} weight="fill" />
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </td>
+                                );
+                            })}
+                        </tr>
+                    ))}
+                    {grid.length === 0 && (
+                        <tr><td colSpan={1 + occurrences.length} className="py-8 text-center text-zinc-500 text-sm">No members in your scope.</td></tr>
+                    )}
+                </tbody>
+            </table>
         </div>
     );
 }

@@ -16,6 +16,7 @@ import { Link } from "react-router-dom";
 import CelebrationBanner from "@/components/CelebrationBanner";
 import PositionBadges from "@/components/PositionBadges";
 import Avatar from "@/components/Avatar";
+import GoalsWidget from "@/components/GoalsWidget";
 
 export default function Dashboard() {
     const { user, refreshUser } = useAuth();
@@ -134,6 +135,9 @@ export default function Dashboard() {
                     </div>
                 </div>
             </section>
+
+            {/* Goals — weekly & monthly progress (replaces standalone Goals page) */}
+            <GoalsWidget />
 
             {/* Stats bento */}
             <section className="grid grid-cols-2 lg:grid-cols-4 gap-4">

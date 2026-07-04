@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation, Navigate } from "react-router-dom";
 import { Toaster } from "sonner";
 import { AuthProvider } from "@/context/AuthContext";
 import AppLayout from "@/components/AppLayout";
@@ -183,11 +183,7 @@ function Router() {
             />
             <Route
                 path="/goals"
-                element={
-                    <ProtectedRoute>
-                        <AppLayout><Goals /></AppLayout>
-                    </ProtectedRoute>
-                }
+                element={<Navigate to="/" replace />}
             />
             <Route
                 path="/goal-settings"

@@ -43,6 +43,13 @@ function ExportBar({ scope, label }) {
         <div className="flex items-center gap-2" data-testid={`export-bar-${scope}`}>
             {label && <span className="text-[10px] uppercase tracking-widest text-zinc-500">{label}</span>}
             <button
+                onClick={() => download(url + (url.includes("?") ? "&" : "?") + "format=xlsx")}
+                className="btn-glass py-2 px-3 text-xs"
+                data-testid={`export-xlsx-${scope}`}
+            >
+                <FileCsv size={14} weight="duotone" /> Excel
+            </button>
+            <button
                 onClick={() => download(url + (url.includes("?") ? "&" : "?") + "format=csv")}
                 className="btn-glass py-2 px-3 text-xs"
                 data-testid={`export-csv-${scope}`}
