@@ -2921,8 +2921,16 @@ async def admin_delete_user(uid: str, request: Request):
         raise HTTPException(status_code=404, detail="User not found")
     if target.get("role") == "super_admin":
         raise HTTPException(status_code=400, detail="Cannot delete another super admin")
+    # Cascade: remove records owned by this user so exports/leagues don't show orphans.
     await db.users.delete_one({"user_id": uid})
     await db.teams.update_many({"leader_id": uid}, {"$set": {"leader_id": None}})
+    for coll, key in [
+        ("prospects", "user_id"), ("followups", "user_id"), ("missions", "user_id"),
+        ("goals", "user_id"), ("xp_events", "user_id"), ("event_attendance", "user_id"),
+        ("attendance", "user_id"), ("redemptions", "user_id"), ("user_business", "user_id"),
+        ("tasks", "assigned_to"), ("files", "user_id"),
+    ]:
+        await db[coll].delete_many({key: uid})
     return {"ok": True}
 
 
@@ -3075,15 +3083,18 @@ async def season_business_totals(request: Request, season_id: Optional[str] = No
         {"$group": {"_id": None, "pv": {"$sum": "$pv"}, "earnings": {"$sum": "$earnings"},
                     "members": {"$sum": 1}}},
     ]).to_list(1)
-    total_pv = agg[0]["pv"] if agg else 0.0
-    total_earnings = agg[0]["earnings"] if agg else 0.0
+    total_pv_from_ledger = agg[0]["pv"] if agg else 0.0
+    total_earnings_from_ledger = agg[0]["earnings"] if agg else 0.0
+    # Prefer admin-set season totals when explicitly provided (including 0); fall back to ledger sum.
+    season_pv = season.get("total_pv")
+    season_earnings = season.get("total_earnings")
     return {
         "season": season,
-        "total_pv": round(float(season.get("total_pv") or total_pv), 2),
-        "total_earnings": round(float(season.get("total_earnings") or total_earnings), 2),
+        "total_pv": round(float(season_pv if season_pv is not None else total_pv_from_ledger), 2),
+        "total_earnings": round(float(season_earnings if season_earnings is not None else total_earnings_from_ledger), 2),
         "member_count": agg[0]["members"] if agg else 0,
-        "per_member_pv": total_pv,
-        "per_member_earnings": total_earnings,
+        "per_member_pv": total_pv_from_ledger,
+        "per_member_earnings": total_earnings_from_ledger,
     }
 
 

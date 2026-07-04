@@ -276,3 +276,51 @@ Gamified performance tracking & accountability platform for a Crypto Network Mar
 - P1: Season history archive (auto-snapshot standings when season ends).
 - P2: Export button next to each Admin widget for granular CSV/PDF snapshots.
 - P2: Email/SMS notifications for birthdays/anniversaries.
+
+---
+
+## Iteration 13 — Feb 2026 (Massive Refactor v3)
+
+**Delivered (5 phases, all tested — 39/39 backend + frontend flows):**
+
+### Phase A — Auth + Rename + Validation
+- **Nexus ID (Business Centre)** required on signup (free-text, uppercase, min 3 chars). Displayed on Profile header + Admin roster; editable in Profile form.
+- Renamed navigation label "Missions" → "Daily Missions" everywhere.
+- Removed URL text inputs for profile photo & anniversary photo (per new rule: images only via upload).
+
+### Phase B — Attendance Gating + Admin CRUD
+- **Attendance now hides future meeting sessions** for non-admin users; POST `/event-attendance/mark` returns 403 for future or past dates.
+- **Admin user management**: PATCH/DELETE `/admin/users/{uid}` — edit name/team/role, delete with cascade (goals, prospects, followups, missions, tasks, xp_events, attendance, redemptions, user_business, files).
+- **Teams CRUD**: POST/PATCH/DELETE `/admin/teams` — create, rename (cascades to members), reassign leader, delete (blocked if members exist).
+- Admin panel: Edit/Delete icon buttons per row + Edit User modal.
+
+### Phase C — Season PV/Earnings + Follow-up Time Slot + Notifications
+- Season model now has `total_pv` + `total_earnings` (super_admin only). Displayed on SeasonCards + business-totals endpoint. Per-user business entries via `POST /admin/users/{uid}/business`.
+- Follow-ups now support `time_slot` ("8-10am" / "10-12pm" / "2-4pm" / "6-8pm").
+- Follow-Ups page split into **Pending / Overdue / Completed** tabs.
+- **In-app NotificationBell** with red badge — pulls `/notifications` every 60 s and shows overdue follow-ups, follow-ups due today, pending weekly/monthly goals, overdue tasks.
+
+### Phase D — Object Storage + League Enrichment + Season Archive
+- **Emergent Object Storage integration**: `POST /uploads/avatar` (multipart, ≤ 2 MB, image MIME only) + `GET /files/{id}?auth=<token>` (query-token for `<img>` tags).
+- New `<Avatar>` + `<AvatarUploader>` components — used across Profile hero, Spartans League podium & rows, Team League leader, Admin roster.
+- **Spartans League** now returns club_type, nexus_id, avatar_url, position_badges (individual) + leader_name, leader_avatar_url, leader_badges, mission_pct (team).
+- **Season history archive**: `POST /admin/seasons/{id}/finalize` snapshots individual + team standings + business ledger permanently; retrievable via `/season-history` list & `/season-history/{id}`.
+
+### Phase E — Final polish
+- **Seed data wipe**: removed demo users (Achilles, Hector, etc.), demo challenges & demo rewards from `on_startup`. Only super_admin remains as a seeded user.
+- New `POST /admin/wipe-demo-data` endpoint for on-demand cleanup (nukes 14 collections + non-admin users).
+- Fixed `/season/business-totals` to correctly treat admin-set 0 (was ignored as falsy).
+- Updated `test_credentials.md` reflecting the post-wipe state (only admin remains).
+
+**Files changed / created (this iteration):**
+- Backend: `/app/backend/server.py` (grew ~700 LOC — models, storage, admin CRUD, notifications, archive, wipe).
+- Frontend: `AppLayout.jsx`, `Profile.jsx`, `AuthPage.jsx`, `Admin.jsx`, `Seasons.jsx`, `FollowUps.jsx`, `SpartansLeague.jsx`.
+- New components: `Avatar.jsx`, `AvatarUploader.jsx`, `NotificationBell.jsx`.
+- Tests: `/app/backend/tests/test_feb2026_refactor.py` (39 cases).
+
+**Known backlog (P2/P3, non-blocking):**
+- Modularize `server.py` into routers (auth/admin/attendance/storage/…).
+- Sniff image magic bytes on upload (defense-in-depth).
+- Short-lived signed URLs instead of `?auth=<jwt>` on file downloads.
+- Replace HTML5 date inputs on Seasons modal with shadcn `<Calendar>` for UI consistency.
+- Optional external notification channels (email, WhatsApp) — currently in-app only.
