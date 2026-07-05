@@ -1,7 +1,8 @@
 import { Link, NavLink, useNavigate } from "react-router-dom";
+import { useState } from "react";
 import {
     House, Target, Phone, Trophy, User, ChartLine,
-    Sword, SignOut, ShieldStar, Fire,
+    Sword, SignOut, ShieldStar, Fire, List, X,
     Users, UsersThree, ChartBar, Crosshair, CalendarCheck, ClipboardText, MedalMilitary, Gift, Flag,
 } from "@phosphor-icons/react";
 import { useAuth } from "@/context/AuthContext";
@@ -41,6 +42,7 @@ export default function AppLayout({ children }) {
     const { user, logout } = useAuth();
     const navigate = useNavigate();
     const nav = navForRole(user?.role, user?.club_type);
+    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
     const initials = (user?.name || "S").split(" ").map((s) => s[0]).slice(0, 2).join("").toUpperCase();
 
@@ -119,6 +121,12 @@ export default function AppLayout({ children }) {
                         <div className="font-display font-black text-sm">SPARTANS</div>
                     </Link>
                     <div className="flex items-center gap-2">
+                        <button
+    onClick={() => setMobileMenuOpen(true)}
+    className="p-2 rounded-lg text-zinc-300 hover:text-yellow-400 hover:bg-white/5"
+>
+    <List size={22} />
+</button>
                         <div className="chip-gold" data-testid="mobile-level-chip">
                             <ShieldStar size={12} weight="fill" /> LVL {user?.level || 1}
                         </div>
@@ -136,6 +144,58 @@ export default function AppLayout({ children }) {
 
             {/* Main */}
             <motion.main
+                {/* Mobile Full Menu Drawer */}
+{mobileMenuOpen && (
+  <div className="lg:hidden fixed inset-0 z-50 bg-black/70 backdrop-blur-sm">
+    <div className="absolute left-0 top-0 h-full w-80 max-w-[85%] bg-[#08080b] border-r border-white/10 overflow-y-auto">
+
+      <div className="flex items-center justify-between p-4 border-b border-white/10">
+        <h2 className="text-lg font-bold text-white">Menu</h2>
+
+        <button
+          onClick={() => setMobileMenuOpen(false)}
+          className="text-white p-2"
+        >
+          <X size={24} />
+        </button>
+      </div>
+
+      <div className="p-4 space-y-2">
+        {nav.map((item) => (
+          <NavLink
+            key={item.to}
+            to={item.to}
+            end={item.to === "/"}
+            onClick={() => setMobileMenuOpen(false)}
+            className={({ isActive }) =>
+              `flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
+                isActive
+                  ? "bg-yellow-500/10 text-yellow-400 border border-yellow-500/20"
+                  : "text-zinc-400 hover:text-white hover:bg-white/5"
+              }`
+            }
+          >
+            <item.icon size={20} weight="duotone" />
+            <span>{item.label}</span>
+          </NavLink>
+        ))}
+
+        <button
+          onClick={handleLogout}
+          className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-red-400 hover:bg-red-500/10"
+        >
+          <SignOut size={20} />
+          Logout
+        </button>
+      </div>
+    </div>
+
+    <div
+      className="absolute inset-0"
+      onClick={() => setMobileMenuOpen(false)}
+    />
+  </div>
+)}
                 key={typeof window !== "undefined" ? window.location.pathname : "root"}
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
