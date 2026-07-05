@@ -57,7 +57,7 @@ export default function AvatarUploader({ user, onUploaded, size = 128 }) {
             <button
                 onClick={pick}
                 disabled={busy}
-                className="absolute -bottom-1 -right-1 w-10 h-10 rounded-full bg-yellow-500 text-black grid place-items-center border-4 border-[#050507] hover:scale-105 transition-transform disabled:opacity-70"
+className="absolute bottom-2 right-2 z-20 w-11 h-11 rounded-full bg-yellow-500 text-black grid place-items-center border-4 border-[#050507] shadow-[0_0_18px_rgba(234,179,8,0.6)] hover:scale-105 transition-transform disabled:opacity-70"
                 data-testid="avatar-upload-btn"
                 aria-label="Upload profile photo"
             >
