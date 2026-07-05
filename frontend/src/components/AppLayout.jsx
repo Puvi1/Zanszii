@@ -144,7 +144,17 @@ export default function AppLayout({ children }) {
 
             {/* Main */}
             <motion.main
-                {/* Mobile Full Menu Drawer */}
+                key={typeof window !== "undefined" ? window.location.pathname : "root"}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.35 }}
+                className="lg:pl-64 pb-24 lg:pb-8 relative"
+            >
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
+                    {children}
+                </div>
+            </motion.main>
+            {/* Mobile Full Menu Drawer */}
 {mobileMenuOpen && (
   <div className="lg:hidden fixed inset-0 z-50 bg-black/70 backdrop-blur-sm">
     <div className="absolute left-0 top-0 h-full w-80 max-w-[85%] bg-[#08080b] border-r border-white/10 overflow-y-auto">
@@ -196,16 +206,6 @@ export default function AppLayout({ children }) {
     />
   </div>
 )}
-                key={typeof window !== "undefined" ? window.location.pathname : "root"}
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.35 }}
-                className="lg:pl-64 pb-24 lg:pb-8 relative"
-            >
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
-                    {children}
-                </div>
-            </motion.main>
 
             {/* Mobile Bottom Nav */}
             <nav className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-[#08080b]/95 backdrop-blur-2xl border-t border-white/10">
