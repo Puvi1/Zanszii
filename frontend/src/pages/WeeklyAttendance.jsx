@@ -72,7 +72,7 @@ export default function WeeklyAttendance() {
                 <div>
                     <div className="heading-eyebrow">Weekly Ritual</div>
                     <h1 className="font-display font-black text-3xl md:text-4xl tracking-tighter mt-1">Weekly Attendance</h1>
-                    <p className="text-zinc-400 mt-2 text-sm">Tuesday & Thursday lock at 8 AM · Saturday stays open until 10 PM.</p>
+                    <p className="text-zinc-400 mt-2 text-sm">Monday & Thursday lock at 8 AM · Saturday stays open until 10 PM.</p>
                 </div>
                 {canManage && (
                     <div className="flex bg-white/5 border border-white/10 rounded-xl p-1 self-start">
@@ -106,7 +106,7 @@ export default function WeeklyAttendance() {
                     </div>
                     <div className="glass p-4 text-xs text-zinc-500 flex items-center gap-2">
                         <Lock size={14} weight="duotone" className="text-yellow-500" />
-                        Saturday Spartans Team Meeting: locks at <span className="text-yellow-400 font-bold">22:00 IST</span>. Tue & Thu: <span className="text-yellow-400 font-bold">08:00 IST</span>.
+                        Saturday Spartans Team Meeting: locks at <span className="text-yellow-400 font-bold">22:00 IST</span>. Mon & Thu: <span className="text-yellow-400 font-bold">08:00 IST</span>.
                     </div>
                 </>
             )}
