@@ -115,7 +115,7 @@ export default function AppLayout({ children }) {
             {/* Mobile Top Bar */}
             <header className="lg:hidden sticky top-0 z-30 bg-[#08080b]/90 backdrop-blur-xl border-b border-white/5">
                 <div className="flex items-center justify-between px-4 py-3">
-                    <div className="flex items-center justify-between px-4 py-3">
+                   
 
     {/* Left Side */}
     <div className="flex items-center gap-2">
