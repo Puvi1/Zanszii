@@ -1729,60 +1729,84 @@ async def delete_weekly_event(event_id: str, request: Request):
     return {"ok": True}
 
 
-# --- Event Attendance ---
 @api.get("/event-attendance/week")
 async def week_attendance(request: Request, week_of: Optional[str] = None):
-    """Returns this week's events with the current user's marks.
+    """Returns attendance events.
 
-    Rules (Feb 2026 refactor):
-    - Members: future meetings (event_date > today) are HIDDEN.
-    - Super admin: all occurrences returned for history/audit (including future).
+    - Default: shows upcoming 30 days.
+    - Future meetings are visible but locked.
+    - Attendance can be marked only on meeting day.
+    - Decider users will not see believer/season attendance.
     """
     user = await get_current_user(request, db)
-    anchor = date.fromisoformat(week_of) if week_of else date.today()
+
     today = date.today()
-    week_dates = _dates_for_week(anchor)
+    is_admin = user["role"] == "super_admin"
+
+    if week_of:
+        anchor = date.fromisoformat(week_of)
+        week_dates = _dates_for_week(anchor)
+        period_start = week_dates[0]
+        period_end = week_dates[6]
+    else:
+        period_start = today
+        period_end = today + timedelta(days=30)
+
     event_filter = {"active": True}
 
-# Hide season attendance for Decider users
-if user.get("club_type") == "decider" and user.get("role") != "super_admin":
-    event_filter["is_believer"] = False
+    if str(user.get("club_type", "")).lower() == "decider" and not is_admin:
+        event_filter["is_believer"] = False
 
-events = await db.weekly_events.find(
-    event_filter,
-    {"_id": 0}
-).sort("weekday", 0).to_list(100)
-    is_admin = user["role"] == "super_admin"
+    events = await db.weekly_events.find(
+        event_filter,
+        {"_id": 0}
+    ).sort("weekday", 1).to_list(100)
+
     occurrences = []
+    period_dates = [
+        period_start + timedelta(days=i)
+        for i in range((period_end - period_start).days + 1)
+    ]
+
     for e in events:
-        occ_date = week_dates[e["weekday"]]
-        occ_date_str = occ_date.isoformat()
-        # Hide future occurrences from non-admins
-        if not is_admin and occ_date > today:
-            continue
-        mark = await db.event_attendance.find_one(
-            {"user_id": user["user_id"], "event_id": e["event_id"], "event_date": occ_date_str},
-            {"_id": 0},
-        )
-        occurrences.append({
-            "event_id": e["event_id"],
-            "name": e["name"],
-            "weekday": e["weekday"],
-            "weekday_name": _weekday_name(e["weekday"]),
-            "is_believer": e.get("is_believer", False),
-            "event_date": occ_date_str,
-            "status": mark["status"] if mark else None,
-            "locked": _is_locked(occ_date_str),
-            "is_future": occ_date > today,
-            "is_today": occ_date == today,
-            "marked_at": mark.get("updated_at") if mark else None,
-        })
+        event_weekday = int(e["weekday"])
+
+        for occ_date in period_dates:
+            if occ_date.weekday() != event_weekday:
+                continue
+
+            occ_date_str = occ_date.isoformat()
+
+            mark = await db.event_attendance.find_one(
+                {
+                    "user_id": user["user_id"],
+                    "event_id": e["event_id"],
+                    "event_date": occ_date_str,
+                },
+                {"_id": 0},
+            )
+
+            occurrences.append({
+                "event_id": e["event_id"],
+                "name": e["name"],
+                "weekday": e["weekday"],
+                "weekday_name": _weekday_name(e["weekday"]),
+                "is_believer": e.get("is_believer", False),
+                "event_date": occ_date_str,
+                "status": mark["status"] if mark else None,
+                "locked": True if occ_date > today else _is_locked(occ_date_str),
+                "is_future": occ_date > today,
+                "is_today": occ_date == today,
+                "marked_at": mark.get("updated_at") if mark else None,
+            })
+
+    occurrences.sort(key=lambda x: x["event_date"])
+
     return {
-        "week_start": week_dates[0].isoformat(),
-        "week_end": week_dates[6].isoformat(),
+        "week_start": period_start.isoformat(),
+        "week_end": period_end.isoformat(),
         "occurrences": occurrences,
     }
-
 
 @api.post("/event-attendance/mark")
 async def mark_attendance(payload: EventAttendanceMark, request: Request):
