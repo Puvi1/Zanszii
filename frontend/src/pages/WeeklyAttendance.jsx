@@ -115,7 +115,47 @@ export default function WeeklyAttendance() {
                     </div>
                 )}
             </div>
+{user?.role === "super_admin" && (
+    <form onSubmit={createSession} className="glass p-4 space-y-3">
+        <div className="heading-eyebrow">Admin</div>
+        <h2 className="font-display font-bold text-xl">Add Weekly Attendance Session</h2>
 
+        <input
+            type="text"
+            value={sessionForm.name}
+            onChange={(e) => setSessionForm({ ...sessionForm, name: e.target.value })}
+            placeholder="Session name"
+            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm"
+        />
+
+        <select
+            value={sessionForm.weekday}
+            onChange={(e) => setSessionForm({ ...sessionForm, weekday: e.target.value })}
+            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm"
+        >
+            <option value={0}>Monday</option>
+            <option value={1}>Tuesday</option>
+            <option value={2}>Wednesday</option>
+            <option value={3}>Thursday</option>
+            <option value={4}>Friday</option>
+            <option value={5}>Saturday</option>
+            <option value={6}>Sunday</option>
+        </select>
+
+        <label className="flex items-center gap-2 text-sm text-zinc-300">
+            <input
+                type="checkbox"
+                checked={sessionForm.is_believer}
+                onChange={(e) => setSessionForm({ ...sessionForm, is_believer: e.target.checked })}
+            />
+            Believer / Season attendance
+        </label>
+
+        <button type="submit" className="btn-gold w-full py-3">
+            Add Session
+        </button>
+    </form>
+)}
             <div className="glass p-4 flex items-center justify-between">
                 <button onClick={() => navWeek(-1)} className="btn-ghost" data-testid="week-prev-btn"><CaretLeft size={16} /> Previous</button>
                 <div className="text-center">
