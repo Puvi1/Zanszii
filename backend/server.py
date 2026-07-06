@@ -233,16 +233,24 @@ class MissionUpdate(BaseModel):
 # --- Weekly Attendance / Seasons / Tasks models ---
 class WeeklyEventIn(BaseModel):
     name: str
-    weekday: int = Field(ge=0, le=6)  # 0=Mon..6=Sun
-    is_believer: bool = False
+    club_type: Literal["converter", "believer", "builder", "decider", "all"] = "converter"
+    weekday: int = Field(ge=0, le=6)
+    repeat_type: Literal["weekly", "once"] = "weekly"
+    open_time: str = "08:00"
+    lock_time: str = "22:00"
     active: bool = True
+    completed: bool = False
 
 
 class WeeklyEventUpdate(BaseModel):
     name: Optional[str] = None
+    club_type: Optional[Literal["converter", "believer", "builder", "decider", "all"]] = None
     weekday: Optional[int] = Field(default=None, ge=0, le=6)
-    is_believer: Optional[bool] = None
+    repeat_type: Optional[Literal["weekly", "once"]] = None
+    open_time: Optional[str] = None
+    lock_time: Optional[str] = None
     active: Optional[bool] = None
+    completed: Optional[bool] = None
 
 
 class EventAttendanceMark(BaseModel):
@@ -1700,22 +1708,31 @@ async def list_weekly_events(request: Request):
 async def create_weekly_event(payload: WeeklyEventIn, request: Request):
     user = await get_current_user(request, db)
     require_role(user, ["super_admin"])
+
     doc = payload.model_dump()
-    doc.update({"event_id": str(uuid.uuid4()), "created_at": _iso(datetime.now(timezone.utc))})
+    doc.update({
+        "event_id": str(uuid.uuid4()),
+        "is_believer": payload.club_type == "believer",
+        "created_at": _iso(datetime.now(timezone.utc)),
+    })
+
     await db.weekly_events.insert_one(doc)
     return _clean(doc)
 
 
-@api.patch("/weekly-events/{event_id}")
-async def update_weekly_event(event_id: str, payload: WeeklyEventUpdate, request: Request):
+@api.delete("/weekly-events/{event_id}")
+async def delete_weekly_event(event_id: str, request: Request):
     user = await get_current_user(request, db)
     require_role(user, ["super_admin"])
-    updates = {k: v for k, v in payload.model_dump().items() if v is not None}
-    if not updates:
-        raise HTTPException(status_code=400, detail="No fields to update")
-    r = await db.weekly_events.update_one({"event_id": event_id}, {"$set": updates})
+
+    r = await db.weekly_events.update_one(
+        {"event_id": event_id},
+        {"$set": {"active": False, "deleted_at": _iso(datetime.now(timezone.utc))}}
+    )
+
     if r.matched_count == 0:
         raise HTTPException(status_code=404, detail="Event not found")
+
     return {"ok": True}
 
 
