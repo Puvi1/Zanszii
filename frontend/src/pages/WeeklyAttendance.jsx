@@ -97,7 +97,7 @@ export default function WeeklyAttendance() {
 
             setSessionForm({
                 name: "",
-                clubs:[]
+                clubs:[],
                 weekday: 0,
                 repeat_type: "weekly",
                 open_time: "08:00",
