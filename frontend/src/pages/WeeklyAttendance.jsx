@@ -68,6 +68,35 @@ export default function WeeklyAttendance() {
         } catch (err) { toast.error(err.response?.data?.detail || "Failed"); }
         finally { setBusy(null); }
     };
+    const createSession = async (e) => {
+    e.preventDefault();
+
+    if (!sessionForm.name.trim()) {
+        toast.error("Session name is required");
+        return;
+    }
+
+    try {
+        await api.post("/weekly-events", {
+            name: sessionForm.name,
+            weekday: Number(sessionForm.weekday),
+            is_believer: sessionForm.is_believer,
+            active: true,
+        });
+
+        toast.success("Weekly session added");
+
+        setSessionForm({
+            name: "",
+            weekday: 0,
+            is_believer: false,
+        });
+
+        load();
+    } catch (err) {
+        toast.error("Failed to create session");
+    }
+};
 
     if (!data) return <div className="text-zinc-500 text-sm">Loading week...</div>;
 
