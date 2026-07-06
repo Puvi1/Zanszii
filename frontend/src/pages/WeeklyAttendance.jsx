@@ -22,6 +22,11 @@ export default function WeeklyAttendance() {
     const [data, setData] = useState(null);
     const [teamData, setTeamData] = useState(null);
     const [busy, setBusy] = useState(null);
+    const [sessionForm, setSessionForm] = useState({
+    name: "",
+    weekday: 0,
+    is_believer: false,
+});
 
     const load = async (w) => {
         const { data } = await api.get(`/event-attendance/week?week_of=${w}`);
