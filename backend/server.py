@@ -1735,14 +1735,19 @@ async def delete_weekly_event(event_id: str, request: Request):
 
     return {"ok": True}
 
-
-@api.delete("/weekly-events/{event_id}")
-async def delete_weekly_event(event_id: str, request: Request):
+@api.patch("/weekly-events/{event_id}/complete")
+async def complete_weekly_event(event_id: str, request: Request):
     user = await get_current_user(request, db)
     require_role(user, ["super_admin"])
-    r = await db.weekly_events.delete_one({"event_id": event_id})
-    if r.deleted_count == 0:
+
+    r = await db.weekly_events.update_one(
+        {"event_id": event_id},
+        {"$set": {"completed": True, "completed_at": _iso(datetime.now(timezone.utc))}}
+    )
+
+    if r.matched_count == 0:
         raise HTTPException(status_code=404, detail="Event not found")
+
     return {"ok": True}
 
 
@@ -1768,10 +1773,17 @@ async def week_attendance(request: Request, week_of: Optional[str] = None):
     else:
         period_start = today
         period_end = today + timedelta(days=30)
+event_filter = {"active": True, "completed": {"$ne": True}}
 
-    event_filter = {"active": True}
+if not is_admin:
+    user_club = str(user.get("club_type", "")).lower()
+    event_filter["$or"] = [
+        {"club_type": user_club},
+        {"club_type": "all"},
+        {"club_type": {"$exists": False}},
+    ]
 
-    if str(user.get("club_type", "")).lower() == "decider" and not is_admin:
+    if user_club == "decider":
         event_filter["is_believer"] = False
 
     events = await db.weekly_events.find(
@@ -1809,6 +1821,11 @@ async def week_attendance(request: Request, week_of: Optional[str] = None):
                 "weekday": e["weekday"],
                 "weekday_name": _weekday_name(e["weekday"]),
                 "is_believer": e.get("is_believer", False),
+                "club_type": e.get("club_type", "all"),
+"repeat_type": e.get("repeat_type", "weekly"),
+"open_time": e.get("open_time", "06:00"),
+"lock_time": e.get("lock_time", "22:00"),
+"completed": e.get("completed", False),
                 "event_date": occ_date_str,
                 "status": mark["status"] if mark else None,
                 "locked": True if occ_date > today else _is_locked(occ_date_str),
