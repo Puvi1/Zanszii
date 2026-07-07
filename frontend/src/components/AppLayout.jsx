@@ -12,46 +12,39 @@ import Avatar from "@/components/Avatar";
 
 const BASE_NAV = [
     { to: "/", icon: House, label: "Dashboard", testId: "nav-dashboard" },
-    { to: "/missions", icon: Crosshair, label: "Daily Missions", testId: "nav-missions" },
-    { to: "/weekly-attendance", icon: CalendarCheck, label: "Attendance", testId: "nav-weekly" },
-    { to: "/seasons", icon: MedalMilitary, label: "Seasons", testId: "nav-seasons", requiresSeasonAccess: true },
-    { to: "/tasks", icon: ClipboardText, label: "Tasks", testId: "nav-tasks" },
-    { to: "/ZANSZI-league", icon: Trophy, label: "ZANSZI League", testId: "nav-league" },
-    { to: "/rewards", icon: Gift, label: "Rewards", testId: "nav-rewards" },
-    { to: "/prospects", icon: Target, label: "Prospects", testId: "nav-prospects" },
-    { to: "/followups", icon: Phone, label: "Follow-Ups", testId: "nav-followups" },
-    { to: "/challenges", icon: Fire, label: "Challenges", testId: "nav-challenges" },
+    { to: "/products", icon: Target, label: "Products", testId: "nav-products" },
+    { to: "/orders", icon: ClipboardText, label: "Orders", testId: "nav-orders" },
+    { to: "/delivery", icon: CalendarCheck, label: "Delivery", testId: "nav-delivery" },
     { to: "/reports", icon: ChartBar, label: "Reports", testId: "nav-reports" },
     { to: "/profile", icon: User, label: "Profile", testId: "nav-profile" },
 ];
+const ADMIN_PRODUCTS_NAV = { to: "/admin/products", icon: Target, label: "Manage Products", testId: "nav-admin-products" };
+const ADMIN_ORDERS_NAV = { to: "/admin/orders", icon: ClipboardText, label: "Manage Orders", testId: "nav-admin-orders" };
+const ADMIN_CUSTOMERS_NAV = { to: "/admin/customers", icon: Users, label: "Customers", testId: "nav-admin-customers" };
+const ADMIN_MANAGERS_NAV = { to: "/admin/managers", icon: UsersThree, label: "Managers", testId: "nav-admin-managers" };
 
-const LEADER_NAV = { to: "/my-team", icon: UsersThree, label: "My Team", testId: "nav-my-team" };
-const ADMIN_USERS_NAV = { to: "/admin", icon: Users, label: "All Users", testId: "nav-admin" };
-const ADMIN_TEAMS_NAV = { to: "/teams", icon: ChartLine, label: "Teams", testId: "nav-teams" };
-const ADMIN_GOAL_SETTINGS_NAV = { to: "/goal-settings", icon: Flag, label: "Goal Settings", testId: "nav-goal-settings" };
+function navForRole(role) {
+    if (role === "super_admin" || role === "admin") {
+        return [
+            ...BASE_NAV,
+            ADMIN_PRODUCTS_NAV,
+            ADMIN_ORDERS_NAV,
+            ADMIN_CUSTOMERS_NAV,
+            ADMIN_MANAGERS_NAV,
+        ];
+    }
 
-function navForRole(role, club) {
-    // Filter out Seasons for Decider club
-    const base = BASE_NAV.filter((n) => !n.requiresSeasonAccess || club !== "decider");
-    if (role === "super_admin") return [...base, ADMIN_USERS_NAV, ADMIN_TEAMS_NAV, ADMIN_GOAL_SETTINGS_NAV];
-    if (role === "team_leader") return [...base, LEADER_NAV];
-    return base;
+    if (role === "manager") {
+        return [
+            { to: "/", icon: House, label: "Dashboard", testId: "nav-dashboard" },
+            { to: "/delivery", icon: CalendarCheck, label: "Delivery", testId: "nav-delivery" },
+            { to: "/orders", icon: ClipboardText, label: "Orders", testId: "nav-orders" },
+            { to: "/profile", icon: User, label: "Profile", testId: "nav-profile" },
+        ];
+    }
+
+    return BASE_NAV;
 }
-
-export default function AppLayout({ children }) {
-    const { user, logout } = useAuth();
-    const navigate = useNavigate();
-    const nav = navForRole(user?.role, user?.club_type);
-    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-    const [profileMZenuOpen, setProfileMenuOpen] = useState(false);
-
-    const initials = (user?.name || "S").split(" ").map((s) => s[0]).slice(0, 2).join("").toUpperCase();
-
-    const handleLogout = async () => {
-        await logout();
-        navigate("/auth", { replace: true });
-    };
-
     return (
         <div className="min-h-screen bg-[#050507] text-white relative">
             {/* Ambient glow */}
@@ -277,11 +270,12 @@ export default function AppLayout({ children }) {
             <nav className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-[#08080b]/95 backdrop-blur-2xl border-t border-white/10">
                 <div className="grid grid-cols-5 gap-1 px-2 py-2">
                    {[
+   {[
     BASE_NAV[0],
     BASE_NAV[1],
     BASE_NAV[2],
-    BASE_NAV[4],
-    BASE_NAV.find((item) => item.to === "/rewards"),
+    BASE_NAV[3],
+    BASE_NAV[5],
 ].map((item) => (
                         <NavLink
                             key={item.to}
