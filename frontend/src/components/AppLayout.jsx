@@ -16,7 +16,7 @@ const BASE_NAV = [
     { to: "/weekly-attendance", icon: CalendarCheck, label: "Attendance", testId: "nav-weekly" },
     { to: "/seasons", icon: MedalMilitary, label: "Seasons", testId: "nav-seasons", requiresSeasonAccess: true },
     { to: "/tasks", icon: ClipboardText, label: "Tasks", testId: "nav-tasks" },
-    { to: "/spartans-league", icon: Trophy, label: "Spartans League", testId: "nav-league" },
+    { to: "/ZANSZI-league", icon: Trophy, label: "ZANSZI League", testId: "nav-league" },
     { to: "/rewards", icon: Gift, label: "Rewards", testId: "nav-rewards" },
     { to: "/prospects", icon: Target, label: "Prospects", testId: "nav-prospects" },
     { to: "/followups", icon: Phone, label: "Follow-Ups", testId: "nav-followups" },
@@ -43,7 +43,7 @@ export default function AppLayout({ children }) {
     const navigate = useNavigate();
     const nav = navForRole(user?.role, user?.club_type);
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-    const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+    const [profileMZenuOpen, setProfileMenuOpen] = useState(false);
 
     const initials = (user?.name || "S").split(" ").map((s) => s[0]).slice(0, 2).join("").toUpperCase();
 
@@ -65,8 +65,8 @@ export default function AppLayout({ children }) {
                             <Sword size={22} weight="fill" />
                         </div>
                         <div>
-                            <div className="font-display font-black text-white leading-none">SPARTANS</div>
-                            <div className="text-[10px] uppercase tracking-[0.3em] text-yellow-500/80 mt-1">Growth League</div>
+                            <div className="font-display font-black text-white leading-none">ZANSZI</div>
+                            <div className="text-[10px] uppercase tracking-[0.3em] text-yellow-500/80 mt-1">ORDER MANAGEMENT</div>
                         </div>
                     </Link>
                 </div>
@@ -128,11 +128,11 @@ export default function AppLayout({ children }) {
 
             <div className="flex flex-col leading-none">
                 <span className="font-display font-black text-xl text-white">
-                    SPARTANS
+                    ZANSZI
                 </span>
 
                 <span className="text-[10px] uppercase tracking-[0.25em] text-yellow-400">
-                    Growth League
+                    ORDER MANAGEMENT
                 </span>
             </div>
         </Link>
