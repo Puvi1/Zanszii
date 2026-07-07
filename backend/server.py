@@ -1777,10 +1777,8 @@ event_filter = {"active": True, "completed": {"$ne": True}}
 
 if not is_admin:
     user_club = str(user.get("club_type", "")).lower()
-    event_filter["$or"] = [
-        {"clubs": {"$in": [user_club]}},
-        {"clubs": {"$exists": False}},
-    ]
+    event_filter["clubs"] = {"$in": [user_club]}
+    
     
     if user_club == "decider":
         event_filter["is_believer"] = False
@@ -1820,7 +1818,7 @@ if not is_admin:
                 "weekday": e["weekday"],
                 "weekday_name": _weekday_name(e["weekday"]),
                 "is_believer": e.get("is_believer", False),
-                "club_type": e.get("club_type", "all"),
+               "clubs": e.get("clubs", []),
 "repeat_type": e.get("repeat_type", "weekly"),
 "open_time": e.get("open_time", "06:00"),
 "lock_time": e.get("lock_time", "22:00"),
