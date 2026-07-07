@@ -1671,16 +1671,29 @@ def _lock_hour_for_weekday(wd: int) -> int:
     return SATURDAY_LOCK_HOUR if wd == 5 else LOCK_HOUR  # Mon=0 ... Sat=5
 
 
-def _is_locked(event_date_str: str) -> bool:
-    """True if attendance for event_date is closed. Saturday (Spartans Team Meeting) locks at 22:00; others at 08:00."""
+def _is_locked(event_date_str: str, open_time: str = "00:00", lock_time: str = "23:59") -> bool:
     try:
         d = date.fromisoformat(event_date_str)
+        open_hour, open_minute = map(int, open_time.split(":"))
+        lock_hour, lock_minute = map(int, lock_time.split(":"))
     except Exception:
         return True
-    hour = _lock_hour_for_weekday(d.weekday())
-    cutoff = datetime.combine(d, datetime.min.time().replace(hour=hour), tzinfo=LOCAL_TZ)
-    return datetime.now(LOCAL_TZ) >= cutoff
 
+    now = datetime.now(LOCAL_TZ)
+
+    open_dt = datetime.combine(
+        d,
+        datetime.min.time().replace(hour=open_hour, minute=open_minute),
+        tzinfo=LOCAL_TZ
+    )
+
+    lock_dt = datetime.combine(
+        d,
+        datetime.min.time().replace(hour=lock_hour, minute=lock_minute),
+        tzinfo=LOCAL_TZ
+    )
+
+    return not (open_dt <= now <= lock_dt)
 
 def _weekday_name(w: int) -> str:
     return ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"][w]
@@ -1823,7 +1836,11 @@ async def week_attendance(request: Request, week_of: Optional[str] = None):
                 "completed": e.get("completed", False),
                 "event_date": occ_date_str,
                 "status": mark["status"] if mark else None,
-                "locked": True if occ_date > today else _is_locked(occ_date_str),
+               "locked": _is_locked(
+    occ_date_str,
+    e.get("open_time", "00:00"),
+    e.get("lock_time", "23:59"),
+),
                 "is_future": occ_date > today,
                 "is_today": occ_date == today,
                 "marked_at": mark.get("updated_at") if mark else None,
