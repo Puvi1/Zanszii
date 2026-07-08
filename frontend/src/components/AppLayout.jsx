@@ -268,7 +268,7 @@ function navForRole(role) {
             {/* Mobile Bottom Nav */}
             <nav className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-[#08080b]/95 backdrop-blur-2xl border-t border-white/10">
                 <div className="grid grid-cols-5 gap-1 px-2 py-2">
-                   {[
+                  
    {[
     BASE_NAV[0],
     BASE_NAV[1],
