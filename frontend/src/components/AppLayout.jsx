@@ -44,7 +44,6 @@ function navForRole(role) {
     }
 
     return BASE_NAV;
-}
     return (
         <div className="min-h-screen bg-[#050507] text-white relative">
             {/* Ambient glow */}
