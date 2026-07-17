@@ -1,70 +1,202 @@
-import { createContext, useContext, useEffect, useState, useCallback } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
 import { api } from "@/lib/api";
 
 const AuthContext = createContext(null);
 
+const TOKEN_KEY = "sgl_access_token";
+
 export function AuthProvider({ children }) {
-    const [user, setUser] = useState(null);
-    const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-    const checkAuth = useCallback(async () => {
-        try {
-            const { data } = await api.get("/auth/me");
-            setUser(data);
-        } catch {
-            setUser(false);
-        } finally {
-            setLoading(false);
-        }
-    }, []);
+  const saveToken = useCallback((token) => {
+    if (!token) {
+      return;
+    }
 
-    useEffect(() => {
-        // If returning from Emergent OAuth callback, skip /me check.
-        // AuthCallback will exchange the session_id first.
-        if (typeof window !== "undefined" && window.location.hash?.includes("session_id=")) {
-            setLoading(false);
-            return;
-        }
-        checkAuth();
-    }, [checkAuth]);
+    localStorage.setItem(TOKEN_KEY, token);
+  }, []);
 
-    const login = async (email, password) => {
-        const { data } = await api.post("/auth/login", { email, password });
-        if (data.access_token) localStorage.setItem("sgl_access_token", data.access_token);
+  const removeToken = useCallback(() => {
+    localStorage.removeItem(TOKEN_KEY);
+  }, []);
+
+  const fetchCurrentUser = useCallback(async () => {
+    const { data } = await api.get("/auth/me");
+    setUser(data);
+    return data;
+  }, []);
+
+  const checkAuth = useCallback(async () => {
+    setLoading(true);
+
+    const token = localStorage.getItem(TOKEN_KEY);
+
+    if (!token) {
+      setUser(false);
+      setLoading(false);
+      return null;
+    }
+
+    try {
+      return await fetchCurrentUser();
+    } catch {
+      removeToken();
+      setUser(false);
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchCurrentUser, removeToken]);
+
+  useEffect(() => {
+    const isOAuthCallback =
+      typeof window !== "undefined" &&
+      window.location.hash?.includes("session_id=");
+
+    if (isOAuthCallback) {
+      setLoading(false);
+      return;
+    }
+
+    checkAuth();
+  }, [checkAuth]);
+
+  const login = async (email, password) => {
+    setLoading(true);
+
+    try {
+      const { data } = await api.post("/auth/login", {
+        email,
+        password,
+      });
+
+      const token =
+        data?.access_token ||
+        data?.token ||
+        data?.accessToken;
+
+      if (!token) {
+        throw new Error(
+          "Login succeeded, but no access token was returned."
+        );
+      }
+
+      saveToken(token);
+
+      if (data?.user) {
         setUser(data.user);
         return data.user;
-    };
+      }
 
-    const register = async (payload) => {
-        const { data } = await api.post("/auth/register", payload);
-        if (data.access_token) localStorage.setItem("sgl_access_token", data.access_token);
+      return await fetchCurrentUser();
+    } catch (error) {
+      removeToken();
+      setUser(false);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const register = async (payload) => {
+    setLoading(true);
+
+    try {
+      const { data } = await api.post(
+        "/auth/register",
+        payload
+      );
+
+      const token =
+        data?.access_token ||
+        data?.token ||
+        data?.accessToken;
+
+      if (!token) {
+        throw new Error(
+          "Registration succeeded, but no access token was returned."
+        );
+      }
+
+      saveToken(token);
+
+      if (data?.user) {
         setUser(data.user);
         return data.user;
-    };
+      }
 
-    const logout = async () => {
-        try { await api.post("/auth/logout"); } catch (_) { /* ignore */ }
-        localStorage.removeItem("sgl_access_token");
-        setUser(false);
-    };
+      return await fetchCurrentUser();
+    } catch (error) {
+      removeToken();
+      setUser(false);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    const refreshUser = async () => {
-        try {
-            const { data } = await api.get("/auth/me");
-            setUser(data);
-            return data;
-        } catch { return null; }
-    };
+  const logout = async () => {
+    try {
+      await api.post("/auth/logout");
+    } catch {
+      // Local logout must still continue.
+    } finally {
+      removeToken();
+      setUser(false);
+      setLoading(false);
+    }
+  };
 
-    return (
-        <AuthContext.Provider value={{ user, loading, login, register, logout, refreshUser, setUser }}>
-            {children}
-        </AuthContext.Provider>
-    );
+  const refreshUser = async () => {
+    const token = localStorage.getItem(TOKEN_KEY);
+
+    if (!token) {
+      setUser(false);
+      return null;
+    }
+
+    try {
+      return await fetchCurrentUser();
+    } catch {
+      removeToken();
+      setUser(false);
+      return null;
+    }
+  };
+
+  const value = {
+    user,
+    loading,
+    login,
+    register,
+    logout,
+    refreshUser,
+    checkAuth,
+    setUser,
+  };
+
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  );
 }
 
 export function useAuth() {
-    const ctx = useContext(AuthContext);
-    if (!ctx) throw new Error("useAuth must be used inside AuthProvider");
-    return ctx;
+  const context = useContext(AuthContext);
+
+  if (!context) {
+    throw new Error(
+      "useAuth must be used inside AuthProvider"
+    );
+  }
+
+  return context;
 }
