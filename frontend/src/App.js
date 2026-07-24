@@ -1,5 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
+import { CartProvider } from "./context/CartContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AppLayout from "./components/AppLayout";
 import AuthPage from "./pages/AuthPage";
@@ -10,15 +11,22 @@ import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminProducts from "./pages/admin/AdminProducts";
 import AdminCategories from "./pages/admin/AdminCategories";
 import AdminReports from "./pages/admin/AdminReports";
-import { CartProvider } from "./context/CartContext";
+import AdminOrders from "./pages/admin/AdminOrders";
 import CustomerProducts from "./pages/customer/CustomerProducts";
-
+import CustomerCart from "./pages/customer/CustomerCart";
+import CustomerCheckout from "./pages/customer/CustomerCheckout";
+import OrderSuccess from "./pages/customer/OrderSuccess";
+import MyOrders from "./pages/customer/MyOrders";
+import OrderDetails from "./pages/customer/OrderDetails";
+import CustomerProfile from "./pages/customer/CustomerProfile";
+import ManagerDeliveries from "./pages/manager/ManagerDeliveries";
+import ManagerReports from "./pages/manager/ManagerReports";
 import "./App.css";
 
 function RoleHome() {
   const { user } = useAuth();
   if (user?.role === "admin") return <Navigate to="/admin" replace />;
-  if (user?.role === "manager") return <Navigate to="/manager" replace />;
+  if (user?.role === "manager") return <Navigate to="/manager/deliveries" replace />;
   return <ZansziiHome />;
 }
 
@@ -35,32 +43,20 @@ export default function App() {
               <Route element={<AppLayout />}>
                 <Route path="/" element={<RoleHome />} />
                 <Route path="/products" element={<CustomerProducts />} />
-                <Route
-                  path="/cart"
-                  element={<ComingSoon title="Shopping Cart" />}
-                />
-                <Route
-                  path="/orders"
-                  element={<ComingSoon title="My Orders" />}
-                />
-                <Route
-                  path="/profile"
-                  element={<ComingSoon title="Profile" />}
-                />
+                <Route path="/cart" element={<CustomerCart />} />
+                <Route path="/checkout" element={<CustomerCheckout />} />
+                <Route path="/order-success/:orderId" element={<OrderSuccess />} />
+                <Route path="/orders" element={<MyOrders />} />
+                <Route path="/orders/:orderId" element={<OrderDetails />} />
+                <Route path="/profile" element={<CustomerProfile />} />
               </Route>
             </Route>
 
             <Route element={<ProtectedRoute roles={["manager"]} />}>
               <Route element={<AppLayout />}>
-                <Route path="/manager" element={<ZansziiHome />} />
-                <Route
-                  path="/manager/deliveries"
-                  element={<ComingSoon title="Delivery Queue" />}
-                />
-                <Route
-                  path="/manager/reports"
-                  element={<ComingSoon title="Delivery Reports" />}
-                />
+                <Route path="/manager" element={<Navigate to="/manager/deliveries" replace />} />
+                <Route path="/manager/deliveries" element={<ManagerDeliveries />} />
+                <Route path="/manager/reports" element={<ManagerReports />} />
               </Route>
             </Route>
 
@@ -68,22 +64,10 @@ export default function App() {
               <Route element={<AppLayout />}>
                 <Route path="/admin" element={<AdminDashboard />} />
                 <Route path="/admin/products" element={<AdminProducts />} />
-                <Route
-                  path="/admin/categories"
-                  element={<AdminCategories />}
-                />
-                <Route
-                  path="/admin/orders"
-                  element={<ComingSoon title="Manage Orders" />}
-                />
-                <Route
-                  path="/admin/customers"
-                  element={<ComingSoon title="Customers" />}
-                />
-                <Route
-                  path="/admin/managers"
-                  element={<ComingSoon title="Managers" />}
-                />
+                <Route path="/admin/categories" element={<AdminCategories />} />
+                <Route path="/admin/orders" element={<AdminOrders />} />
+                <Route path="/admin/customers" element={<ComingSoon title="Customers" />} />
+                <Route path="/admin/managers" element={<ComingSoon title="Managers" />} />
                 <Route path="/admin/reports" element={<AdminReports />} />
               </Route>
             </Route>
@@ -94,4 +78,4 @@ export default function App() {
       </AuthProvider>
     </BrowserRouter>
   );
-                           }
+}
