@@ -1,61 +1,81 @@
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { api, formatApiError } from "../lib/api";
+import { useAuth } from "./AuthContext";
 
 const CartContext = createContext(null);
-const STORAGE_KEY = "zanszii_cart";
-
-function readStoredCart() {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    return stored ? JSON.parse(stored) : [];
-  } catch {
-    return [];
-  }
-}
 
 export function CartProvider({ children }) {
-  const [items, setItems] = useState(readStoredCart);
+  const { user } = useAuth();
+  const [cart, setCart] = useState({ items: [], subtotal: 0, total_items: 0 });
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
-  }, [items]);
+  const loadCart = useCallback(async () => {
+    if (!user) {
+      setCart({ items: [], subtotal: 0, total_items: 0 });
+      return;
+    }
+    setLoading(true);
+    try {
+      const { data } = await api.get("/cart");
+      setCart(data);
+    } catch {
+      setCart({ items: [], subtotal: 0, total_items: 0 });
+    } finally {
+      setLoading(false);
+    }
+  }, [user]);
 
-  const addItem = (product) => {
-    setItems((current) => {
-      const existing = current.find((item) => item.product_id === product.product_id);
-      if (existing) {
-        return current.map((item) =>
-          item.product_id === product.product_id
-            ? { ...item, quantity: Math.min(item.quantity + 1, product.stock || 1) }
-            : item
-        );
-      }
-      return [...current, { ...product, quantity: 1 }];
-    });
+  useEffect(() => { loadCart(); }, [loadCart]);
+
+  const addItem = async (product, quantity = 1) => {
+    try {
+      const { data } = await api.post("/cart/items", {
+        product_id: product.product_id,
+        quantity,
+      });
+      setCart(data);
+      return data;
+    } catch (error) {
+      throw new Error(formatApiError(error?.response?.data?.detail));
+    }
   };
 
-  const updateQuantity = (productId, quantity) => {
-    setItems((current) =>
-      current
-        .map((item) =>
-          item.product_id === productId
-            ? { ...item, quantity: Math.max(0, Math.min(quantity, item.stock || quantity)) }
-            : item
-        )
-        .filter((item) => item.quantity > 0)
-    );
+  const updateQuantity = async (productId, quantity) => {
+    if (quantity <= 0) return removeItem(productId);
+    try {
+      const { data } = await api.put(`/cart/items/${productId}`, {
+        product_id: productId,
+        quantity,
+      });
+      setCart(data);
+      return data;
+    } catch (error) {
+      throw new Error(formatApiError(error?.response?.data?.detail));
+    }
   };
 
-  const removeItem = (productId) => {
-    setItems((current) => current.filter((item) => item.product_id !== productId));
+  const removeItem = async (productId) => {
+    const { data } = await api.delete(`/cart/items/${productId}`);
+    setCart(data);
+    return data;
   };
 
-  const clearCart = () => setItems([]);
+  const clearCart = async () => {
+    await api.delete("/cart");
+    setCart({ items: [], subtotal: 0, total_items: 0 });
+  };
 
-  const value = useMemo(() => {
-    const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
-    const subtotal = items.reduce((sum, item) => sum + Number(item.price || 0) * item.quantity, 0);
-    return { items, itemCount, subtotal, addItem, updateQuantity, removeItem, clearCart };
-  }, [items]);
+  const value = useMemo(() => ({
+    items: cart.items || [],
+    subtotal: Number(cart.subtotal || 0),
+    itemCount: Number(cart.total_items || 0),
+    loading,
+    addItem,
+    updateQuantity,
+    removeItem,
+    clearCart,
+    reloadCart: loadCart,
+  }), [cart, loading, loadCart]);
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }
