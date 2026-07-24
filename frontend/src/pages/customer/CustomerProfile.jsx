@@ -1,0 +1,10 @@
+import { useEffect, useState } from "react";
+import { api, formatApiError } from "../../lib/api";
+import { useAuth } from "../../context/AuthContext";
+
+export default function CustomerProfile(){
+ const {user,refreshUser}=useAuth(); const [form,setForm]=useState({name:"",phone:"",address:"",city:"",state:"",postal_code:""}); const [message,setMessage]=useState(""); const [saving,setSaving]=useState(false);
+ useEffect(()=>setForm({name:user?.name||"",phone:user?.phone||"",address:user?.address||"",city:user?.city||"",state:user?.state||"",postal_code:user?.postal_code||""}),[user]);
+ const save=async(e)=>{e.preventDefault();setSaving(true);setMessage("");try{await api.patch("/profile",form);await refreshUser();setMessage("Profile updated successfully");}catch(err){setMessage(formatApiError(err?.response?.data?.detail));}finally{setSaving(false)}};
+ return <form onSubmit={save} className="mx-auto max-w-3xl rounded-3xl border bg-white p-6 shadow-sm"><p className="text-sm font-bold text-[#0F4C9C]">Account</p><h1 className="text-3xl font-black">My profile</h1>{message&&<div className="mt-4 rounded-2xl bg-blue-50 p-3 font-semibold text-[#0F4C9C]">{message}</div>}<div className="mt-6 grid gap-4 sm:grid-cols-2">{Object.entries({name:"Full name",phone:"Mobile number",city:"City",state:"State",postal_code:"Pincode"}).map(([k,l])=><label key={k}><span className="text-sm font-bold">{l}</span><input required={k==="name"} value={form[k]} onChange={e=>setForm({...form,[k]:k==="phone"?e.target.value.replace(/\D/g,""):e.target.value})} className="mt-2 w-full rounded-2xl border p-3"/></label>)}<label className="sm:col-span-2"><span className="text-sm font-bold">Delivery address</span><textarea value={form.address} onChange={e=>setForm({...form,address:e.target.value})} className="mt-2 min-h-28 w-full rounded-2xl border p-3"/></label></div><button disabled={saving} className="mt-6 rounded-2xl bg-[#0F4C9C] px-6 py-3 font-bold text-white">{saving?"Saving...":"Save profile"}</button></form>
+}
