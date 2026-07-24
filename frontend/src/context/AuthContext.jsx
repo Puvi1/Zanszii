@@ -1,202 +1,70 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useState,
-} from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
 
 const AuthContext = createContext(null);
-
-const TOKEN_KEY = "sgl_access_token";
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const saveToken = useCallback((token) => {
+  const loadUser = useCallback(async () => {
+    const token = localStorage.getItem("zanszii_access_token");
     if (!token) {
+      setUser(null);
+      setLoading(false);
       return;
     }
-
-    localStorage.setItem(TOKEN_KEY, token);
-  }, []);
-
-  const removeToken = useCallback(() => {
-    localStorage.removeItem(TOKEN_KEY);
-  }, []);
-
-  const fetchCurrentUser = useCallback(async () => {
-    const { data } = await api.get("/auth/me");
-    setUser(data);
-    return data;
-  }, []);
-
-  const checkAuth = useCallback(async () => {
-    setLoading(true);
-
-    const token = localStorage.getItem(TOKEN_KEY);
-
-    if (!token) {
-      setUser(false);
-      setLoading(false);
-      return null;
-    }
-
     try {
-      return await fetchCurrentUser();
+      const { data } = await api.get("/auth/me");
+      setUser(data);
     } catch {
-      removeToken();
-      setUser(false);
-      return null;
+      localStorage.removeItem("zanszii_access_token");
+      setUser(null);
     } finally {
       setLoading(false);
     }
-  }, [fetchCurrentUser, removeToken]);
+  }, []);
 
   useEffect(() => {
-    const isOAuthCallback =
-      typeof window !== "undefined" &&
-      window.location.hash?.includes("session_id=");
+    loadUser();
+    const handleUnauthorized = () => {
+      localStorage.removeItem("zanszii_access_token");
+      setUser(null);
+    };
+    window.addEventListener("zanszii:unauthorized", handleUnauthorized);
+    return () => window.removeEventListener("zanszii:unauthorized", handleUnauthorized);
+  }, [loadUser]);
 
-    if (isOAuthCallback) {
-      setLoading(false);
-      return;
-    }
+  const saveAuth = useCallback((payload) => {
+    if (!payload?.access_token || !payload?.user) throw new Error("Invalid login response");
+    localStorage.setItem("zanszii_access_token", payload.access_token);
+    setUser(payload.user);
+  }, []);
 
-    checkAuth();
-  }, [checkAuth]);
+  const login = useCallback(async (credentials) => {
+    const { data } = await api.post("/auth/login", credentials);
+    saveAuth(data);
+    return data.user;
+  }, [saveAuth]);
 
-  const login = async (email, password) => {
-    setLoading(true);
+  const register = useCallback(async (details) => {
+    const { data } = await api.post("/auth/register", details);
+    saveAuth(data);
+    return data.user;
+  }, [saveAuth]);
 
-    try {
-      const { data } = await api.post("/auth/login", {
-        email,
-        password,
-      });
+  const logout = useCallback(async () => {
+    try { await api.post("/auth/logout"); } catch { /* local logout still succeeds */ }
+    localStorage.removeItem("zanszii_access_token");
+    setUser(null);
+  }, []);
 
-      const token =
-        data?.access_token ||
-        data?.token ||
-        data?.accessToken;
-
-      if (!token) {
-        throw new Error(
-          "Login succeeded, but no access token was returned."
-        );
-      }
-
-      saveToken(token);
-
-      if (data?.user) {
-        setUser(data.user);
-        return data.user;
-      }
-
-      return await fetchCurrentUser();
-    } catch (error) {
-      removeToken();
-      setUser(false);
-      throw error;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const register = async (payload) => {
-    setLoading(true);
-
-    try {
-      const { data } = await api.post(
-        "/auth/register",
-        payload
-      );
-
-      const token =
-        data?.access_token ||
-        data?.token ||
-        data?.accessToken;
-
-      if (!token) {
-        throw new Error(
-          "Registration succeeded, but no access token was returned."
-        );
-      }
-
-      saveToken(token);
-
-      if (data?.user) {
-        setUser(data.user);
-        return data.user;
-      }
-
-      return await fetchCurrentUser();
-    } catch (error) {
-      removeToken();
-      setUser(false);
-      throw error;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const logout = async () => {
-    try {
-      await api.post("/auth/logout");
-    } catch {
-      // Local logout must still continue.
-    } finally {
-      removeToken();
-      setUser(false);
-      setLoading(false);
-    }
-  };
-
-  const refreshUser = async () => {
-    const token = localStorage.getItem(TOKEN_KEY);
-
-    if (!token) {
-      setUser(false);
-      return null;
-    }
-
-    try {
-      return await fetchCurrentUser();
-    } catch {
-      removeToken();
-      setUser(false);
-      return null;
-    }
-  };
-
-  const value = {
-    user,
-    loading,
-    login,
-    register,
-    logout,
-    refreshUser,
-    checkAuth,
-    setUser,
-  };
-
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+  const value = useMemo(() => ({ user, setUser, loading, login, register, logout, loadUser, saveAuth }), [user, loading, login, register, logout, loadUser, saveAuth]);
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {
   const context = useContext(AuthContext);
-
-  if (!context) {
-    throw new Error(
-      "useAuth must be used inside AuthProvider"
-    );
-  }
-
+  if (!context) throw new Error("useAuth must be used inside AuthProvider");
   return context;
 }
