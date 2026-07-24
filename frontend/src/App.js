@@ -1,221 +1,28 @@
-import { BrowserRouter, Routes, Route, useLocation, Navigate } from "react-router-dom";
-import { Toaster } from "sonner";
-import { AuthProvider } from "@/context/AuthContext";
-import AppLayout from "@/components/AppLayout";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { AuthProvider, useAuth } from "@/context/AuthContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import AppLayout from "@/components/AppLayout";
 import AuthPage from "@/pages/AuthPage";
 import AuthCallback from "@/pages/AuthCallback";
-import Dashboard from "@/pages/Dashboard";
-import Prospects from "@/pages/Prospects";
-import FollowUps from "@/pages/FollowUps";
-import Attendance from "@/pages/Attendance";
-import Challenges from "@/pages/Challenges";
-import Leaderboard from "@/pages/Leaderboard";
-import Profile from "@/pages/Profile";
-import Admin from "@/pages/Admin";
-import Teams from "@/pages/Teams";
-import MyTeam from "@/pages/MyTeam";
-import Reports from "@/pages/Reports";
-import Missions from "@/pages/Missions";
-import WeeklyAttendance from "@/pages/WeeklyAttendance";
-import Seasons from "@/pages/Seasons";
-import Tasks from "@/pages/Tasks";
-import TeamLeague from "@/pages/TeamLeague";
-import SpartansLeague from "@/pages/SpartansLeague";
-import Rewards from "@/pages/Rewards";
-import Goals from "@/pages/Goals";
-import GoalSettings from "@/pages/GoalSettings";
-import "@/App.css";
+import ZansziiHome from "@/pages/ZansziiHome";
+import ComingSoon from "@/pages/ComingSoon";
+import "./App.css";
 
-function Router() {
-    const location = useLocation();
-    // Handle Emergent Google OAuth callback synchronously during render
-    if (location.hash?.includes("session_id=")) {
-        return <AuthCallback />;
-    }
-    return (
-        <Routes>
-            <Route path="/auth" element={<AuthPage />} />
-            <Route path="/auth/callback" element={<AuthCallback />} />
-            <Route
-                path="/"
-                element={
-                    <ProtectedRoute>
-                        <AppLayout><Dashboard /></AppLayout>
-                    </ProtectedRoute>
-                }
-            />
-            <Route
-                path="/prospects"
-                element={
-                    <ProtectedRoute>
-                        <AppLayout><Prospects /></AppLayout>
-                    </ProtectedRoute>
-                }
-            />
-            <Route
-                path="/followups"
-                element={
-                    <ProtectedRoute>
-                        <AppLayout><FollowUps /></AppLayout>
-                    </ProtectedRoute>
-                }
-            />
-            <Route
-                path="/attendance"
-                element={
-                    <ProtectedRoute>
-                        <AppLayout><Attendance /></AppLayout>
-                    </ProtectedRoute>
-                }
-            />
-            <Route
-                path="/challenges"
-                element={
-                    <ProtectedRoute>
-                        <AppLayout><Challenges /></AppLayout>
-                    </ProtectedRoute>
-                }
-            />
-            <Route
-                path="/leaderboard"
-                element={
-                    <ProtectedRoute>
-                        <AppLayout><Leaderboard /></AppLayout>
-                    </ProtectedRoute>
-                }
-            />
-            <Route
-                path="/profile"
-                element={
-                    <ProtectedRoute>
-                        <AppLayout><Profile /></AppLayout>
-                    </ProtectedRoute>
-                }
-            />
-            <Route
-                path="/admin"
-                element={
-                    <ProtectedRoute roles={["super_admin"]}>
-                        <AppLayout><Admin /></AppLayout>
-                    </ProtectedRoute>
-                }
-            />
-            <Route
-                path="/teams"
-                element={
-                    <ProtectedRoute roles={["super_admin"]}>
-                        <AppLayout><Teams /></AppLayout>
-                    </ProtectedRoute>
-                }
-            />
-            <Route
-                path="/my-team"
-                element={
-                    <ProtectedRoute roles={["team_leader"]}>
-                        <AppLayout><MyTeam /></AppLayout>
-                    </ProtectedRoute>
-                }
-            />
-            <Route
-                path="/reports"
-                element={
-                    <ProtectedRoute>
-                        <AppLayout><Reports /></AppLayout>
-                    </ProtectedRoute>
-                }
-            />
-            <Route
-                path="/missions"
-                element={
-                    <ProtectedRoute>
-                        <AppLayout><Missions /></AppLayout>
-                    </ProtectedRoute>
-                }
-            />
-            <Route
-                path="/weekly-attendance"
-                element={
-                    <ProtectedRoute>
-                        <AppLayout><WeeklyAttendance /></AppLayout>
-                    </ProtectedRoute>
-                }
-            />
-            <Route
-                path="/seasons"
-                element={
-                    <ProtectedRoute>
-                        <AppLayout><Seasons /></AppLayout>
-                    </ProtectedRoute>
-                }
-            />
-            <Route
-                path="/tasks"
-                element={
-                    <ProtectedRoute>
-                        <AppLayout><Tasks /></AppLayout>
-                    </ProtectedRoute>
-                }
-            />
-            <Route
-                path="/team-league"
-                element={
-                    <ProtectedRoute>
-                        <AppLayout><TeamLeague /></AppLayout>
-                    </ProtectedRoute>
-                }
-            />
-            <Route
-                path="/spartans-league"
-                element={
-                    <ProtectedRoute>
-                        <AppLayout><SpartansLeague /></AppLayout>
-                    </ProtectedRoute>
-                }
-            />
-            <Route
-                path="/rewards"
-                element={
-                    <ProtectedRoute>
-                        <AppLayout><Rewards /></AppLayout>
-                    </ProtectedRoute>
-                }
-            />
-            <Route
-                path="/goals"
-                element={<Navigate to="/" replace />}
-            />
-            <Route
-                path="/goal-settings"
-                element={
-                    <ProtectedRoute>
-                        <AppLayout><GoalSettings /></AppLayout>
-                    </ProtectedRoute>
-                }
-            />
-        </Routes>
-    );
+function RoleHome() {
+  const { user } = useAuth();
+  if (user?.role === "admin") return <Navigate to="/admin" replace />;
+  if (user?.role === "manager") return <Navigate to="/manager" replace />;
+  return <ZansziiHome />;
 }
 
 export default function App() {
-    return (
-        <div className="App min-h-screen bg-[#050507] dark">
-            <BrowserRouter>
-                <AuthProvider>
-                    <Router />
-                    <Toaster
-                        theme="dark"
-                        position="top-center"
-                        toastOptions={{
-                            style: {
-                                background: "#121215",
-                                border: "1px solid rgba(255,255,255,0.1)",
-                                color: "#fff",
-                            },
-                        }}
-                    />
-                </AuthProvider>
-            </BrowserRouter>
-        </div>
-    );
+ return <BrowserRouter><AuthProvider><Routes>
+   <Route path="/auth" element={<AuthPage/>}/><Route path="/auth/callback" element={<AuthCallback/>}/>
+   <Route element={<ProtectedRoute/>}><Route element={<AppLayout/>}>
+     <Route path="/" element={<RoleHome/>}/><Route path="/products" element={<ComingSoon title="Products"/>}/><Route path="/cart" element={<ComingSoon title="Shopping Cart"/>}/><Route path="/orders" element={<ComingSoon title="My Orders"/>}/><Route path="/profile" element={<ComingSoon title="Profile"/>}/>
+   </Route></Route>
+   <Route element={<ProtectedRoute roles={["manager"]}/> }><Route element={<AppLayout/>}><Route path="/manager" element={<ZansziiHome/>}/><Route path="/manager/deliveries" element={<ComingSoon title="Delivery Queue"/>}/><Route path="/manager/reports" element={<ComingSoon title="Delivery Reports"/>}/></Route></Route>
+   <Route element={<ProtectedRoute roles={["admin"]}/> }><Route element={<AppLayout/>}><Route path="/admin" element={<ZansziiHome/>}/><Route path="/admin/products" element={<ComingSoon title="Manage Products"/>}/><Route path="/admin/categories" element={<ComingSoon title="Manage Categories"/>}/><Route path="/admin/orders" element={<ComingSoon title="Manage Orders"/>}/><Route path="/admin/customers" element={<ComingSoon title="Customers"/>}/><Route path="/admin/managers" element={<ComingSoon title="Managers"/>}/><Route path="/admin/reports" element={<ComingSoon title="Business Reports"/>}/></Route></Route>
+   <Route path="*" element={<Navigate to="/" replace/>}/>
+ </Routes></AuthProvider></BrowserRouter>;
 }
