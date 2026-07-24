@@ -11,7 +11,7 @@ import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminProducts from "./pages/admin/AdminProducts";
 import AdminCategories from "./pages/admin/AdminCategories";
 import AdminReports from "./pages/admin/AdminReports";
-import AdminOrders from "./pages/admin/AdminOrders";
+import AdminOrders from "./pages/admin/AdminOrdersPage.jsx";
 import CustomerProducts from "./pages/customer/CustomerProducts";
 import CustomerCart from "./pages/customer/CustomerCart";
 import CustomerCheckout from "./pages/customer/CustomerCheckout";
