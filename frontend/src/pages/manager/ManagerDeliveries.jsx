@@ -1,0 +1,10 @@
+import { useEffect, useState } from "react";
+import { api, formatApiError } from "../../lib/api";
+
+export default function ManagerDeliveries(){
+ const [orders,setOrders]=useState([]),[error,setError]=useState("");
+ const load=()=>api.get("/manager/deliveries").then(r=>setOrders(r.data)).catch(e=>setError(formatApiError(e?.response?.data?.detail)));
+ useEffect(()=>{load()},[]);
+ const update=async(o,status)=>{await api.patch(`/orders/${o.order_id}/status`,{status,note:"Updated by delivery manager"});load()};
+ return <div className="space-y-5"><div><p className="text-sm font-bold text-[#0F4C9C]">Manager</p><h1 className="text-3xl font-black">Delivery queue</h1></div>{error&&<div className="rounded-2xl bg-red-50 p-4 text-red-700">{error}</div>}{!orders.length?<div className="rounded-3xl bg-white p-12 text-center"><h2 className="text-2xl font-black">No active deliveries</h2></div>:<div className="grid gap-5 lg:grid-cols-2">{orders.map(o=><article key={o.order_id} className="rounded-3xl border bg-white p-5 shadow-sm"><div className="flex justify-between"><div><p className="text-xs text-slate-500">{o.order_number}</p><h2 className="text-xl font-black">{o.customer_name}</h2></div><b className="text-[#062B5F]">₹{Number(o.total).toLocaleString("en-IN")}</b></div><p className="mt-4 text-slate-600">{o.delivery_address}<br/>{o.city}, {o.state} - {o.postal_code}</p><div className="mt-4 flex gap-2"><a href={`tel:${o.phone}`} className="rounded-xl border px-4 py-2 font-bold">Call</a><a target="_blank" rel="noreferrer" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${o.delivery_address}, ${o.city}`)}`} className="rounded-xl border px-4 py-2 font-bold">Maps</a></div><div className="mt-4 flex flex-wrap gap-2">{o.status!=="out_for_delivery"&&<button onClick={()=>update(o,"out_for_delivery")} className="rounded-xl bg-[#0F4C9C] px-4 py-2 font-bold text-white">Out for delivery</button>}<button onClick={()=>update(o,"delivered")} className="rounded-xl bg-emerald-600 px-4 py-2 font-bold text-white">Mark delivered</button></div></article>)}</div>}</div>
+}
