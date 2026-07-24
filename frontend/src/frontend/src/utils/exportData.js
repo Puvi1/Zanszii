@@ -31,4 +31,3 @@ export function exportRowsToPdf({ rows, columns, fileName, title, landscape = fa
   });
   doc.save(`${fileName}.pdf`);
 }
-
