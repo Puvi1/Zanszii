@@ -1,15 +1,15 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
-import { AuthProvider, useAuth } from "@/context/AuthContext";
-import ProtectedRoute from "@/components/ProtectedRoute";
-import AppLayout from "@/components/AppLayout";
-import AuthPage from "@/pages/AuthPage";
-import AuthCallback from "@/pages/AuthCallback";
-import ZansziiHome from "@/pages/ZansziiHome";
-import ComingSoon from "@/pages/ComingSoon";
-import AdminDashboard from "@/pages/admin/AdminDashboard";
-import AdminProducts from "@/pages/admin/AdminProducts";
-import AdminCategories from "@/pages/admin/AdminCategories";
-import AdminReports from "@/pages/admin/AdminReports";
+import { AuthProvider, useAuth } from "./context/AuthContext";
+import ProtectedRoute from "./components/ProtectedRoute";
+import AppLayout from "./components/AppLayout";
+import AuthPage from "./pages/AuthPage";
+import AuthCallback from "./pages/AuthCallback";
+import ZansziiHome from "./pages/ZansziiHome";
+import ComingSoon from "./pages/ComingSoon";
+import AdminDashboard from "./pages/admin/AdminDashboard";
+import AdminProducts from "./pages/admin/AdminProducts";
+import AdminCategories from "./pages/admin/AdminCategories";
+import AdminReports from "./pages/admin/AdminReports";
 import "./App.css";
 
 function RoleHome() {
