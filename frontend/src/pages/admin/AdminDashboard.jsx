@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { api, formatApiError } from "@/lib/api";
+import { api, formatApiError } from "../../lib/api";
 import { BarChart3, Boxes, ClipboardList, IndianRupee, PackageCheck, RefreshCw, ShoppingBag, Users } from "lucide-react";
 
 const money = (value) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(value || 0);
