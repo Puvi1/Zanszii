@@ -16,6 +16,9 @@ import {
 } from "lucide-react";
 import { api, formatApiError } from "../../lib/api";
 import { exportRowsToExcel } from "../../utils/exportData";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+
 
 const money = (value) =>
   new Intl.NumberFormat("en-IN", {
@@ -506,6 +509,64 @@ export default function AdminCostManagement() {
       sheetName: "Product Costs",
     });
   };
+const exportPDF = () => {
+  const doc = new jsPDF("landscape");
+
+  doc.setFontSize(18);
+  doc.text("Zanszii Product Cost Report", 14, 15);
+
+  doc.setFontSize(10);
+  doc.text(
+    `Generated : ${new Date().toLocaleString()}`,
+    14,
+    22
+  );
+
+  const body = filteredProducts.map((item) => [
+    item.product?.name || "",
+    getCategoryName(item.product),
+    money(item.values.sellingPrice),
+    money(item.values.wholesalePrice),
+    money(item.values.packagingCost),
+    money(item.values.deliveryCost),
+    money(item.values.otherCost),
+    money(item.values.totalCost),
+    money(item.values.profit),
+    `${item.values.margin.toFixed(2)}%`,
+    item.values.configured ? "Configured" : "Pending",
+  ]);
+
+  autoTable(doc, {
+    startY: 30,
+    head: [[
+      "Product",
+      "Category",
+      "Selling",
+      "Wholesale",
+      "Packaging",
+      "Delivery",
+      "Other",
+      "Total Cost",
+      "Profit",
+      "Margin",
+      "Status",
+    ]],
+    body,
+    theme: "grid",
+    headStyles: {
+      fillColor: [37, 99, 235],
+      textColor: 255,
+      fontStyle: "bold",
+    },
+    styles: {
+      fontSize: 8,
+      cellPadding: 2,
+    },
+  });
+
+  doc.save("zanszii-product-cost-report.pdf");
+};
+
 
   return (
     <div className="admin-page cost-page">
@@ -548,6 +609,18 @@ export default function AdminCostManagement() {
             <FileSpreadsheet size={18} />
             Export Excel
           </button>
+<button
+  type="button"
+  className="btn btn-secondary"
+  onClick={exportPDF}
+  disabled={
+    loading || filteredProducts.length === 0
+  }
+>
+  <Download size={18} />
+  Export PDF
+</button>
+
         </div>
       </div>
 
