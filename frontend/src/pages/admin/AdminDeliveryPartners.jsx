@@ -20,7 +20,7 @@ import {
   Users,
   X,
 } from "lucide-react";
-import api from "../../lib/api";
+import { api } from "@/lib/api";
 
 const EMPTY_FORM = {
   name: "",
