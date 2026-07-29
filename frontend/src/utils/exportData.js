@@ -1,34 +1,102 @@
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
-import * as XLSX from "xlsx";
+export const exportPdf = (
+  title,
+  headers,
+  rows,
+  filename = "report.pdf"
+) => {
+  const printableRows = rows
+    .map(
+      (row) =>
+        `<tr>${row
+          .map(
+            (cell) =>
+              `<td style="border:1px solid #ddd;padding:8px;">${
+                cell ?? ""
+              }</td>`
+          )
+          .join("")}</tr>`
+    )
+    .join("");
 
-const safe = (value) => value ?? "";
+  const printableHeaders = headers
+    .map(
+      (header) =>
+        `<th style="border:1px solid #ddd;padding:8px;background:#f5f5f5;">${header}</th>`
+    )
+    .join("");
 
-export function exportRowsToExcel({ rows, columns, fileName, sheetName = "Report" }) {
-  const data = rows.map((row) =>
-    Object.fromEntries(columns.map((column) => [column.label, safe(column.value(row))]))
-  );
-  const worksheet = XLSX.utils.json_to_sheet(data);
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, sheetName.slice(0, 31));
-  XLSX.writeFile(workbook, `${fileName}.xlsx`);
-}
+  const printWindow = window.open("", "_blank");
 
-export function exportRowsToPdf({ rows, columns, fileName, title, landscape = false }) {
-  const doc = new jsPDF({ orientation: landscape ? "landscape" : "portrait" });
-  doc.setFontSize(18);
-  doc.text(title, 14, 18);
-  doc.setFontSize(9);
-  doc.setTextColor(90);
-  doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 25);
-  autoTable(doc, {
-    startY: 31,
-    head: [columns.map((column) => column.label)],
-    body: rows.map((row) => columns.map((column) => String(safe(column.value(row))))),
-    styles: { fontSize: 8, cellPadding: 3 },
-    headStyles: { fillColor: [15, 76, 156] },
-    alternateRowStyles: { fillColor: [245, 249, 255] },
+  if (!printWindow) {
+    alert("Please allow pop-ups to export the PDF.");
+    return;
+  }
+
+  printWindow.document.write(`
+    <html>
+      <head>
+        <title>${title}</title>
+      </head>
+      <body style="font-family:Arial,sans-serif;padding:24px;">
+        <h1>${title}</h1>
+
+        <table style="width:100%;border-collapse:collapse;">
+          <thead>
+            <tr>${printableHeaders}</tr>
+          </thead>
+
+          <tbody>
+            ${printableRows}
+          </tbody>
+        </table>
+
+        <script>
+          window.onload = function () {
+            window.print();
+          };
+        </script>
+      </body>
+    </html>
+  `);
+
+  printWindow.document.close();
+};
+
+export const exportExcel = (
+  headers,
+  rows,
+  filename = "report.csv",
+  sheetName = "Sheet1"
+) => {
+  const escapeValue = (value) => {
+    const text = String(value ?? "").replace(/"/g, '""');
+    return `"${text}"`;
+  };
+
+  const csvContent = [
+    headers.map(escapeValue).join(","),
+    ...rows.map((row) => row.map(escapeValue).join(",")),
+  ].join("\n");
+
+  const blob = new Blob([`\uFEFF${csvContent}`], {
+    type: "text/csv;charset=utf-8;",
   });
-  doc.save(`${fileName}.pdf`);
-}
 
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  const csvFilename = filename
+    .replace(/\.xlsx$/i, ".csv")
+    .replace(/\.xls$/i, ".csv");
+
+  link.href = url;
+  link.download = csvFilename.endsWith(".csv")
+    ? csvFilename
+    : `${csvFilename}.csv`;
+
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+
+  window.URL.revokeObjectURL(url);
+};
