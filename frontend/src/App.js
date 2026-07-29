@@ -23,6 +23,8 @@ import ManagerDeliveries from "./pages/manager/ManagerDeliveries";
 import ManagerReports from "./pages/manager/ManagerReports";
 import AdminCustomers from "./pages/admin/AdminCustomers";
 import AdminManagers from "./pages/admin/AdminManagers";
+import AdminCostManagement from "./pages/admin/AdminCostManagement";
+
 
 import "./App.css";
 
@@ -70,7 +72,8 @@ export default function App() {
                 <Route path="/admin/categories" element={<AdminCategories />} />
                 <Route path="/admin/orders" element={<AdminOrders />} />
                 <Route path="/admin/customers"element={<AdminCustomers />}/>
-                <Route  path="/admin/managers" element={<AdminManagers />}/>        
+                <Route  path="/admin/managers" element={<AdminManagers />}/> 
+                 <Route path="/admin/cost-management" element={<AdminCostManagement />}/>       
         <Route path="/admin/reports" element={<AdminReports />} />
               </Route>
             </Route>
