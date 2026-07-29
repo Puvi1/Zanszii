@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { api, formatApiError } from "@/lib/api";
+import { api, formatApiError } from "../../lib/api";
 import { Download, FileSpreadsheet, PackagePlus, Pencil, RefreshCw, Search, Trash2, X } from "lucide-react";
-import { exportRowsToExcel, exportRowsToPdf } from "@/utils/exportData";
+import { exportRowsToExcel, exportRowsToPdf } from "../../utils/exportData";
 
 const blank = { name:"", description:"", category_id:"", price:"", stock:"", unit:"piece", image_url:"", active:true, featured:false };
 const money = (v) => new Intl.NumberFormat("en-IN", { style:"currency", currency:"INR" }).format(v || 0);
