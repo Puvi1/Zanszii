@@ -1339,26 +1339,129 @@ async def dashboard(user=Depends(current_user)):
 
 @api.get("/admin/reports")
 async def admin_reports(user=Depends(admin_user)):
-    counts = {
-        "products": await db.products.count_documents({}),
-        "categories": await db.categories.count_documents({}),
+    products = [clean_doc(x) async for x in db.products.find({})]
+    categories = [clean_doc(x) async for x in db.categories.find({})]
+    delivered_orders = [clean_doc(x) async for x in db.orders.find({"status": "delivered"}).sort("created_at", 1)]
+    all_orders = [clean_doc(x) async for x in db.orders.find({}).sort("created_at", -1)]
+
+    product_map = {x.get("product_id"): x for x in products}
+    category_map = {x.get("category_id"): x for x in categories}
+    product_sales, category_sales, daily_sales, monthly_sales, customer_sales = {}, {}, {}, {}, {}
+    total_revenue = total_cost = 0.0
+    total_units = 0
+
+    for order in delivered_orders:
+        order_total = float(order.get("total", 0) or 0)
+        total_revenue += order_total
+        raw_date = order.get("delivered_at") or order.get("created_at")
+        day_key = month_key = ""
+        if raw_date:
+            try:
+                dt = datetime.fromisoformat(str(raw_date).replace("Z", "+00:00"))
+                day_key, month_key = dt.strftime("%Y-%m-%d"), dt.strftime("%Y-%m")
+            except ValueError:
+                pass
+        if day_key:
+            row = daily_sales.setdefault(day_key, {"date": day_key, "revenue": 0.0, "orders": 0})
+            row["revenue"] += order_total; row["orders"] += 1
+        if month_key:
+            row = monthly_sales.setdefault(month_key, {"month": month_key, "revenue": 0.0, "orders": 0})
+            row["revenue"] += order_total; row["orders"] += 1
+
+        customer_id = order.get("user_id") or order.get("customer_email") or order.get("customer_name")
+        if customer_id:
+            row = customer_sales.setdefault(customer_id, {
+                "customer_id": customer_id,
+                "customer_name": order.get("customer_name") or "Customer",
+                "customer_email": order.get("customer_email"),
+                "orders": 0,
+                "revenue": 0.0,
+            })
+            row["orders"] += 1; row["revenue"] += order_total
+
+        for item in order.get("items", []):
+            product_id = item.get("product_id")
+            product = product_map.get(product_id, {})
+            quantity = int(item.get("quantity", 0) or 0)
+            selling_price = float(item.get("price", 0) or 0)
+            revenue = float(item.get("line_total", selling_price * quantity) or 0)
+            unit_cost = sum(float(product.get(k, 0) or 0) for k in ("wholesale_price", "packaging_cost", "delivery_cost", "other_cost"))
+            cost = unit_cost * quantity
+            profit = revenue - cost
+            total_cost += cost; total_units += quantity
+            category_id = product.get("category_id")
+            category_name = category_map.get(category_id, {}).get("name") or "Uncategorized"
+
+            row = product_sales.setdefault(product_id, {
+                "product_id": product_id,
+                "product_name": item.get("name") or product.get("name") or "Product",
+                "category": category_name,
+                "quantity_sold": 0,
+                "revenue": 0.0,
+                "cost": 0.0,
+                "profit": 0.0,
+                "unit_cost": round(unit_cost, 2),
+                "selling_price": round(selling_price, 2),
+                "orders": 0,
+            })
+            row["quantity_sold"] += quantity; row["revenue"] += revenue; row["cost"] += cost; row["profit"] += profit; row["orders"] += 1
+
+            crow = category_sales.setdefault(category_name, {"category": category_name, "quantity_sold": 0, "revenue": 0.0, "cost": 0.0, "profit": 0.0})
+            crow["quantity_sold"] += quantity; crow["revenue"] += revenue; crow["cost"] += cost; crow["profit"] += profit
+
+    product_rows = []
+    for row in product_sales.values():
+        for key in ("revenue", "cost", "profit"): row[key] = round(row[key], 2)
+        row["margin"] = round((row["profit"] / row["revenue"] * 100) if row["revenue"] else 0, 2)
+        product_rows.append(row)
+
+    category_rows = []
+    for row in category_sales.values():
+        for key in ("revenue", "cost", "profit"): row[key] = round(row[key], 2)
+        row["margin"] = round((row["profit"] / row["revenue"] * 100) if row["revenue"] else 0, 2)
+        category_rows.append(row)
+
+    daily_rows = sorted(daily_sales.values(), key=lambda x: x["date"])[-30:]
+    monthly_rows = sorted(monthly_sales.values(), key=lambda x: x["month"])[-12:]
+    for row in daily_rows + monthly_rows: row["revenue"] = round(row["revenue"], 2)
+    top_customers = sorted(customer_sales.values(), key=lambda x: x["revenue"], reverse=True)[:10]
+    for row in top_customers: row["revenue"] = round(row["revenue"], 2)
+
+    by_qty = sorted(product_rows, key=lambda x: x["quantity_sold"], reverse=True)
+    by_revenue = sorted(product_rows, key=lambda x: x["revenue"], reverse=True)
+    by_profit = sorted(product_rows, key=lambda x: x["profit"], reverse=True)
+    by_margin = sorted([x for x in product_rows if x["revenue"] > 0], key=lambda x: x["margin"], reverse=True)
+    gross_profit = round(total_revenue - total_cost, 2)
+
+    return {
+        "products": len(products),
+        "categories": len(categories),
         "customers": await db.users.count_documents({"role": "customer"}),
         "managers": await db.users.count_documents({"role": "manager"}),
         "delivery_partners": await db.users.count_documents({"role": "delivery_partner"}),
-        "available_delivery_partners": await db.users.count_documents({"role": "delivery_partner", "active": True, "availability_status": "available"}),
-        "orders": await db.orders.count_documents({}),
-        "assigned_deliveries": await db.orders.count_documents({"status": {"$in": ["assigned", "out_for_delivery"]}}),
-        "pending_orders": await db.orders.count_documents({"status": {"$in": ["placed", "confirmed", "processing", "out_for_delivery"]}}),
-        "delivered_orders": await db.orders.count_documents({"status": "delivered"}),
+        "orders": len(all_orders),
+        "pending_orders": await db.orders.count_documents({"status": {"$in": ["placed", "confirmed", "processing", "assigned", "out_for_delivery"]}}),
+        "delivered_orders": len(delivered_orders),
+        "cancelled_orders": await db.orders.count_documents({"status": "cancelled"}),
+        "revenue": round(total_revenue, 2),
+        "total_cost": round(total_cost, 2),
+        "gross_profit": gross_profit,
+        "profit_margin": round((gross_profit / total_revenue * 100) if total_revenue else 0, 2),
+        "average_order_value": round(total_revenue / len(delivered_orders), 2) if delivered_orders else 0,
+        "total_units_sold": total_units,
+        "recent_orders": all_orders[:10],
+        "product_analysis": sorted(product_rows, key=lambda x: x["revenue"], reverse=True),
+        "category_analysis": sorted(category_rows, key=lambda x: x["revenue"], reverse=True),
+        "daily_sales": daily_rows,
+        "monthly_sales": monthly_rows,
+        "top_customers": top_customers,
+        "best_selling_product": by_qty[0] if by_qty else None,
+        "highest_revenue_product": by_revenue[0] if by_revenue else None,
+        "most_profitable_product": by_profit[0] if by_profit else None,
+        "highest_margin_product": by_margin[0] if by_margin else None,
+        "lowest_selling_product": by_qty[-1] if by_qty else None,
+        "generated_at": now_iso(),
     }
-    revenue_rows = await db.orders.aggregate([
-        {"$match": {"status": "delivered"}},
-        {"$group": {"_id": None, "revenue": {"$sum": "$total"}}},
-    ]).to_list(1)
-    counts["revenue"] = round(revenue_rows[0]["revenue"], 2) if revenue_rows else 0
-    counts["recent_orders"] = [clean_doc(x) async for x in db.orders.find({}).sort("created_at", -1).limit(10)]
-    return counts
-
 
 # ---------- App wiring ----------
 app.include_router(api)
