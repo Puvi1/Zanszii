@@ -60,6 +60,26 @@ def clean_doc(doc: Optional[dict]) -> Optional[dict]:
     return doc
 
 
+PRIVATE_PRODUCT_FIELDS = {
+    "wholesale_price",
+    "packaging_cost",
+    "delivery_cost",
+    "other_cost",
+    "total_cost",
+    "profit",
+    "profit_margin",
+}
+
+
+def public_product_doc(doc: Optional[dict]) -> Optional[dict]:
+    item = clean_doc(doc)
+    if not item:
+        return None
+    for field in PRIVATE_PRODUCT_FIELDS:
+        item.pop(field, None)
+    return item
+
+
 def normalize_phone(value: Optional[str]) -> Optional[str]:
     if value is None or value == "":
         return None
@@ -75,7 +95,7 @@ class UserPublic(BaseModel):
     user_id: str
     name: str
     email: EmailStr
-    role: Literal["customer", "manager", "admin"] = "customer"
+    role: Literal["customer", "manager", "delivery_partner", "admin"] = "customer"
     phone: Optional[str] = None
     avatar_url: Optional[str] = None
     address: Optional[str] = None
@@ -155,6 +175,14 @@ class ProductUpdate(BaseModel):
     featured: Optional[bool] = None
 
 
+class ProductCostUpdate(BaseModel):
+    product_id: Optional[str] = None
+    wholesale_price: float = Field(default=0, ge=0)
+    packaging_cost: float = Field(default=0, ge=0)
+    delivery_cost: float = Field(default=0, ge=0)
+    other_cost: float = Field(default=0, ge=0)
+
+
 class CartItemIn(BaseModel):
     product_id: str
     quantity: int = Field(ge=1, le=999)
@@ -212,6 +240,52 @@ class ManagerCreate(BaseModel):
         return normalize_phone(value)
 
 
+class DeliveryPartnerCreate(BaseModel):
+    name: str = Field(min_length=2, max_length=100)
+    email: EmailStr
+    password: str = Field(min_length=6, max_length=128)
+    phone: str
+    vehicle_type: Optional[str] = Field(default=None, max_length=50)
+    vehicle_number: Optional[str] = Field(default=None, max_length=30)
+    license_number: Optional[str] = Field(default=None, max_length=60)
+    avatar_url: Optional[str] = None
+
+    @field_validator("phone")
+    @classmethod
+    def validate_phone(cls, value):
+        return normalize_phone(value)
+
+
+class DeliveryPartnerUpdate(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=2, max_length=100)
+    phone: Optional[str] = None
+    vehicle_type: Optional[str] = Field(default=None, max_length=50)
+    vehicle_number: Optional[str] = Field(default=None, max_length=30)
+    license_number: Optional[str] = Field(default=None, max_length=60)
+    avatar_url: Optional[str] = None
+    availability_status: Optional[Literal["available", "busy", "offline"]] = None
+    active: Optional[bool] = None
+
+    @field_validator("phone")
+    @classmethod
+    def validate_phone(cls, value):
+        return normalize_phone(value)
+
+
+class AssignDeliveryPartnerIn(BaseModel):
+    delivery_partner_id: Optional[str] = None
+
+
+class DeliveryStatusUpdate(BaseModel):
+    status: Literal[
+        "assigned",
+        "out_for_delivery",
+        "delivered",
+        "delivery_failed",
+    ]
+    note: Optional[str] = Field(default=None, max_length=500)
+
+
 class UserStatusUpdate(BaseModel):
     active: bool
 
@@ -231,6 +305,11 @@ async def manager_user(user=Depends(current_user)):
     return user
 
 
+async def delivery_partner_user(user=Depends(current_user)):
+    require_role(user, ["delivery_partner", "admin"])
+    return user
+
+
 async def admin_user(user=Depends(current_user)):
     require_role(user, ["admin"])
     return user
@@ -245,6 +324,8 @@ async def startup():
     await db.orders.create_index("user_id")
     await db.orders.create_index("status")
     await db.orders.create_index("manager_id")
+    await db.orders.create_index("delivery_partner_id")
+    await db.users.create_index([("role", 1), ("availability_status", 1)])
 
     admin_email = os.environ.get("ADMIN_EMAIL", "").strip().lower()
     admin_password = os.environ.get("ADMIN_PASSWORD", "")
@@ -468,9 +549,10 @@ async def list_products(
             {"name": {"$regex": search, "$options": "i"}},
             {"description": {"$regex": search, "$options": "i"}},
         ]
+
     products = []
     async for product in db.products.find(query).sort("created_at", -1):
-        item = clean_doc(product)
+        item = clean_doc(product) if user["role"] == "admin" else public_product_doc(product)
         category = await db.categories.find_one({"category_id": product.get("category_id")})
         item["category"] = clean_doc(category)
         products.append(item)
@@ -482,8 +564,11 @@ async def get_product(product_id: str, user=Depends(customer_user)):
     product = await db.products.find_one({"product_id": product_id})
     if not product or (not product.get("active", True) and user["role"] != "admin"):
         raise HTTPException(status_code=404, detail="Product not found")
-    result = clean_doc(product)
-    result["category"] = clean_doc(await db.categories.find_one({"category_id": product.get("category_id")}))
+
+    result = clean_doc(product) if user["role"] == "admin" else public_product_doc(product)
+    result["category"] = clean_doc(
+        await db.categories.find_one({"category_id": product.get("category_id")})
+    )
     return result
 
 
@@ -520,6 +605,127 @@ async def delete_product(product_id: str, user=Depends(admin_user)):
         raise HTTPException(status_code=404, detail="Product not found")
     await db.carts.update_many({}, {"$pull": {"items": {"product_id": product_id}}})
     return {"message": "Product deleted"}
+
+
+
+# ---------- Admin product costs ----------
+@api.get("/admin/products")
+async def admin_products(user=Depends(admin_user)):
+    products = []
+    async for product in db.products.find({}).sort("created_at", -1):
+        item = clean_doc(product)
+        category = await db.categories.find_one(
+            {"category_id": product.get("category_id")}
+        )
+        item["category"] = clean_doc(category)
+        item.setdefault("wholesale_price", 0.0)
+        item.setdefault("packaging_cost", 0.0)
+        item.setdefault("delivery_cost", 0.0)
+        item.setdefault("other_cost", 0.0)
+        products.append(item)
+    return {"products": products}
+
+
+@api.get("/admin/product-costs")
+async def get_product_costs(user=Depends(admin_user)):
+    costs = []
+    projection = {
+        "_id": 0,
+        "product_id": 1,
+        "wholesale_price": 1,
+        "packaging_cost": 1,
+        "delivery_cost": 1,
+        "other_cost": 1,
+        "updated_at": 1,
+    }
+
+    async for product in db.products.find({}, projection).sort("created_at", -1):
+        costs.append({
+            "product_id": product["product_id"],
+            "wholesale_price": float(product.get("wholesale_price", 0) or 0),
+            "packaging_cost": float(product.get("packaging_cost", 0) or 0),
+            "delivery_cost": float(product.get("delivery_cost", 0) or 0),
+            "other_cost": float(product.get("other_cost", 0) or 0),
+            "updated_at": product.get("updated_at"),
+        })
+
+    return {"costs": costs}
+
+
+@api.put("/admin/product-costs/{product_id}")
+async def save_product_cost(
+    product_id: str,
+    payload: ProductCostUpdate,
+    user=Depends(admin_user),
+):
+    product = await db.products.find_one({"product_id": product_id})
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    cost_data = {
+        "wholesale_price": round(float(payload.wholesale_price), 2),
+        "packaging_cost": round(float(payload.packaging_cost), 2),
+        "delivery_cost": round(float(payload.delivery_cost), 2),
+        "other_cost": round(float(payload.other_cost), 2),
+        "updated_at": now_iso(),
+    }
+
+    await db.products.update_one(
+        {"product_id": product_id},
+        {"$set": cost_data},
+    )
+
+    selling_price = float(product.get("price", 0) or 0)
+    total_cost = round(
+        cost_data["wholesale_price"]
+        + cost_data["packaging_cost"]
+        + cost_data["delivery_cost"]
+        + cost_data["other_cost"],
+        2,
+    )
+    profit = round(selling_price - total_cost, 2)
+    profit_margin = round(
+        (profit / selling_price) * 100 if selling_price > 0 else 0,
+        2,
+    )
+
+    return {
+        "message": "Product cost saved successfully",
+        "product_id": product_id,
+        "wholesale_price": cost_data["wholesale_price"],
+        "packaging_cost": cost_data["packaging_cost"],
+        "delivery_cost": cost_data["delivery_cost"],
+        "other_cost": cost_data["other_cost"],
+        "selling_price": selling_price,
+        "total_cost": total_cost,
+        "profit": profit,
+        "profit_margin": profit_margin,
+    }
+
+
+@api.delete("/admin/product-costs/{product_id}")
+async def delete_product_cost(product_id: str, user=Depends(admin_user)):
+    product = await db.products.find_one({"product_id": product_id})
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    await db.products.update_one(
+        {"product_id": product_id},
+        {
+            "$unset": {
+                "wholesale_price": "",
+                "packaging_cost": "",
+                "delivery_cost": "",
+                "other_cost": "",
+            },
+            "$set": {"updated_at": now_iso()},
+        },
+    )
+
+    return {
+        "message": "Product cost details deleted successfully",
+        "product_id": product_id,
+    }
 
 
 # ---------- Cart ----------
@@ -794,6 +1000,324 @@ async def update_user_status(user_id: str, payload: UserStatusUpdate, user=Depen
     return clean_doc(await db.users.find_one({"user_id": user_id}))
 
 
+# ---------- Delivery partners ----------
+@api.get("/admin/delivery-partners")
+async def list_delivery_partners(
+    availability_status: Optional[str] = None,
+    active: Optional[bool] = None,
+    user=Depends(admin_user),
+):
+    query = {"role": "delivery_partner"}
+    if availability_status:
+        query["availability_status"] = availability_status
+    if active is not None:
+        query["active"] = active
+
+    partners = []
+    async for partner in db.users.find(query).sort("created_at", -1):
+        item = clean_doc(partner)
+        partner_id = partner["user_id"]
+        item["assigned_orders"] = await db.orders.count_documents({
+            "delivery_partner_id": partner_id,
+            "status": {"$in": ["assigned", "out_for_delivery"]},
+        })
+        item["completed_deliveries"] = await db.orders.count_documents({
+            "delivery_partner_id": partner_id,
+            "status": "delivered",
+        })
+        item["failed_deliveries"] = await db.orders.count_documents({
+            "delivery_partner_id": partner_id,
+            "status": "delivery_failed",
+        })
+        partners.append(item)
+    return {"delivery_partners": partners}
+
+
+@api.post("/admin/delivery-partners")
+async def create_delivery_partner(
+    payload: DeliveryPartnerCreate,
+    user=Depends(admin_user),
+):
+    email = payload.email.lower().strip()
+    if await db.users.find_one({"email": email}):
+        raise HTTPException(status_code=409, detail="An account with this email already exists")
+
+    partner = {
+        "user_id": new_id("usr"),
+        "name": payload.name.strip(),
+        "email": email,
+        "password_hash": hash_password(payload.password),
+        "role": "delivery_partner",
+        "phone": payload.phone,
+        "avatar_url": payload.avatar_url,
+        "vehicle_type": payload.vehicle_type,
+        "vehicle_number": payload.vehicle_number,
+        "license_number": payload.license_number,
+        "availability_status": "available",
+        "address": None,
+        "city": None,
+        "state": None,
+        "postal_code": None,
+        "active": True,
+        "created_at": now_iso(),
+        "updated_at": now_iso(),
+    }
+    await db.users.insert_one(partner)
+    return clean_doc(partner)
+
+
+@api.get("/admin/delivery-partners/{partner_id}")
+async def get_delivery_partner(partner_id: str, user=Depends(admin_user)):
+    partner = await db.users.find_one({
+        "user_id": partner_id,
+        "role": "delivery_partner",
+    })
+    if not partner:
+        raise HTTPException(status_code=404, detail="Delivery partner not found")
+
+    result = clean_doc(partner)
+    result["assigned_orders"] = await db.orders.count_documents({
+        "delivery_partner_id": partner_id,
+        "status": {"$in": ["assigned", "out_for_delivery"]},
+    })
+    result["completed_deliveries"] = await db.orders.count_documents({
+        "delivery_partner_id": partner_id,
+        "status": "delivered",
+    })
+    result["failed_deliveries"] = await db.orders.count_documents({
+        "delivery_partner_id": partner_id,
+        "status": "delivery_failed",
+    })
+    result["recent_orders"] = [
+        clean_doc(order)
+        async for order in db.orders.find({"delivery_partner_id": partner_id})
+        .sort("created_at", -1)
+        .limit(20)
+    ]
+    return result
+
+
+@api.patch("/admin/delivery-partners/{partner_id}")
+async def update_delivery_partner(
+    partner_id: str,
+    payload: DeliveryPartnerUpdate,
+    user=Depends(admin_user),
+):
+    partner = await db.users.find_one({
+        "user_id": partner_id,
+        "role": "delivery_partner",
+    })
+    if not partner:
+        raise HTTPException(status_code=404, detail="Delivery partner not found")
+
+    updates = {k: v for k, v in payload.model_dump().items() if v is not None}
+    if "name" in updates:
+        updates["name"] = updates["name"].strip()
+    updates["updated_at"] = now_iso()
+
+    await db.users.update_one({"user_id": partner_id}, {"$set": updates})
+    return clean_doc(await db.users.find_one({"user_id": partner_id}))
+
+
+@api.delete("/admin/delivery-partners/{partner_id}")
+async def delete_delivery_partner(partner_id: str, user=Depends(admin_user)):
+    partner = await db.users.find_one({
+        "user_id": partner_id,
+        "role": "delivery_partner",
+    })
+    if not partner:
+        raise HTTPException(status_code=404, detail="Delivery partner not found")
+
+    active_orders = await db.orders.count_documents({
+        "delivery_partner_id": partner_id,
+        "status": {"$in": ["assigned", "out_for_delivery"]},
+    })
+    if active_orders:
+        raise HTTPException(
+            status_code=409,
+            detail="Reassign this partner's active orders before deleting the account",
+        )
+
+    await db.users.delete_one({"user_id": partner_id})
+    return {"message": "Delivery partner deleted"}
+
+
+@api.patch("/admin/orders/{order_id}/assign-delivery-partner")
+async def assign_delivery_partner(
+    order_id: str,
+    payload: AssignDeliveryPartnerIn,
+    user=Depends(admin_user),
+):
+    order = await db.orders.find_one({"order_id": order_id})
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    if order.get("status") in ["delivered", "cancelled"]:
+        raise HTTPException(status_code=409, detail="Completed or cancelled orders cannot be assigned")
+
+    previous_partner_id = order.get("delivery_partner_id")
+    partner_name = None
+    partner_phone = None
+
+    if payload.delivery_partner_id:
+        partner = await db.users.find_one({
+            "user_id": payload.delivery_partner_id,
+            "role": "delivery_partner",
+            "active": True,
+        })
+        if not partner:
+            raise HTTPException(status_code=400, detail="Invalid or inactive delivery partner")
+        if partner.get("availability_status") == "offline":
+            raise HTTPException(status_code=409, detail="This delivery partner is currently offline")
+        partner_name = partner["name"]
+        partner_phone = partner.get("phone")
+
+    update = {
+        "delivery_partner_id": payload.delivery_partner_id,
+        "delivery_partner_name": partner_name,
+        "delivery_partner_phone": partner_phone,
+        "updated_at": now_iso(),
+    }
+
+    if payload.delivery_partner_id:
+        update["status"] = "assigned"
+        update["assigned_at"] = now_iso()
+        history = {
+            "status": "assigned",
+            "at": now_iso(),
+            "by": user["user_id"],
+            "note": f"Assigned to delivery partner {partner_name}",
+        }
+        await db.orders.update_one(
+            {"order_id": order_id},
+            {"$set": update, "$push": {"status_history": history}},
+        )
+        await db.users.update_one(
+            {"user_id": payload.delivery_partner_id},
+            {"$set": {"availability_status": "busy", "updated_at": now_iso()}},
+        )
+    else:
+        update["status"] = "confirmed"
+        update["assigned_at"] = None
+        history = {
+            "status": "confirmed",
+            "at": now_iso(),
+            "by": user["user_id"],
+            "note": "Delivery partner unassigned",
+        }
+        await db.orders.update_one(
+            {"order_id": order_id},
+            {"$set": update, "$push": {"status_history": history}},
+        )
+
+    if previous_partner_id and previous_partner_id != payload.delivery_partner_id:
+        remaining = await db.orders.count_documents({
+            "delivery_partner_id": previous_partner_id,
+            "status": {"$in": ["assigned", "out_for_delivery"]},
+        })
+        if remaining == 0:
+            await db.users.update_one(
+                {"user_id": previous_partner_id},
+                {"$set": {"availability_status": "available", "updated_at": now_iso()}},
+            )
+
+    return clean_doc(await db.orders.find_one({"order_id": order_id}))
+
+
+@api.get("/delivery-partner/deliveries")
+async def delivery_partner_deliveries(
+    status: Optional[str] = None,
+    user=Depends(delivery_partner_user),
+):
+    query = {} if user["role"] == "admin" else {"delivery_partner_id": user["user_id"]}
+    if status:
+        query["status"] = status
+    else:
+        query["status"] = {"$in": ["assigned", "out_for_delivery", "delivery_failed"]}
+
+    return [
+        clean_doc(order)
+        async for order in db.orders.find(query).sort("created_at", 1)
+    ]
+
+
+@api.get("/delivery-partner/reports")
+async def delivery_partner_reports(user=Depends(delivery_partner_user)):
+    query = {} if user["role"] == "admin" else {"delivery_partner_id": user["user_id"]}
+    return {
+        "assigned_orders": await db.orders.count_documents({
+            **query,
+            "status": {"$in": ["assigned", "out_for_delivery"]},
+        }),
+        "completed_deliveries": await db.orders.count_documents({**query, "status": "delivered"}),
+        "failed_deliveries": await db.orders.count_documents({**query, "status": "delivery_failed"}),
+        "total_orders": await db.orders.count_documents(query),
+    }
+
+
+@api.patch("/delivery-partner/orders/{order_id}/status")
+async def update_delivery_status(
+    order_id: str,
+    payload: DeliveryStatusUpdate,
+    user=Depends(delivery_partner_user),
+):
+    order = await db.orders.find_one({"order_id": order_id})
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    if user["role"] != "admin" and order.get("delivery_partner_id") != user["user_id"]:
+        raise HTTPException(status_code=403, detail="This order is not assigned to you")
+
+    if order.get("status") in ["delivered", "cancelled"]:
+        raise HTTPException(status_code=409, detail="Completed or cancelled orders cannot be changed")
+
+    allowed_transitions = {
+        "assigned": {"out_for_delivery", "delivery_failed"},
+        "out_for_delivery": {"delivered", "delivery_failed"},
+        "delivery_failed": {"out_for_delivery"},
+    }
+    current_status = order.get("status")
+    if payload.status != current_status and payload.status not in allowed_transitions.get(current_status, set()):
+        raise HTTPException(
+            status_code=409,
+            detail=f"Cannot change delivery status from {current_status} to {payload.status}",
+        )
+
+    update = {"status": payload.status, "updated_at": now_iso()}
+    if payload.status == "out_for_delivery":
+        update["out_for_delivery_at"] = now_iso()
+    elif payload.status == "delivered":
+        update["delivered_at"] = now_iso()
+        update["payment_status"] = "paid"
+    elif payload.status == "delivery_failed":
+        update["delivery_failed_at"] = now_iso()
+
+    history = {
+        "status": payload.status,
+        "at": now_iso(),
+        "by": user["user_id"],
+        "note": payload.note,
+    }
+    await db.orders.update_one(
+        {"order_id": order_id},
+        {"$set": update, "$push": {"status_history": history}},
+    )
+
+    partner_id = order.get("delivery_partner_id")
+    if partner_id and payload.status in ["delivered", "delivery_failed"]:
+        remaining = await db.orders.count_documents({
+            "delivery_partner_id": partner_id,
+            "status": {"$in": ["assigned", "out_for_delivery"]},
+            "order_id": {"$ne": order_id},
+        })
+        if remaining == 0:
+            await db.users.update_one(
+                {"user_id": partner_id},
+                {"$set": {"availability_status": "available", "updated_at": now_iso()}},
+            )
+
+    return clean_doc(await db.orders.find_one({"order_id": order_id}))
+
+
 # ---------- Dashboards and reports ----------
 @api.get("/dashboard")
 async def dashboard(user=Depends(current_user)):
@@ -808,6 +1332,8 @@ async def dashboard(user=Depends(current_user)):
         }
     if user["role"] == "manager":
         return await manager_reports(user)
+    if user["role"] == "delivery_partner":
+        return await delivery_partner_reports(user)
     return await admin_reports(user)
 
 
@@ -818,7 +1344,10 @@ async def admin_reports(user=Depends(admin_user)):
         "categories": await db.categories.count_documents({}),
         "customers": await db.users.count_documents({"role": "customer"}),
         "managers": await db.users.count_documents({"role": "manager"}),
+        "delivery_partners": await db.users.count_documents({"role": "delivery_partner"}),
+        "available_delivery_partners": await db.users.count_documents({"role": "delivery_partner", "active": True, "availability_status": "available"}),
         "orders": await db.orders.count_documents({}),
+        "assigned_deliveries": await db.orders.count_documents({"status": {"$in": ["assigned", "out_for_delivery"]}}),
         "pending_orders": await db.orders.count_documents({"status": {"$in": ["placed", "confirmed", "processing", "out_for_delivery"]}}),
         "delivered_orders": await db.orders.count_documents({"status": "delivered"}),
     }
