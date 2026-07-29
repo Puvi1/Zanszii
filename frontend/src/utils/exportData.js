@@ -99,4 +99,23 @@ export const exportExcel = (
   document.body.removeChild(link);
 
   window.URL.revokeObjectURL(url);
+
+export const exportRowsToPdf = (
+  title,
+  headers,
+  rows,
+  filename = "report.pdf"
+) => {
+  return exportPdf(title, headers, rows, filename);
 };
+
+export const exportRowsToExcel = (
+  headers,
+  rows,
+  filename = "report.xlsx",
+  sheetName = "Sheet1"
+) => {
+  return exportExcel(headers, rows, filename, sheetName);
+};
+
+
