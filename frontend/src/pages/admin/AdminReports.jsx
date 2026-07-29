@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { api, formatApiError } from "@/lib/api";
+import { api, formatApiError } from "../../lib/api";
 import { Download, FileSpreadsheet, IndianRupee, PackageCheck, RefreshCw, ShoppingBag, Users } from "lucide-react";
-import { exportRowsToExcel, exportRowsToPdf } from "@/utils/exportData";
+import { exportRowsToExcel, exportRowsToPdf } from "../../utils/exportData";
 
 const money = (v) => new Intl.NumberFormat("en-IN", {style:"currency",currency:"INR",maximumFractionDigits:0}).format(v||0);
 const orderColumns=[{label:"Order",value:x=>x.order_number||x.order_id},{label:"Status",value:x=>x.status},{label:"Total",value:x=>x.total},{label:"Customer",value:x=>x.customer_name||x.user_name||"Customer"},{label:"Date",value:x=>x.created_at?new Date(x.created_at).toLocaleDateString("en-IN"):""}];
