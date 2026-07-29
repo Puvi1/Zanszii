@@ -713,6 +713,7 @@ function printInvoice(order) {
 export default function AdminOrders() {
   const [orders, setOrders] = useState([]);
   const [managers, setManagers] = useState([]);
+  const [deliveryPartners, setDeliveryPartners] = useState([]);
   const [filter, setFilter] = useState("all");
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -724,10 +725,11 @@ export default function AdminOrders() {
     setError("");
 
     try {
-      const [ordersResponse, managersResponse] =
+      const [ordersResponse, managersResponse, deliveryPartnersResponse] =
         await Promise.all([
           api.get("/admin/orders"),
           api.get("/admin/managers"),
+          api.get("/admin/delivery-partners"),
         ]);
 
       setOrders(
@@ -739,6 +741,15 @@ export default function AdminOrders() {
       setManagers(
         Array.isArray(managersResponse.data)
           ? managersResponse.data
+          : []
+      );
+
+      const deliveryPartnerData = deliveryPartnersResponse.data;
+      setDeliveryPartners(
+        Array.isArray(deliveryPartnerData)
+          ? deliveryPartnerData
+          : Array.isArray(deliveryPartnerData?.delivery_partners)
+          ? deliveryPartnerData.delivery_partners
           : []
       );
     } catch (err) {
@@ -766,6 +777,7 @@ export default function AdminOrders() {
     order.phone,
     label(order.status),
     order.manager_name || "Unassigned",
+    order.delivery_partner_name || "Unassigned",
     Number(order.total || 0),
     new Date(order.created_at).toLocaleDateString("en-IN"),
   ]);
@@ -808,6 +820,34 @@ export default function AdminOrders() {
         `/admin/orders/${order.order_id}/assign`,
         {
           manager_id: managerId || null,
+        }
+      );
+
+      await load();
+
+      if (selectedOrder?.order_id === order.order_id) {
+        const response = await api.get(
+          `/orders/${order.order_id}`
+        );
+
+        setSelectedOrder(response.data);
+      }
+    } catch (err) {
+      setError(formatApiError(err));
+    } finally {
+      setUpdatingOrderId("");
+    }
+  };
+
+  const assignDeliveryPartner = async (order, deliveryPartnerId) => {
+    setUpdatingOrderId(order.order_id);
+    setError("");
+
+    try {
+      await api.patch(
+        `/admin/orders/${order.order_id}/assign-delivery-partner`,
+        {
+          delivery_partner_id: deliveryPartnerId || null,
         }
       );
 
@@ -884,6 +924,7 @@ export default function AdminOrders() {
                   "Phone",
                   "Status",
                   "Manager",
+                  "Delivery Partner",
                   "Total",
                   "Date",
                 ],
@@ -907,6 +948,7 @@ export default function AdminOrders() {
                   "Phone",
                   "Status",
                   "Manager",
+                  "Delivery Partner",
                   "Total",
                   "Date",
                 ],
@@ -956,6 +998,7 @@ export default function AdminOrders() {
                 "Total",
                 "Status",
                 "Manager",
+                "Delivery Partner",
                 "Actions",
               ].map((heading) => (
                 <th
@@ -1050,6 +1093,35 @@ export default function AdminOrders() {
                 </td>
 
                 <td className="px-4 py-4">
+                  <select
+                    value={order.delivery_partner_id || ""}
+                    disabled={
+                      updatingOrderId === order.order_id
+                    }
+                    onChange={(event) =>
+                      assignDeliveryPartner(
+                        order,
+                        event.target.value
+                      )
+                    }
+                    className="min-w-[180px] rounded-xl border px-3 py-2"
+                  >
+                    <option value="">Unassigned</option>
+
+                    {deliveryPartners
+                      .filter((partner) => partner.active !== false)
+                      .map((partner) => (
+                        <option
+                          key={partner.user_id || partner.delivery_partner_id}
+                          value={partner.user_id || partner.delivery_partner_id}
+                        >
+                          {partner.name || partner.full_name || partner.email}
+                        </option>
+                      ))}
+                  </select>
+                </td>
+
+                <td className="px-4 py-4">
                   <div className="flex flex-wrap gap-3">
                     <button
                       type="button"
@@ -1087,7 +1159,7 @@ export default function AdminOrders() {
             {!loading && shown.length === 0 && (
               <tr>
                 <td
-                  colSpan={6}
+                  colSpan={7}
                   className="px-4 py-12 text-center text-slate-500"
                 >
                   No orders found for this status.
@@ -1316,6 +1388,35 @@ export default function AdminOrders() {
                           "Unassigned"
                         )}
                       </strong>
+                    </div>
+
+                    <div>
+                      <label className="mb-2 block text-slate-500">
+                        Assign Delivery Partner
+                      </label>
+                      <select
+                        value={selectedOrder.delivery_partner_id || ""}
+                        disabled={updatingOrderId === selectedOrder.order_id}
+                        onChange={(event) =>
+                          assignDeliveryPartner(
+                            selectedOrder,
+                            event.target.value
+                          )
+                        }
+                        className="w-full rounded-xl border px-3 py-2"
+                      >
+                        <option value="">Unassigned</option>
+                        {deliveryPartners
+                          .filter((partner) => partner.active !== false)
+                          .map((partner) => (
+                            <option
+                              key={partner.user_id || partner.delivery_partner_id}
+                              value={partner.user_id || partner.delivery_partner_id}
+                            >
+                              {partner.name || partner.full_name || partner.email}
+                            </option>
+                          ))}
+                      </select>
                     </div>
 
                     <div className="flex justify-between gap-4">
