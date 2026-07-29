@@ -37,6 +37,7 @@ export const exportPdf = (
       <head>
         <title>${title}</title>
       </head>
+
       <body style="font-family:Arial,sans-serif;padding:24px;">
         <h1>${title}</h1>
 
@@ -90,6 +91,7 @@ export const exportExcel = (
     .replace(/\.xls$/i, ".csv");
 
   link.href = url;
+
   link.download = csvFilename.endsWith(".csv")
     ? csvFilename
     : `${csvFilename}.csv`;
@@ -99,6 +101,7 @@ export const exportExcel = (
   document.body.removeChild(link);
 
   window.URL.revokeObjectURL(url);
+};
 
 export const exportRowsToPdf = (
   title,
@@ -117,5 +120,3 @@ export const exportRowsToExcel = (
 ) => {
   return exportExcel(headers, rows, filename, sheetName);
 };
-
-
