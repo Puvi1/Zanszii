@@ -40,11 +40,11 @@ const adminLinks = [
   ["/admin/orders", "Orders", ClipboardList],
   ["/admin/customers", "Customers", Users],
   ["/admin/managers", "Managers", Truck],
-  [
-    "/admin/cost-management",
-    "Cost Management",
-    BadgeIndianRupee,
-  ],
+
+  // NEW
+  ["/admin/delivery-partners", "Delivery Partners", Truck],
+
+  ["/admin/cost-management", "Cost Management", BadgeIndianRupee],
   ["/admin/reports", "Reports", BarChart3],
   ["/profile", "Profile", User],
 ];
