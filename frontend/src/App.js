@@ -21,6 +21,9 @@ import OrderDetails from "./pages/customer/OrderDetails";
 import CustomerProfile from "./pages/customer/CustomerProfile";
 import ManagerDeliveries from "./pages/manager/ManagerDeliveries";
 import ManagerReports from "./pages/manager/ManagerReports";
+import AdminCustomers from "./pages/admin/AdminCustomers";
+import AdminManagers from "./pages/admin/AdminManagers";
+
 import "./App.css";
 
 function RoleHome() {
