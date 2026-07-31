@@ -139,16 +139,16 @@ const wishlistCount = (() => {
                   <span className={`relative flex h-8 w-10 items-center justify-center rounded-xl ${isActive ? "bg-blue-50" : ""}`}>
                     <Icon size={20} strokeWidth={isActive ? 2.8 : 2} />
                     {to === "/cart" && itemCount > 0 && (
-                    {to === "/wishlist" && wishlistCount > 0 && (
+                     <span className="absolute -right-1 -top-1 min-w-[17px] rounded-full bg-[#F4B400] px-1 text-center text-[9px] font-black text-[#062B5F]">
+                        {itemCount > 99 ? "99+" : itemCount}
+                      </span>
+                    )}
+ {to === "/wishlist" && wishlistCount > 0 && (
                     <span className="absolute -right-1 -top-1 min-w-[17px] rounded-full bg-rose-500 px-1 text-center text-[9px] font-black text-white">
     {wishlistCount}
   </span>
 )}
 
-                      <span className="absolute -right-1 -top-1 min-w-[17px] rounded-full bg-[#F4B400] px-1 text-center text-[9px] font-black text-[#062B5F]">
-                        {itemCount > 99 ? "99+" : itemCount}
-                      </span>
-                    )}
                   </span>
                   {text}
                 </>
