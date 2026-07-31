@@ -4,29 +4,57 @@ import { MapPin, Phone, ShieldCheck } from "@phosphor-icons/react";
 import { api, formatApiError } from "../../lib/api";
 import { useAuth } from "../../context/AuthContext";
 import { useCart } from "../../context/CartContext";
+import { useBuyNow } from "../../context/BuyNowContext";
 
 export default function CustomerCheckout() {
   const { user, refreshUser } = useAuth();
-  const { items, subtotal, clearCart, reloadCart } = useCart();
+  const { items, subtotal, reloadCart } = useCart();
+  const { buyNowItem, clearBuyNow } = useBuyNow();
   const navigate = useNavigate();
   const [form, setForm] = useState({ delivery_address:"", city:"", state:"Tamil Nadu", postal_code:"", phone:"", notes:"" });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+
+
+  const checkoutItems = buyNowItem
+    ? [{
+        product_id: buyNowItem.product.product_id,
+        name: buyNowItem.product.name,
+        quantity: buyNowItem.quantity,
+        line_total: Number(buyNowItem.product.price) * buyNowItem.quantity,
+      }]
+    : items;
+
+  const checkoutSubtotal = buyNowItem
+    ? Number(buyNowItem.product.price) * buyNowItem.quantity
+    : subtotal;
 
   useEffect(()=>setForm((f)=>({...f, delivery_address:user?.address||"", city:user?.city||"", state:user?.state||"Tamil Nadu", postal_code:user?.postal_code||"", phone:user?.phone||""})),[user]);
 
   const submit = async (e) => {
     e.preventDefault(); setSaving(true); setError("");
     try {
-      const { data } = await api.post("/orders", form);
-      await reloadCart();
+      const payload = buyNowItem ? {
+        ...form,
+        buy_now_item: {
+          product_id: buyNowItem.product.product_id,
+          quantity: buyNowItem.quantity,
+        },
+      } : form;
+
+      const { data } = await api.post("/orders", payload);
+      if (buyNowItem) {
+        clearBuyNow();
+      } else {
+        await reloadCart();
+      }
       navigate(`/order-success/${data.order_id}`, { state: { order: data } });
     } catch (err) {
       setError(formatApiError(err?.response?.data?.detail));
     } finally { setSaving(false); }
   };
 
-  if (!items.length) return <div className="rounded-3xl bg-white p-10 text-center"><h1 className="text-2xl font-black">Your cart is empty</h1><button onClick={()=>navigate("/products")} className="mt-5 rounded-2xl bg-[#0F4C9C] px-5 py-3 font-bold text-white">Browse products</button></div>;
+  if (!checkoutItems.length) return <div className="rounded-3xl bg-white p-10 text-center"><h1 className="text-2xl font-black">Your cart is empty</h1><button onClick={()=>navigate("/products")} className="mt-5 rounded-2xl bg-[#0F4C9C] px-5 py-3 font-bold text-white">Browse products</button></div>;
 
   return (
     <form onSubmit={submit} className="grid gap-6 lg:grid-cols-[1.2fr_.8fr]">
@@ -44,8 +72,8 @@ export default function CustomerCheckout() {
       </section>
       <aside className="h-fit rounded-3xl bg-[#062B5F] p-6 text-white shadow-xl lg:sticky lg:top-6">
         <h2 className="text-xl font-black">Order summary</h2>
-        <div className="mt-5 space-y-3">{items.map((i)=><div key={i.product_id} className="flex justify-between text-sm text-blue-100"><span>{i.name} × {i.quantity}</span><b>₹{Number(i.line_total).toLocaleString("en-IN")}</b></div>)}</div>
-        <div className="mt-5 flex justify-between border-t border-white/20 pt-5 text-2xl font-black"><span>Total</span><span>₹{subtotal.toLocaleString("en-IN")}</span></div>
+        <div className="mt-5 space-y-3">{checkoutItems.map((i)=><div key={i.product_id} className="flex justify-between text-sm text-blue-100"><span>{i.name} × {i.quantity}</span><b>₹{Number(i.line_total).toLocaleString("en-IN")}</b></div>)}</div>
+        <div className="mt-5 flex justify-between border-t border-white/20 pt-5 text-2xl font-black"><span>Total</span><span>₹{checkoutSubtotal.toLocaleString("en-IN")}</span></div>
         <div className="mt-5 rounded-2xl bg-white/10 p-4"><p className="font-bold">Cash on Delivery</p><p className="mt-1 text-sm text-blue-100">Pay when your order is delivered.</p></div>
         <button disabled={saving} className="mt-5 w-full rounded-2xl bg-[#F4B400] px-5 py-4 font-black text-[#062B5F] disabled:opacity-60">{saving?"Placing order...":"Place order"}</button>
       </aside>
