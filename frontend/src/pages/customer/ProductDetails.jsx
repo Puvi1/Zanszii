@@ -14,6 +14,8 @@ import {
 } from "@phosphor-icons/react";
 import { api, formatApiError } from "../../lib/api";
 import { useCart } from "../../context/CartContext";
+import { useBuyNow } from "../../context/BuyNowContext";
+
 
 const FALLBACK = "https://placehold.co/900x900/F5F9FF/0F4C9C?text=ZANSZII";
 
@@ -39,6 +41,7 @@ export default function ProductDetails() {
   const { productId } = useParams();
   const navigate = useNavigate();
   const { addItem, itemCount } = useCart();
+const { startBuyNow } = useBuyNow();
 
   const [product, setProduct] = useState(null);
   const [related, setRelated] = useState([]);
@@ -118,17 +121,12 @@ export default function ProductDetails() {
   };
 
   const handleBuyNow = async () => {
-    if (!product || !inStock) return;
-    setBuying(true);
-    setMessage("");
-    try {
-      await addItem(product, quantity);
-      navigate("/checkout");
-    } catch (requestError) {
-      setMessage(requestError.message || "Unable to continue to checkout.");
-      setBuying(false);
-    }
-  };
+  if (!product || !inStock) return;
+
+  startBuyNow(product, quantity);
+
+  navigate("/checkout");
+};
 
   if (loading) {
     return (
