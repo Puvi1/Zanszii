@@ -677,27 +677,40 @@ export default function ProductDetails() {
                 to={`/products/${item.product_id}`}
                 className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg"
               >
-                <div className="aspect-square bg-[#F5F9FF]">
-                  <img
-                    src={productImages(item)[0]}
-                    alt={item.name}
-                    className="h-full w-full object-cover"
-                    onError={(event) => {
-                      event.currentTarget.src =
-                        FALLBACK;
-                    }}
-                  />
-                </div>
+                <div className="aspect-square overflow-hidden rounded-t-3xl bg-[#F5F9FF] p-4">
+  <img
+    src={productImages(item)[0]}
+    alt={item.name}
+    className="h-full w-full object-contain transition duration-300 hover:scale-105"
+    loading="lazy"
+    onError={(event) => {
+      event.currentTarget.src = FALLBACK;
+    }}
+  />
+</div>
+                <div className="space-y-2 p-4">
+  <p className="text-[10px] font-black uppercase tracking-[0.15em] text-[#0F4C9C]">
+    {item.category?.name || item.category_name || "HOME CARE"}
+  </p>
 
-                <div className="p-4">
-                  <h3 className="line-clamp-1 font-black text-slate-900">
-                    {item.name}
-                  </h3>
+  <h3 className="line-clamp-2 min-h-[44px] text-base font-black text-slate-900">
+    {item.name}
+  </h3>
 
-                  <p className="mt-2 text-lg font-black text-[#062B5F]">
-                    {money(item.price)}
-                  </p>
-                </div>
+  <p className="text-xl font-black text-[#062B5F]">
+    {money(item.price)}
+  </p>
+
+  <button
+    className="mt-2 w-full rounded-xl bg-[#0F4C9C] py-2.5 text-sm font-black text-white transition hover:bg-[#0B3C7D]"
+    onClick={(e) => {
+      e.preventDefault();
+      navigate(`/products/${item.product_id}`);
+    }}
+  >
+    View Product
+  </button>
+</div>
               </Link>
             ))}
           </div>
