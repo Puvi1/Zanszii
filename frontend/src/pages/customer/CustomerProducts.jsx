@@ -83,19 +83,19 @@ export default function CustomerProducts() {
                   navigate(`/products/${p.product_id}`);
                 }
               }}
-              className="cursor-pointer overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-[#0F4C9C] focus:ring-offset-2"
+              className="cursor-pointer overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-[#0F4C9C] focus:ring-offset-2"
             >
-              <div className="relative h-52 bg-[#F5F9FF]">
-                <img src={p.image_url || p.images?.[0] || FALLBACK} alt={p.name} className="h-full w-full object-cover" onError={(e)=>e.currentTarget.src=FALLBACK}/>
+              <div className="relative aspect-square overflow-hidden bg-[#F4F8FC] p-3">
+                <img src={p.image_url || p.images?.[0] || FALLBACK} alt={p.name} className="h-full w-full object-contain transition duration-300 hover:scale-105" onError={(e)=>e.currentTarget.src=FALLBACK}/>
                 {p.featured && <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-[#F4B400] px-3 py-1 text-xs font-black text-[#062B5F]"><Star weight="fill"/> Featured</span>}
               </div>
-              <div className="p-5">
+              <div className="p-4">
                 <p className="text-xs font-bold uppercase tracking-wider text-[#0F4C9C]">{p.category?.name || "General"}</p>
-                <h2 className="mt-1 text-xl font-black text-slate-900">{p.name}</h2>
-                <p className="mt-2 line-clamp-2 text-sm text-slate-500">{p.description || "Premium Zanszii cleaning product."}</p>
-                <div className="mt-5 flex items-end justify-between">
-                  <div><p className="text-2xl font-black text-[#062B5F]">₹{Number(p.price).toLocaleString("en-IN")}</p><p className="text-xs text-slate-500">per {p.unit}</p></div>
-                  <button disabled={p.stock<=0} onClick={(e)=>{ e.stopPropagation(); add(p); }} className="rounded-2xl bg-[#0F4C9C] px-4 py-3 font-bold text-white disabled:bg-slate-300">
+                <h2 className="mt-1 min-h-[40px] text-base font-black leading-5 text-slate-900">{p.name}</h2>
+                <p className="mt-1 line-clamp-2 text-xs text-slate-500">{p.description || "Premium Zanszii cleaning product."}</p>
+                <div className="mt-3 flex items-center justify-between">
+                  <div><p className="text-lg font-black text-[#062B5F]">₹{Number(p.price).toLocaleString("en-IN")}</p><p className="text-xs text-slate-500">per {p.unit}</p></div>
+                  <button disabled={p.stock<=0} onClick={(e)=>{ e.stopPropagation(); add(p); }} className="min-h-9 rounded-xl bg-[#0F4C9C] px-3 py-2 text-xs font-black text-white disabled:bg-slate-300">
                     {p.stock>0 ? "Add to cart" : "Out of stock"}
                   </button>
                 </div>
