@@ -3,13 +3,11 @@ import { Link, useNavigate } from "react-router-dom";
 import {
   ArrowRight,
   BadgePercent,
-  Bell,
   ChevronLeft,
   ChevronRight,
   Clock3,
   Flame,
   Heart,
-  MapPin,
   Package,
   Search,
   ShieldCheck,
@@ -42,7 +40,7 @@ const banners = [
     eyebrow: "Fresh home essentials",
     title: "Powerful cleaning for every room",
     description:
-      "Shop trusted Zanszii products for floors, kitchens, bathrooms and everyday home care.",
+      "Shop trusted ZANSZI products for floors, kitchens, bathrooms and everyday home care.",
     action: "Shop now",
     link: "/products",
     accent: "from-[#062B5F] via-[#0F4C9C] to-[#1677D2]",
@@ -190,7 +188,7 @@ function ProductCard({
         <p className="text-[9px] font-black uppercase tracking-[0.13em] text-[#0F4C9C] sm:text-[10px]">
           {product.category?.name ||
             product.category_name ||
-            "Zanszii Care"}
+            "ZANSZI Care"}
         </p>
 
         <h3
@@ -269,7 +267,7 @@ function ProductSkeleton({ compact = false }) {
   );
 }
 
-export default function ZansziiHome() {
+export default function ZANSZIHome() {
   const { user } = useAuth();
   const { addItem, itemCount = 0 } = useCart();
   const navigate = useNavigate();
@@ -484,55 +482,12 @@ export default function ZansziiHome() {
   const activeSlide = banners[activeBanner];
 
   return (
-    <div className="space-y-7 pb-28 md:space-y-9 md:pb-8">
-      <header className="sticky top-0 z-30 -mx-3 border-b border-slate-200/80 bg-white/90 px-3 py-3 backdrop-blur-xl sm:-mx-5 sm:px-5">
-        <div className="mx-auto flex max-w-7xl items-center gap-3">
-          <button
-            type="button"
-            onClick={() => navigate("/profile")}
-            className="min-w-0 flex-1 rounded-2xl px-2 py-1 text-left transition hover:bg-slate-50"
-          >
-            <span className="flex items-center gap-1 text-[11px] font-bold text-slate-500">
-              <MapPin
-                size={14}
-                className="text-[#0F4C9C]"
-              />
-              Deliver to
-            </span>
+    <div className="space-y-6 pb-28 md:space-y-8 md:pb-8">
 
-            <span className="block truncate text-sm font-black text-slate-900">
-              {deliveryLocation}
-            </span>
-          </button>
-
-          <button
-            type="button"
-            aria-label="Notifications"
-            className="relative grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-slate-200 bg-white text-slate-700 shadow-sm"
-          >
-            <Bell size={20} />
-
-            <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-white" />
-          </button>
-
-          <Link
-            to="/cart"
-            aria-label="Open cart"
-            className="relative grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-[#062B5F] text-white shadow-sm"
-          >
-            <ShoppingCart size={20} />
-
-            {Number(itemCount) > 0 && (
-              <span className="absolute -right-1.5 -top-1.5 grid min-h-5 min-w-5 place-items-center rounded-full bg-[#F4B400] px-1 text-[10px] font-black text-[#062B5F] ring-2 ring-white">
-                {itemCount}
-              </span>
-            )}
-          </Link>
-        </div>
-
+      <section className="rounded-[24px] border border-slate-200 bg-white p-2 shadow-sm">
         <form
           onSubmit={submitSearch}
-          className="mx-auto mt-3 flex max-w-7xl items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-1.5 shadow-inner"
+          className="flex items-center gap-2 rounded-2xl bg-[#F5F9FF] p-1.5"
         >
           <Search
             className="ml-2 text-slate-400"
@@ -555,13 +510,64 @@ export default function ZansziiHome() {
             Search
           </button>
         </form>
-      </header>
+      </section>
 
       {message && (
         <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-bold text-[#0F4C9C]">
           {message}
         </div>
       )}
+
+      <section>
+        <div className="mb-4 flex items-end justify-between gap-4">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.2em] text-[#0F4C9C]">
+              Find it fast
+            </p>
+
+            <h2 className="mt-1 text-2xl font-black text-slate-900">
+              Shop by category
+            </h2>
+          </div>
+
+          <Link
+            to="/products"
+            className="inline-flex items-center gap-1 text-sm font-black text-[#0F4C9C]"
+          >
+            View all
+            <ChevronRight size={17} />
+          </Link>
+        </div>
+
+        <div className="flex gap-3 overflow-x-auto pb-2">
+          {categories.slice(0, 8).map(
+            (category, index) => (
+              <Link
+                key={category.category_id}
+                to={`/products?category=${category.category_id}`}
+                className="group min-w-[104px] rounded-[24px] border border-slate-200 bg-white p-3 text-center shadow-sm transition hover:-translate-y-1 hover:border-blue-200 hover:shadow-lg sm:min-w-[120px]"
+              >
+                <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#F5F9FF] text-2xl transition group-hover:scale-105">
+                  {categoryIcons[
+                    index % categoryIcons.length
+                  ]}
+                </span>
+
+                <p className="mt-3 line-clamp-2 text-xs font-black text-slate-800 sm:text-sm">
+                  {category.name}
+                </p>
+              </Link>
+            )
+          )}
+
+          {!loading && categories.length === 0 && (
+            <div className="w-full rounded-3xl border border-dashed border-slate-300 bg-white py-10 text-center text-sm font-bold text-slate-500">
+              Categories will appear here after they
+              are added by admin.
+            </div>
+          )}
+        </div>
+      </section>
 
       <section
         className={`relative overflow-hidden rounded-[30px] bg-gradient-to-br ${activeSlide.accent} px-5 py-7 text-white shadow-[0_25px_70px_rgba(15,76,156,0.24)] sm:px-8 sm:py-10 lg:px-12 lg:py-12`}
@@ -605,7 +611,7 @@ export default function ZansziiHome() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs font-black uppercase tracking-[0.18em] text-[#0F4C9C]">
-                      Zanszii promise
+                      ZANSZI promise
                     </p>
 
                     <h2 className="mt-2 text-2xl font-black">
@@ -670,57 +676,6 @@ export default function ZansziiHome() {
               }`}
             />
           ))}
-        </div>
-      </section>
-
-      <section>
-        <div className="mb-4 flex items-end justify-between gap-4">
-          <div>
-            <p className="text-xs font-black uppercase tracking-[0.2em] text-[#0F4C9C]">
-              Find it fast
-            </p>
-
-            <h2 className="mt-1 text-2xl font-black text-slate-900">
-              Shop by category
-            </h2>
-          </div>
-
-          <Link
-            to="/products"
-            className="inline-flex items-center gap-1 text-sm font-black text-[#0F4C9C]"
-          >
-            View all
-            <ChevronRight size={17} />
-          </Link>
-        </div>
-
-        <div className="flex gap-3 overflow-x-auto pb-2">
-          {categories.slice(0, 8).map(
-            (category, index) => (
-              <Link
-                key={category.category_id}
-                to={`/products?category=${category.category_id}`}
-                className="group min-w-[104px] rounded-[24px] border border-slate-200 bg-white p-3 text-center shadow-sm transition hover:-translate-y-1 hover:border-blue-200 hover:shadow-lg sm:min-w-[120px]"
-              >
-                <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#F5F9FF] text-2xl transition group-hover:scale-105">
-                  {categoryIcons[
-                    index % categoryIcons.length
-                  ]}
-                </span>
-
-                <p className="mt-3 line-clamp-2 text-xs font-black text-slate-800 sm:text-sm">
-                  {category.name}
-                </p>
-              </Link>
-            )
-          )}
-
-          {!loading && categories.length === 0 && (
-            <div className="w-full rounded-3xl border border-dashed border-slate-300 bg-white py-10 text-center text-sm font-bold text-slate-500">
-              Categories will appear here after they
-              are added by admin.
-            </div>
-          )}
         </div>
       </section>
 
@@ -995,7 +950,7 @@ export default function ZansziiHome() {
           </p>
 
           <p className="mt-1 text-xs leading-5 text-slate-500">
-            Trusted Zanszii quality for everyday use.
+            Trusted ZANSZI quality for everyday use.
           </p>
         </div>
 
