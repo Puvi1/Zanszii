@@ -20,6 +20,7 @@ import OrderSuccess from "./pages/customer/OrderSuccess";
 import MyOrders from "./pages/customer/MyOrders";
 import OrderDetails from "./pages/customer/OrderDetails";
 import CustomerProfile from "./pages/customer/CustomerProfile";
+import CustomerWishlist from "./pages/customer/CustomerWishlist";
 import ManagerDeliveries from "./pages/manager/ManagerDeliveries";
 import ManagerReports from "./pages/manager/ManagerReports";
 import AdminCustomers from "./pages/admin/AdminCustomers";
@@ -58,6 +59,8 @@ export default function App() {
                 <Route path="/orders" element={<MyOrders />} />
                 <Route path="/orders/:orderId" element={<OrderDetails />} />
                 <Route path="/profile" element={<CustomerProfile />} />
+                <Route path="/wishlist" element={<CustomerWishlist />} />
+
               </Route>
             </Route>
 
