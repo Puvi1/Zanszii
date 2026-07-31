@@ -5,6 +5,7 @@ import {
   BarChart3,
   Boxes,
   ClipboardList,
+  Heart,
   Home,
   LogOut,
   Menu,
@@ -22,8 +23,8 @@ import { useCart } from "@/context/CartContext";
 const customerLinks = [
   ["/", "Home", Home],
   ["/products", "Shop", Package],
+  ["/wishlist", "Wishlist", Heart],
   ["/cart", "Cart", ShoppingCart],
-  ["/orders", "Orders", ClipboardList],
   ["/profile", "Profile", User],
 ];
 
@@ -49,6 +50,14 @@ const adminLinks = [
 
 function CustomerLayout({ user, signOut }) {
   const { itemCount } = useCart();
+const wishlistCount = (() => {
+  try {
+    return JSON.parse(localStorage.getItem("zanszii_wishlist") || "[]").length;
+  } catch {
+    return 0;
+  }
+})();
+
 
   return (
     <div className="min-h-screen bg-[#F6F8FC] pb-24 lg:pb-0">
@@ -130,6 +139,12 @@ function CustomerLayout({ user, signOut }) {
                   <span className={`relative flex h-8 w-10 items-center justify-center rounded-xl ${isActive ? "bg-blue-50" : ""}`}>
                     <Icon size={20} strokeWidth={isActive ? 2.8 : 2} />
                     {to === "/cart" && itemCount > 0 && (
+                    {to === "/wishlist" && wishlistCount > 0 && (
+                    <span className="absolute -right-1 -top-1 min-w-[17px] rounded-full bg-rose-500 px-1 text-center text-[9px] font-black text-white">
+    {wishlistCount}
+  </span>
+)}
+
                       <span className="absolute -right-1 -top-1 min-w-[17px] rounded-full bg-[#F4B400] px-1 text-center text-[9px] font-black text-[#062B5F]">
                         {itemCount > 99 ? "99+" : itemCount}
                       </span>
