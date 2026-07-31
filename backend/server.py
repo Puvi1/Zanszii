@@ -195,6 +195,7 @@ class OrderCreate(BaseModel):
     postal_code: str = Field(min_length=4, max_length=12)
     phone: str
     notes: Optional[str] = Field(default=None, max_length=1000)
+    buy_now_item: Optional[CartItemIn] = None
 
     @field_validator("phone")
     @classmethod
@@ -822,14 +823,56 @@ async def clear_cart(user=Depends(customer_user)):
 # ---------- Orders ----------
 @api.post("/orders")
 async def create_order(payload: OrderCreate, user=Depends(customer_user)):
-    cart = await build_cart(user["user_id"])
-    if not cart["items"]:
-        raise HTTPException(status_code=400, detail="Cart is empty")
+    is_buy_now = payload.buy_now_item is not None
 
-    for item in cart["items"]:
-        product = await db.products.find_one({"product_id": item["product_id"], "active": True})
-        if not product or item["quantity"] > product.get("stock", 0):
-            raise HTTPException(status_code=400, detail=f"Insufficient stock for {item['name']}")
+    if is_buy_now:
+        requested = payload.buy_now_item
+
+        product = await db.products.find_one({
+            "product_id": requested.product_id,
+            "active": True,
+        })
+        if not product:
+            raise HTTPException(status_code=404, detail="Product not found")
+
+        available_stock = int(product.get("stock", 0) or 0)
+        if requested.quantity > available_stock:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Insufficient stock for {product['name']}",
+            )
+
+        price = float(product["price"])
+        line_total = round(price * requested.quantity, 2)
+        order_items = [{
+            "product_id": product["product_id"],
+            "name": product["name"],
+            "price": price,
+            "image_url": product.get("image_url"),
+            "unit": product.get("unit"),
+            "stock": available_stock,
+            "quantity": requested.quantity,
+            "line_total": line_total,
+        }]
+        order_subtotal = line_total
+    else:
+        cart = await build_cart(user["user_id"])
+        if not cart["items"]:
+            raise HTTPException(status_code=400, detail="Cart is empty")
+
+        order_items = cart["items"]
+        order_subtotal = cart["subtotal"]
+
+    for item in order_items:
+        product = await db.products.find_one({
+            "product_id": item["product_id"],
+            "active": True,
+        })
+        if not product or item["quantity"] > int(product.get("stock", 0) or 0):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Insufficient stock for {item['name']}",
+            )
 
     order_id = new_id("ord")
     order = {
@@ -838,10 +881,10 @@ async def create_order(payload: OrderCreate, user=Depends(customer_user)):
         "user_id": user["user_id"],
         "customer_name": user["name"],
         "customer_email": user["email"],
-        "items": cart["items"],
-        "subtotal": cart["subtotal"],
+        "items": order_items,
+        "subtotal": order_subtotal,
         "delivery_charge": 0.0,
-        "total": cart["subtotal"],
+        "total": order_subtotal,
         "payment_method": "cash_on_delivery",
         "payment_status": "pending",
         "delivery_address": payload.delivery_address,
@@ -853,15 +896,30 @@ async def create_order(payload: OrderCreate, user=Depends(customer_user)):
         "status": "placed",
         "manager_id": None,
         "manager_name": None,
-        "status_history": [{"status": "placed", "at": now_iso(), "by": user["user_id"], "note": "Order placed"}],
+        "status_history": [{
+            "status": "placed",
+            "at": now_iso(),
+            "by": user["user_id"],
+            "note": "Order placed",
+        }],
         "created_at": now_iso(),
         "updated_at": now_iso(),
     }
 
     await db.orders.insert_one(order)
-    for item in cart["items"]:
-        await db.products.update_one({"product_id": item["product_id"]}, {"$inc": {"stock": -item["quantity"]}, "$set": {"updated_at": now_iso()}})
-    await db.carts.delete_one({"user_id": user["user_id"]})
+
+    for item in order_items:
+        await db.products.update_one(
+            {"product_id": item["product_id"]},
+            {
+                "$inc": {"stock": -item["quantity"]},
+                "$set": {"updated_at": now_iso()},
+            },
+        )
+
+    if not is_buy_now:
+        await db.carts.delete_one({"user_id": user["user_id"]})
+
     return clean_doc(order)
 
 
