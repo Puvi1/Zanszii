@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { MagnifyingGlass, ShoppingCart, Star, Package } from "@phosphor-icons/react";
 import { api, formatApiError } from "../../lib/api";
 import { useCart } from "../../context/CartContext";
@@ -8,6 +8,7 @@ const FALLBACK = "https://placehold.co/800x600/F5F9FF/0F4C9C?text=ZANSZII";
 
 export default function CustomerProducts() {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [search, setSearch] = useState(searchParams.get("search") || "");
@@ -72,7 +73,18 @@ export default function CustomerProducts() {
       {loading ? <div className="py-16 text-center">Loading products...</div> : (
         <section className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
           {shown.map((p)=>(
-            <article key={p.product_id} className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-xl">
+            <article
+              key={p.product_id}
+              role="button"
+              tabIndex={0}
+              onClick={() => navigate(`/products/${p.product_id}`)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  navigate(`/products/${p.product_id}`);
+                }
+              }}
+              className="cursor-pointer overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-[#0F4C9C] focus:ring-offset-2"
+            >
               <div className="relative h-52 bg-[#F5F9FF]">
                 <img src={p.image_url || p.images?.[0] || FALLBACK} alt={p.name} className="h-full w-full object-cover" onError={(e)=>e.currentTarget.src=FALLBACK}/>
                 {p.featured && <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-[#F4B400] px-3 py-1 text-xs font-black text-[#062B5F]"><Star weight="fill"/> Featured</span>}
@@ -83,7 +95,7 @@ export default function CustomerProducts() {
                 <p className="mt-2 line-clamp-2 text-sm text-slate-500">{p.description || "Premium Zanszii cleaning product."}</p>
                 <div className="mt-5 flex items-end justify-between">
                   <div><p className="text-2xl font-black text-[#062B5F]">₹{Number(p.price).toLocaleString("en-IN")}</p><p className="text-xs text-slate-500">per {p.unit}</p></div>
-                  <button disabled={p.stock<=0} onClick={()=>add(p)} className="rounded-2xl bg-[#0F4C9C] px-4 py-3 font-bold text-white disabled:bg-slate-300">
+                  <button disabled={p.stock<=0} onClick={(e)=>{ e.stopPropagation(); add(p); }} className="rounded-2xl bg-[#0F4C9C] px-4 py-3 font-bold text-white disabled:bg-slate-300">
                     {p.stock>0 ? "Add to cart" : "Out of stock"}
                   </button>
                 </div>
