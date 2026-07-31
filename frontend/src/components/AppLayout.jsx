@@ -25,8 +25,8 @@ import { useCart } from "@/context/CartContext";
 const customerLinks = [
   ["/", "Home", Home],
   ["/products", "Shop", Package],
+  ["/orders", "Orders", ClipboardList],
   ["/wishlist", "Wishlist", Heart],
-  ["/cart", "Cart", ShoppingCart],
   ["/profile", "Profile", User],
 ];
 
