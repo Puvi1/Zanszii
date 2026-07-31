@@ -12,6 +12,7 @@ import {
   Sparkles,
   Star,
   Truck,
+  Heart,
 } from "lucide-react";
 import { api, formatApiError } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
@@ -26,14 +27,22 @@ const money = (value) =>
     maximumFractionDigits: 0,
   }).format(Number(value || 0));
 
-function ProductCard({ product, onAdd, adding }) {
+function ProductCard({ product, onAdd, adding, onOpen, wished, onToggleWishlist }) {
   const image = product.image_url || product.images?.[0] || FALLBACK;
   const originalPrice = Number(product.mrp || product.original_price || product.price || 0);
   const price = Number(product.price || 0);
   const discount = originalPrice > price ? Math.round(((originalPrice - price) / originalPrice) * 100) : 0;
 
   return (
-    <article className="group min-w-[220px] overflow-hidden rounded-[26px] border border-slate-200 bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-xl sm:min-w-0">
+    <article
+      role="button"
+      tabIndex={0}
+      onClick={() => onOpen(product)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") onOpen(product);
+      }}
+      className="group min-w-[220px] cursor-pointer overflow-hidden rounded-[26px] border border-slate-200 bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-[#0F4C9C] focus:ring-offset-2 sm:min-w-0"
+    >
       <div className="relative aspect-[4/3] overflow-hidden bg-[#F3F7FC]">
         <img
           src={image}
@@ -53,6 +62,21 @@ function ProductCard({ product, onAdd, adding }) {
             <Star size={13} fill="currentColor" /> Popular
           </span>
         )}
+        <button
+          type="button"
+          aria-label={wished ? "Remove from wishlist" : "Add to wishlist"}
+          onClick={(event) => {
+            event.stopPropagation();
+            onToggleWishlist(product);
+          }}
+          className="absolute bottom-3 right-3 flex h-10 w-10 items-center justify-center rounded-full bg-white shadow-md transition hover:scale-105"
+        >
+          <Heart
+            size={20}
+            className={wished ? "text-rose-500" : "text-slate-500"}
+            fill={wished ? "currentColor" : "none"}
+          />
+        </button>
       </div>
 
       <div className="p-4">
@@ -72,7 +96,10 @@ function ProductCard({ product, onAdd, adding }) {
           <button
             type="button"
             disabled={product.stock <= 0 || adding}
-            onClick={() => onAdd(product)}
+            onClick={(event) => {
+              event.stopPropagation();
+              onAdd(product);
+            }}
             className="rounded-2xl bg-[#0F4C9C] px-4 py-2.5 text-sm font-black text-white transition hover:bg-[#0B3D80] disabled:cursor-not-allowed disabled:bg-slate-300"
           >
             {product.stock <= 0 ? "Sold out" : adding ? "Adding..." : "Add"}
@@ -107,6 +134,14 @@ export default function ZansziiHome() {
   const [addingId, setAddingId] = useState("");
   const [search, setSearch] = useState("");
   const [message, setMessage] = useState("");
+  const [wishlistIds, setWishlistIds] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem("zanszii_wishlist") || "[]");
+      return Array.isArray(saved) ? saved : [];
+    } catch {
+      return [];
+    }
+  });
 
   useEffect(() => {
     Promise.all([api.get("/products"), api.get("/categories")])
@@ -129,6 +164,24 @@ export default function ZansziiHome() {
     event.preventDefault();
     const query = search.trim();
     navigate(query ? `/products?search=${encodeURIComponent(query)}` : "/products");
+  };
+
+  const openProduct = (product) => {
+    if (!product?.product_id) return;
+    navigate(`/products/${product.product_id}`);
+  };
+
+  const toggleWishlist = (product) => {
+    const id = product?.product_id;
+    if (!id) return;
+
+    setWishlistIds((current) => {
+      const exists = current.includes(id);
+      const next = exists ? current.filter((item) => item !== id) : [...current, id];
+      localStorage.setItem("zanszii_wishlist", JSON.stringify(next));
+      setMessage(exists ? `${product.name} removed from wishlist` : `${product.name} added to wishlist`);
+      return next;
+    });
   };
 
   const add = async (product) => {
@@ -255,7 +308,15 @@ export default function ZansziiHome() {
           {loading
             ? Array.from({ length: 4 }).map((_, index) => <ProductSkeleton key={index} />)
             : featured.slice(0, 4).map((product) => (
-                <ProductCard key={product.product_id} product={product} onAdd={add} adding={addingId === product.product_id} />
+                <ProductCard
+                  key={product.product_id}
+                  product={product}
+                  onAdd={add}
+                  adding={addingId === product.product_id}
+                  onOpen={openProduct}
+                  wished={wishlistIds.includes(product.product_id)}
+                  onToggleWishlist={toggleWishlist}
+                />
               ))}
         </div>
       </section>
@@ -286,7 +347,15 @@ export default function ZansziiHome() {
           </div>
           <div className="flex gap-4 overflow-x-auto pb-3 sm:grid sm:grid-cols-2 sm:overflow-visible lg:grid-cols-3 xl:grid-cols-4">
             {newArrivals.slice(0, 4).map((product) => (
-              <ProductCard key={product.product_id} product={product} onAdd={add} adding={addingId === product.product_id} />
+              <ProductCard
+                  key={product.product_id}
+                  product={product}
+                  onAdd={add}
+                  adding={addingId === product.product_id}
+                  onOpen={openProduct}
+                  wished={wishlistIds.includes(product.product_id)}
+                  onToggleWishlist={toggleWishlist}
+                />
             ))}
           </div>
         </section>
