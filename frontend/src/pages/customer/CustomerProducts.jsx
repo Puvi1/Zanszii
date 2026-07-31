@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { MagnifyingGlass, ShoppingCart, Star, Package } from "@phosphor-icons/react";
 import { api, formatApiError } from "../../lib/api";
 import { useCart } from "../../context/CartContext";
@@ -7,10 +7,11 @@ import { useCart } from "../../context/CartContext";
 const FALLBACK = "https://placehold.co/800x600/F5F9FF/0F4C9C?text=ZANSZII";
 
 export default function CustomerProducts() {
+  const [searchParams] = useSearchParams();
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
-  const [search, setSearch] = useState("");
-  const [categoryId, setCategoryId] = useState("");
+  const [search, setSearch] = useState(searchParams.get("search") || "");
+  const [categoryId, setCategoryId] = useState(searchParams.get("category") || "");
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const { addItem, itemCount } = useCart();
