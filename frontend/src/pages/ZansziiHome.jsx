@@ -134,15 +134,15 @@ function ProductCard({
       }}
       className={`group cursor-pointer overflow-hidden border border-slate-200 bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-[#0F4C9C] focus:ring-offset-2 ${
         compact
-          ? "min-w-[178px] rounded-[22px] sm:min-w-[210px]"
-          : "min-w-[220px] rounded-[26px] sm:min-w-0"
+          ? "min-w-[166px] rounded-[20px] sm:min-w-[190px]"
+          : "min-w-[190px] rounded-[22px] sm:min-w-0"
       }`}
     >
-      <div className="relative aspect-[4/3] overflow-hidden bg-[#F3F7FC]">
+      <div className="relative aspect-square overflow-hidden bg-[#F4F8FC] p-3">
         <img
           src={image}
           alt={product.name}
-          className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+          className="h-full w-full object-contain transition duration-300 group-hover:scale-105"
           onError={(event) => {
             event.currentTarget.src = FALLBACK;
           }}
@@ -172,10 +172,10 @@ function ProductCard({
             event.stopPropagation();
             onToggleWishlist(product);
           }}
-          className="absolute bottom-3 right-3 flex h-10 w-10 items-center justify-center rounded-full bg-white shadow-md transition hover:scale-105"
+          className="absolute bottom-2.5 right-2.5 flex h-9 w-9 items-center justify-center rounded-full bg-white shadow-md transition hover:scale-105"
         >
           <Heart
-            size={20}
+            size={18}
             className={
               wished
                 ? "text-rose-500"
@@ -186,8 +186,8 @@ function ProductCard({
         </button>
       </div>
 
-      <div className={compact ? "p-3.5" : "p-4"}>
-        <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#0F4C9C] sm:text-[11px]">
+      <div className="p-3">
+        <p className="text-[9px] font-black uppercase tracking-[0.13em] text-[#0F4C9C] sm:text-[10px]">
           {product.category?.name ||
             product.category_name ||
             "Zanszii Care"}
@@ -196,24 +196,24 @@ function ProductCard({
         <h3
           className={`mt-1 line-clamp-2 font-black text-slate-900 ${
             compact
-              ? "min-h-[40px] text-sm"
-              : "min-h-[44px] text-base"
+              ? "min-h-[36px] text-[13px] leading-[18px]"
+              : "min-h-[38px] text-sm leading-5"
           }`}
         >
           {product.name}
         </h3>
 
-        <p className="mt-1 text-xs text-slate-500">
+        <p className="mt-0.5 text-[11px] text-slate-500">
           {product.unit
             ? `Per ${product.unit}`
             : "Premium cleaning solution"}
         </p>
 
-        <div className="mt-4 flex items-end justify-between gap-2">
+        <div className="mt-3 flex items-center justify-between gap-2">
           <div>
             <p
               className={`font-black text-[#062B5F] ${
-                compact ? "text-lg" : "text-xl"
+                compact ? "text-base" : "text-lg"
               }`}
             >
               {money(price)}
@@ -235,7 +235,7 @@ function ProductCard({
               event.stopPropagation();
               onAdd(product);
             }}
-            className="rounded-2xl bg-[#0F4C9C] px-3.5 py-2.5 text-xs font-black text-white transition hover:bg-[#0B3D80] disabled:cursor-not-allowed disabled:bg-slate-300 sm:text-sm"
+            className="min-h-9 rounded-xl bg-[#0F4C9C] px-3 py-2 text-[11px] font-black text-white transition hover:bg-[#0B3D80] disabled:cursor-not-allowed disabled:bg-slate-300 sm:text-xs"
           >
             {Number(product.stock) <= 0
               ? "Sold out"
@@ -254,13 +254,13 @@ function ProductSkeleton({ compact = false }) {
     <div
       className={`overflow-hidden border border-slate-200 bg-white ${
         compact
-          ? "min-w-[178px] rounded-[22px] sm:min-w-[210px]"
-          : "min-w-[220px] rounded-[26px] sm:min-w-0"
+          ? "min-w-[166px] rounded-[20px] sm:min-w-[190px]"
+          : "min-w-[190px] rounded-[22px] sm:min-w-0"
       }`}
     >
-      <div className="aspect-[4/3] animate-pulse bg-slate-200" />
+      <div className="aspect-square animate-pulse bg-slate-200" />
 
-      <div className="space-y-3 p-4">
+      <div className="space-y-2.5 p-3">
         <div className="h-3 w-24 animate-pulse rounded bg-slate-200" />
         <div className="h-5 w-full animate-pulse rounded bg-slate-200" />
         <div className="h-5 w-2/3 animate-pulse rounded bg-slate-200" />
