@@ -13,6 +13,7 @@ import AdminCategories from "./pages/admin/AdminCategories";
 import AdminReports from "./pages/admin/AdminReports";
 import AdminOrders from "./pages/admin/AdminOrdersPage.jsx";
 import CustomerProducts from "./pages/customer/CustomerProducts";
+import ProductDetails from "./pages/customer/ProductDetails";
 import CustomerCart from "./pages/customer/CustomerCart";
 import CustomerCheckout from "./pages/customer/CustomerCheckout";
 import OrderSuccess from "./pages/customer/OrderSuccess";
@@ -50,6 +51,7 @@ export default function App() {
               <Route element={<AppLayout />}>
                 <Route path="/" element={<RoleHome />} />
                 <Route path="/products" element={<CustomerProducts />} />
+                <Route path="/products/:productId" element={<ProductDetails />} />
                 <Route path="/cart" element={<CustomerCart />} />
                 <Route path="/checkout" element={<CustomerCheckout />} />
                 <Route path="/order-success/:orderId" element={<OrderSuccess />} />
