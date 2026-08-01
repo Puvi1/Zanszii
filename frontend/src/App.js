@@ -28,6 +28,8 @@ import AdminCustomers from "./pages/admin/AdminCustomers";
 import AdminManagers from "./pages/admin/AdminManagers";
 import AdminCostManagement from "./pages/admin/AdminCostManagement";
 import AdminDeliveryPartners from "./pages/admin/AdminDeliveryPartners";
+import CustomerAddresses from "./pages/customer/CustomerAddresses";
+
 
 
 
@@ -61,6 +63,8 @@ export default function App() {
                 <Route path="/orders" element={<MyOrders />} />
                 <Route path="/orders/:orderId" element={<OrderDetails />} />
                 <Route path="/profile" element={<CustomerProfile />} />
+                <Route path="/addresses" element={<CustomerAddresses />} />
+
                 <Route path="/wishlist" element={<CustomerWishlist />} />
 
               </Route>
