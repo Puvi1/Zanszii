@@ -344,6 +344,9 @@ async def startup():
     await db.orders.create_index("manager_id")
     await db.orders.create_index("delivery_partner_id")
     await db.users.create_index([("role", 1), ("availability_status", 1)])
+await db.addresses.create_index("user_id")
+await db.addresses.create_index("address_id", unique=True)
+
 
     admin_email = os.environ.get("ADMIN_EMAIL", "").strip().lower()
     admin_password = os.environ.get("ADMIN_PASSWORD", "")
@@ -502,7 +505,186 @@ async def update_profile(payload: ProfileUpdate, user=Depends(current_user)):
     await db.users.update_one({"user_id": user["user_id"]}, {"$set": updates})
     return clean_doc(await db.users.find_one({"user_id": user["user_id"]}))
 
+# ---------- Address book ----------
+@api.get("/addresses")
+async def list_addresses(user=Depends(customer_user)):
+    addresses = [
+        clean_doc(address)
+        async for address in db.addresses.find(
+            {"user_id": user["user_id"]}
+        ).sort([("is_default", -1), ("created_at", -1)])
+    ]
+    return addresses
 
+
+@api.post("/addresses")
+async def create_address(payload: AddressIn, user=Depends(customer_user)):
+    address_count = await db.addresses.count_documents({
+        "user_id": user["user_id"]
+    })
+
+    should_be_default = payload.is_default or address_count == 0
+
+    if should_be_default:
+        await db.addresses.update_many(
+            {"user_id": user["user_id"]},
+            {
+                "$set": {
+                    "is_default": False,
+                    "updated_at": now_iso(),
+                }
+            },
+        )
+
+    address = {
+        "address_id": new_id("adr"),
+        "user_id": user["user_id"],
+        **payload.model_dump(),
+        "is_default": should_be_default,
+        "created_at": now_iso(),
+        "updated_at": now_iso(),
+    }
+
+    await db.addresses.insert_one(address)
+    return clean_doc(address)
+
+
+@api.patch("/addresses/{address_id}")
+async def update_address(
+    address_id: str,
+    payload: AddressIn,
+    user=Depends(customer_user),
+):
+    existing = await db.addresses.find_one({
+        "address_id": address_id,
+        "user_id": user["user_id"],
+    })
+
+    if not existing:
+        raise HTTPException(
+            status_code=404,
+            detail="Address not found",
+        )
+
+    if payload.is_default:
+        await db.addresses.update_many(
+            {
+                "user_id": user["user_id"],
+                "address_id": {"$ne": address_id},
+            },
+            {
+                "$set": {
+                    "is_default": False,
+                    "updated_at": now_iso(),
+                }
+            },
+        )
+
+    updates = payload.model_dump()
+    updates["updated_at"] = now_iso()
+
+    await db.addresses.update_one(
+        {
+            "address_id": address_id,
+            "user_id": user["user_id"],
+        },
+        {"$set": updates},
+    )
+
+    return clean_doc(
+        await db.addresses.find_one({
+            "address_id": address_id,
+            "user_id": user["user_id"],
+        })
+    )
+
+
+@api.delete("/addresses/{address_id}")
+async def delete_address(
+    address_id: str,
+    user=Depends(customer_user),
+):
+    existing = await db.addresses.find_one({
+        "address_id": address_id,
+        "user_id": user["user_id"],
+    })
+
+    if not existing:
+        raise HTTPException(
+            status_code=404,
+            detail="Address not found",
+        )
+
+    await db.addresses.delete_one({
+        "address_id": address_id,
+        "user_id": user["user_id"],
+    })
+
+    if existing.get("is_default"):
+        next_address = await db.addresses.find_one(
+            {"user_id": user["user_id"]},
+            sort=[("created_at", -1)],
+        )
+
+        if next_address:
+            await db.addresses.update_one(
+                {"address_id": next_address["address_id"]},
+                {
+                    "$set": {
+                        "is_default": True,
+                        "updated_at": now_iso(),
+                    }
+                },
+            )
+
+    return {"message": "Address deleted"}
+
+
+@api.patch("/addresses/{address_id}/default")
+async def set_default_address(
+    address_id: str,
+    user=Depends(customer_user),
+):
+    existing = await db.addresses.find_one({
+        "address_id": address_id,
+        "user_id": user["user_id"],
+    })
+
+    if not existing:
+        raise HTTPException(
+            status_code=404,
+            detail="Address not found",
+        )
+
+    await db.addresses.update_many(
+        {"user_id": user["user_id"]},
+        {
+            "$set": {
+                "is_default": False,
+                "updated_at": now_iso(),
+            }
+        },
+    )
+
+    await db.addresses.update_one(
+        {
+            "address_id": address_id,
+            "user_id": user["user_id"],
+        },
+        {
+            "$set": {
+                "is_default": True,
+                "updated_at": now_iso(),
+            }
+        },
+    )
+
+    return clean_doc(
+        await db.addresses.find_one({
+            "address_id": address_id,
+            "user_id": user["user_id"],
+        })
+    )
 # ---------- Categories ----------
 @api.get("/categories")
 async def list_categories(include_inactive: bool = False, user=Depends(customer_user)):
