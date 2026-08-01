@@ -197,6 +197,23 @@ class OrderCreate(BaseModel):
     notes: Optional[str] = Field(default=None, max_length=1000)
     buy_now_item: Optional[CartItemIn] = None
 
+class AddressIn(BaseModel):
+    label: Literal["Home", "Office", "Other"] = "Home"
+    full_name: str = Field(min_length=2, max_length=100)
+    phone: str
+    address: str = Field(min_length=5, max_length=500)
+    city: str = Field(min_length=2, max_length=100)
+    state: str = Field(min_length=2, max_length=100)
+    postal_code: str = Field(min_length=4, max_length=12)
+    landmark: Optional[str] = None
+    is_default: bool = False
+
+    @field_validator("phone")
+    @classmethod
+    def validate_phone(cls, value):
+        return normalize_phone(value)
+
+
     @field_validator("phone")
     @classmethod
     def validate_phone(cls, value):
