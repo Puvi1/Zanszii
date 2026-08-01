@@ -159,6 +159,40 @@ export default function CustomerCheckout() {
 
   const saveNewAddress = async (event) => {
     event.preventDefault();
+
+    const cleanPhone = newAddress.phone.replace(/\D/g, "");
+    const cleanPincode = newAddress.postal_code.replace(/\D/g, "");
+
+    if (newAddress.full_name.trim().length < 2) {
+      setError("Please enter the full name.");
+      return;
+    }
+
+    if (cleanPhone.length !== 10) {
+      setError("Mobile number must contain exactly 10 digits.");
+      return;
+    }
+
+    if (newAddress.address.trim().length < 5) {
+      setError("Please enter a complete delivery address.");
+      return;
+    }
+
+    if (newAddress.city.trim().length < 2) {
+      setError("Please enter a valid city.");
+      return;
+    }
+
+    if (newAddress.state.trim().length < 2) {
+      setError("Please enter a valid state.");
+      return;
+    }
+
+    if (cleanPincode.length < 4) {
+      setError("Please enter a valid pincode.");
+      return;
+    }
+
     setSavingAddress(true);
     setError("");
     setMessage("");
@@ -166,13 +200,19 @@ export default function CustomerCheckout() {
     try {
       const payload = {
         ...newAddress,
-        phone: newAddress.phone.replace(/\D/g, ""),
-        postal_code: newAddress.postal_code.replace(/\D/g, ""),
+        full_name: newAddress.full_name.trim(),
+        phone: cleanPhone,
+        address: newAddress.address.trim(),
+        city: newAddress.city.trim(),
+        state: newAddress.state.trim(),
+        postal_code: cleanPincode,
+        landmark: newAddress.landmark.trim(),
       };
 
       const response = await api.post("/addresses", payload);
       const createdAddress = response.data;
 
+      closeNewAddress();
       await loadAddresses();
 
       if (createdAddress?.address_id) {
@@ -180,26 +220,19 @@ export default function CustomerCheckout() {
         applyAddress(createdAddress);
       }
 
-      setMessage("Address saved and selected.");
-      setShowAddressForm(false);
-      setNewAddress(EMPTY_ADDRESS);
+      setMessage("Address saved and selected successfully.");
     } catch (requestError) {
+      console.error("Address save failed:", requestError);
+
       setError(
         formatApiError(
           requestError,
-          "Unable to save this address."
+          "Unable to save this address. Please verify all fields."
         )
       );
     } finally {
       setSavingAddress(false);
     }
-  };
-
-  const updateField = (field, value) => {
-    setForm((current) => ({
-      ...current,
-      [field]: value,
-    }));
   };
 
   const submit = async (event) => {
@@ -579,6 +612,12 @@ export default function CustomerCheckout() {
                 <X size={19} />
               </button>
             </div>
+
+            {error && (
+              <div className="mt-4 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
+                {error}
+              </div>
+            )}
 
             <div className="mt-6 grid gap-4 sm:grid-cols-2">
               <label>
