@@ -131,6 +131,13 @@ export default function CustomerCheckout() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
+  const updateField = (field, value) => {
+    setForm((current) => ({
+      ...current,
+      [field]: value,
+    }));
+  };
+
   const selectAddress = (address) => {
     setSelectedAddressId(address.address_id);
     applyAddress(address);
@@ -148,6 +155,12 @@ export default function CustomerCheckout() {
     setShowAddressForm(true);
     setError("");
     setMessage("");
+  };
+
+  const closeNewAddress = () => {
+    setShowAddressForm(false);
+    setNewAddress(EMPTY_ADDRESS);
+    setError("");
   };
 
   const updateNewAddress = (field, value) => {
@@ -236,7 +249,7 @@ export default function CustomerCheckout() {
   };
 
   const submit = async (event) => {
-    event.preventDefault();
+    event?.preventDefault?.();
     setSaving(true);
     setError("");
 
@@ -296,10 +309,7 @@ export default function CustomerCheckout() {
 
   return (
     <>
-    <form
-      onSubmit={submit}
-      className="grid gap-6 pb-24 lg:grid-cols-[1.2fr_.8fr] lg:pb-0"
-    >
+    <div className="grid gap-6 pb-24 lg:grid-cols-[1.2fr_.8fr] lg:pb-0">
       <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
         <p className="text-sm font-bold text-[#0F4C9C]">
           {buyNowItem ? "Buy Now Checkout" : "Checkout"}
@@ -571,7 +581,8 @@ export default function CustomerCheckout() {
         </div>
 
         <button
-          type="submit"
+          type="button"
+          onClick={submit}
           disabled={
             saving ||
             loadingAddresses ||
@@ -586,7 +597,7 @@ export default function CustomerCheckout() {
           {saving ? "Placing order..." : "Place order"}
         </button>
       </aside>
-    </form>
+    </div>
 
       {showAddressForm && (
         <div className="fixed inset-0 z-[90] flex items-end justify-center bg-slate-950/50 backdrop-blur-sm sm:items-center sm:p-5">
@@ -606,7 +617,7 @@ export default function CustomerCheckout() {
 
               <button
                 type="button"
-                onClick={() => setShowAddressForm(false)}
+                onClick={closeNewAddress}
                 className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 text-slate-500"
               >
                 <X size={19} />
