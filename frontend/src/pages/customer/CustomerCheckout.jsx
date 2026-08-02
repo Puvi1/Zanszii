@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Briefcase, CheckCircle, Home, MapPin, Plus, Star, X } from "lucide-react";
+import { Briefcase, CheckCircle, Edit3, Home, MapPin, Plus, Star, Trash2, X } from "lucide-react";
 import { api, formatApiError } from "../../lib/api";
 import { useAuth } from "../../context/AuthContext";
 import { useCart } from "../../context/CartContext";
@@ -34,6 +34,7 @@ export default function CustomerCheckout() {
   const [addresses, setAddresses] = useState([]);
   const [selectedAddressId, setSelectedAddressId] = useState("");
   const [showAddressForm, setShowAddressForm] = useState(false);
+  const [editingAddressId, setEditingAddressId] = useState("");
   const [newAddress, setNewAddress] = useState(EMPTY_ADDRESS);
   const [loadingAddresses, setLoadingAddresses] = useState(true);
   const [savingAddress, setSavingAddress] = useState(false);
@@ -146,6 +147,7 @@ export default function CustomerCheckout() {
   };
 
   const openNewAddress = () => {
+    setEditingAddressId("");
     setNewAddress({
       ...EMPTY_ADDRESS,
       full_name: user?.name || "",
@@ -157,10 +159,53 @@ export default function CustomerCheckout() {
     setMessage("");
   };
 
+  const editAddress = (address) => {
+    setEditingAddressId(address.address_id);
+    setNewAddress({
+      label: address.label || "Home",
+      full_name: address.full_name || "",
+      phone: address.phone || "",
+      address: address.address || "",
+      city: address.city || "",
+      state: address.state || "Tamil Nadu",
+      postal_code: address.postal_code || "",
+      landmark: address.landmark || "",
+      is_default: Boolean(address.is_default),
+    });
+    setShowAddressForm(true);
+    setError("");
+    setMessage("");
+  };
+
   const closeNewAddress = () => {
     setShowAddressForm(false);
+    setEditingAddressId("");
     setNewAddress(EMPTY_ADDRESS);
     setError("");
+  };
+
+  const deleteAddress = async (address) => {
+    const confirmed = window.confirm(
+      `Delete your ${address.label || "saved"} address?`
+    );
+
+    if (!confirmed) return;
+
+    setError("");
+    setMessage("");
+
+    try {
+      await api.delete(`/addresses/${address.address_id}`);
+      setMessage("Address deleted successfully.");
+      await loadAddresses();
+    } catch (requestError) {
+      setError(
+        formatApiError(
+          requestError,
+          "Unable to delete this address."
+        )
+      );
+    }
   };
 
   const updateNewAddress = (field, value) => {
@@ -222,18 +267,25 @@ export default function CustomerCheckout() {
         landmark: newAddress.landmark.trim(),
       };
 
-      const response = await api.post("/addresses", payload);
-      const createdAddress = response.data;
+      const response = editingAddressId
+        ? await api.patch(`/addresses/${editingAddressId}`, payload)
+        : await api.post("/addresses", payload);
+
+      const savedAddress = response.data;
 
       closeNewAddress();
       await loadAddresses();
 
-      if (createdAddress?.address_id) {
-        setSelectedAddressId(createdAddress.address_id);
-        applyAddress(createdAddress);
+      if (savedAddress?.address_id) {
+        setSelectedAddressId(savedAddress.address_id);
+        applyAddress(savedAddress);
       }
 
-      setMessage("Address saved and selected successfully.");
+      setMessage(
+        editingAddressId
+          ? "Address updated and selected successfully."
+          : "Address saved and selected successfully."
+      );
     } catch (requestError) {
       console.error("Address save failed:", requestError);
 
@@ -426,9 +478,55 @@ export default function CustomerCheckout() {
                       {address.postal_code}
                     </p>
 
-                    <p className="mt-2 text-xs font-semibold text-slate-500">
-                      Phone: {address.phone}
-                    </p>
+                    <div className="mt-3 rounded-xl bg-slate-50 p-3 text-xs text-slate-600">
+                      <p>
+                        <span className="font-black text-slate-800">Address:</span>{" "}
+                        {address.address}
+                      </p>
+
+                      {address.landmark && (
+                        <p className="mt-1">
+                          <span className="font-black text-slate-800">Landmark:</span>{" "}
+                          {address.landmark}
+                        </p>
+                      )}
+
+                      <p className="mt-1">
+                        <span className="font-black text-slate-800">Location:</span>{" "}
+                        {address.city}, {address.state} - {address.postal_code}
+                      </p>
+
+                      <p className="mt-1">
+                        <span className="font-black text-slate-800">Phone:</span>{" "}
+                        {address.phone}
+                      </p>
+                    </div>
+
+                    <div className="mt-3 flex gap-2">
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          editAddress(address);
+                        }}
+                        className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-[#0F4C9C]"
+                      >
+                        <Edit3 size={15} />
+                        Edit
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          deleteAddress(address);
+                        }}
+                        className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-rose-100 bg-rose-50 px-3 py-2 text-xs font-black text-rose-600"
+                      >
+                        <Trash2 size={15} />
+                        Delete
+                      </button>
+                    </div>
                   </button>
                 );
               })}
@@ -608,10 +706,12 @@ export default function CustomerCheckout() {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-black uppercase tracking-[0.18em] text-[#0F4C9C]">
-                  New address
+                  {editingAddressId ? "Edit address" : "New address"}
                 </p>
                 <h2 className="mt-1 text-2xl font-black text-slate-900">
-                  Add delivery address
+                  {editingAddressId
+                    ? "Update delivery address"
+                    : "Add delivery address"}
                 </h2>
               </div>
 
@@ -781,8 +881,12 @@ export default function CustomerCheckout() {
               className="mt-6 w-full rounded-2xl bg-[#0F4C9C] px-5 py-4 font-black text-white disabled:opacity-60"
             >
               {savingAddress
-                ? "Saving address..."
-                : "Save and Use Address"}
+                ? editingAddressId
+                  ? "Updating address..."
+                  : "Saving address..."
+                : editingAddressId
+                  ? "Update and Use Address"
+                  : "Save and Use Address"}
             </button>
           </form>
         </div>
