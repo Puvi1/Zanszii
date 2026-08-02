@@ -368,7 +368,7 @@ export default function CustomerCheckout() {
         </p>
 
         <h1 className="mt-1 text-3xl font-black text-slate-950">
-          Delivery details
+          Review and place your order
         </h1>
 
         {error && (
@@ -551,84 +551,41 @@ export default function CustomerCheckout() {
           )}
         </div>
 
-        <div className="mt-6 grid gap-4 sm:grid-cols-2">
-          <label className="sm:col-span-2">
-            <span className="text-sm font-bold text-slate-800">
-              Full address
-            </span>
-            <textarea
-              required
-              value={form.delivery_address}
-              onChange={(event) =>
-                updateField("delivery_address", event.target.value)
-              }
-              className="mt-2 min-h-28 w-full rounded-2xl border border-slate-200 p-3 outline-none focus:border-[#0F4C9C]"
-              placeholder="Door number, street, area and landmark"
-            />
-          </label>
+        <div className="mt-6 rounded-2xl border border-slate-200 bg-[#F8FAFC] p-4">
+          <div className="flex items-start gap-3">
+            <MapPin className="mt-0.5 shrink-0 text-[#0F4C9C]" size={20} />
 
-          <label>
-            <span className="text-sm font-bold text-slate-800">City</span>
-            <input
-              required
-              value={form.city}
-              onChange={(event) => updateField("city", event.target.value)}
-              className="mt-2 w-full rounded-2xl border border-slate-200 p-3 outline-none focus:border-[#0F4C9C]"
-            />
-          </label>
+            <div className="min-w-0">
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-[#0F4C9C]">
+                Delivering to
+              </p>
 
-          <label>
-            <span className="text-sm font-bold text-slate-800">State</span>
-            <input
-              required
-              value={form.state}
-              onChange={(event) => updateField("state", event.target.value)}
-              className="mt-2 w-full rounded-2xl border border-slate-200 p-3 outline-none focus:border-[#0F4C9C]"
-            />
-          </label>
+              <p className="mt-1 text-sm font-black text-slate-900">
+                {selectedAddress?.full_name || user?.name || "Customer"}
+              </p>
 
-          <label>
-            <span className="text-sm font-bold text-slate-800">Pincode</span>
-            <input
-              required
-              inputMode="numeric"
-              maxLength={12}
-              value={form.postal_code}
-              onChange={(event) =>
-                updateField(
-                  "postal_code",
-                  event.target.value.replace(/\D/g, "")
-                )
-              }
-              className="mt-2 w-full rounded-2xl border border-slate-200 p-3 outline-none focus:border-[#0F4C9C]"
-            />
-          </label>
+              <p className="mt-1 text-sm leading-6 text-slate-600">
+                {form.delivery_address}
+                <br />
+                {form.city}, {form.state} - {form.postal_code}
+                <br />
+                Phone: {form.phone}
+              </p>
+            </div>
+          </div>
+        </div>
 
+        <div className="mt-5">
           <label>
             <span className="text-sm font-bold text-slate-800">
-              Mobile number
+              Delivery instructions (optional)
             </span>
-            <input
-              required
-              inputMode="numeric"
-              maxLength={10}
-              value={form.phone}
-              onChange={(event) =>
-                updateField("phone", event.target.value.replace(/\D/g, ""))
-              }
-              className="mt-2 w-full rounded-2xl border border-slate-200 p-3 outline-none focus:border-[#0F4C9C]"
-            />
-          </label>
 
-          <label className="sm:col-span-2">
-            <span className="text-sm font-bold text-slate-800">
-              Order notes (optional)
-            </span>
             <textarea
               value={form.notes}
               onChange={(event) => updateField("notes", event.target.value)}
               className="mt-2 min-h-24 w-full rounded-2xl border border-slate-200 p-3 outline-none focus:border-[#0F4C9C]"
-              placeholder="Any delivery instructions"
+              placeholder="Gate code, preferred time, landmark guidance, or other instructions"
             />
           </label>
         </div>
@@ -671,11 +628,20 @@ export default function CustomerCheckout() {
           </span>
         </div>
 
-        <div className="mt-5 rounded-2xl bg-white/10 p-4">
-          <p className="font-bold">Cash on Delivery</p>
-          <p className="mt-1 text-sm text-blue-100">
-            Pay when your order is delivered.
-          </p>
+        <div className="mt-5 grid gap-3">
+          <div className="rounded-2xl bg-white/10 p-4">
+            <p className="font-bold">Cash on Delivery</p>
+            <p className="mt-1 text-sm text-blue-100">
+              Pay when your order is delivered.
+            </p>
+          </div>
+
+          <div className="rounded-2xl bg-white/10 p-4">
+            <p className="font-bold">Free delivery</p>
+            <p className="mt-1 text-sm text-blue-100">
+              Your order qualifies for doorstep delivery.
+            </p>
+          </div>
         </div>
 
         <button
