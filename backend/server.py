@@ -28,6 +28,8 @@ from auth_utils import (
     require_role,
 )
 
+from routes.reviews import build_reviews_router
+
 # ---------- Setup ----------
 MONGO_URL = os.environ["MONGO_URL"]
 DB_NAME = os.environ.get("DB_NAME", "zanszii")
@@ -214,12 +216,6 @@ class AddressIn(BaseModel):
         return normalize_phone(value)
 
 
-    @field_validator("phone")
-    @classmethod
-    def validate_phone(cls, value):
-        return normalize_phone(value)
-
-
 ORDER_STATUSES = [
     "placed",
     "confirmed",
@@ -353,6 +349,14 @@ async def startup():
     # Address Book indexes
     await db.addresses.create_index("user_id")
     await db.addresses.create_index("address_id", unique=True)
+
+    # Product review indexes
+    await db.reviews.create_index("review_id", unique=True)
+    await db.reviews.create_index("product_id")
+    await db.reviews.create_index(
+        [("product_id", 1), ("user_id", 1)],
+        unique=True,
+    )
 
     admin_email = (
         os.environ.get("ADMIN_EMAIL", "")
@@ -1748,6 +1752,7 @@ async def admin_reports(user=Depends(admin_user)):
     }
 
 # ---------- App wiring ----------
+api.include_router(build_reviews_router(db))
 app.include_router(api)
 
 _raw_origins = os.environ.get("CORS_ORIGINS", "*").strip()
