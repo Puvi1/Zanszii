@@ -333,43 +333,70 @@ async def admin_user(user=Depends(current_user)):
     return user
 
 
-# ---------- Startup ----------
 @app.on_event("startup")
 async def startup():
     await db.users.create_index("email", unique=True)
     await db.categories.create_index("name", unique=True)
-    await db.products.create_index([("name", "text"), ("description", "text")])
+    await db.products.create_index(
+        [("name", "text"), ("description", "text")]
+    )
+
     await db.orders.create_index("user_id")
     await db.orders.create_index("status")
     await db.orders.create_index("manager_id")
     await db.orders.create_index("delivery_partner_id")
-    await db.users.create_index([("role", 1), ("availability_status", 1)])
-await db.addresses.create_index("user_id")
-await db.addresses.create_index("address_id", unique=True)
 
+    await db.users.create_index(
+        [("role", 1), ("availability_status", 1)]
+    )
 
-    admin_email = os.environ.get("ADMIN_EMAIL", "").strip().lower()
+    # Address Book indexes
+    await db.addresses.create_index("user_id")
+    await db.addresses.create_index("address_id", unique=True)
+
+    admin_email = (
+        os.environ.get("ADMIN_EMAIL", "")
+        .strip()
+        .lower()
+    )
     admin_password = os.environ.get("ADMIN_PASSWORD", "")
-    admin_name = os.environ.get("ADMIN_NAME", "Zanszii Admin")
-    if admin_email and admin_password and not await db.users.find_one({"email": admin_email}):
-        await db.users.insert_one({
-            "user_id": new_id("usr"),
-            "name": admin_name,
-            "email": admin_email,
-            "password_hash": hash_password(admin_password),
-            "role": "admin",
-            "phone": None,
-            "avatar_url": None,
-            "address": None,
-            "city": None,
-            "state": None,
-            "postal_code": None,
-            "active": True,
-            "created_at": now_iso(),
-            "updated_at": now_iso(),
-        })
-        logger.info("Created initial Zanszii admin: %s", admin_email)
+    admin_name = os.environ.get(
+        "ADMIN_NAME",
+        "ZANSZI Admin",
+    )
 
+    if (
+        admin_email
+        and admin_password
+        and not await db.users.find_one(
+            {"email": admin_email}
+        )
+    ):
+        await db.users.insert_one(
+            {
+                "user_id": new_id("usr"),
+                "name": admin_name,
+                "email": admin_email,
+                "password_hash": hash_password(
+                    admin_password
+                ),
+                "role": "admin",
+                "phone": None,
+                "avatar_url": None,
+                "address": None,
+                "city": None,
+                "state": None,
+                "postal_code": None,
+                "active": True,
+                "created_at": now_iso(),
+                "updated_at": now_iso(),
+            }
+        )
+
+        logger.info(
+            "Created initial ZANSZI admin: %s",
+            admin_email,
+        )
 
 # ---------- Health ----------
 @api.get("/")
