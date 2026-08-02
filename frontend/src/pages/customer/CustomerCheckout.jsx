@@ -70,6 +70,11 @@ export default function CustomerCheckout() {
       Number(buyNowItem.quantity || 1)
     : Number(subtotal || 0);
 
+  const selectedAddress =
+    addresses.find(
+      (address) => address.address_id === selectedAddressId
+    ) || null;
+
   const applyAddress = (address) => {
     if (!address) return;
 
@@ -417,11 +422,17 @@ export default function CustomerCheckout() {
                   selectedAddressId === address.address_id;
 
                 return (
-                  <button
+                  <div
                     key={address.address_id}
-                    type="button"
+                    role="button"
+                    tabIndex={0}
                     onClick={() => selectAddress(address)}
-                    className={`rounded-2xl border p-4 text-left transition ${
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        selectAddress(address);
+                      }
+                    }}
+                    className={`cursor-pointer rounded-2xl border p-4 text-left transition ${
                       selected
                         ? "border-[#0F4C9C] bg-blue-50 ring-2 ring-blue-100"
                         : "border-slate-200 bg-white"
@@ -527,7 +538,7 @@ export default function CustomerCheckout() {
                         Delete
                       </button>
                     </div>
-                  </button>
+                  </div>
                 );
               })}
             </div>
