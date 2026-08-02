@@ -72,46 +72,30 @@ export default function CustomerProducts() {
 
   return (
     <div className="space-y-6">
-      <section className="overflow-hidden rounded-[24px] bg-gradient-to-r from-[#062B5F] to-[#0F4C9C] px-4 py-4 text-white shadow-lg sm:rounded-[28px] sm:px-6 sm:py-6">
-        <div className="max-w-2xl">
-          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-blue-200 sm:text-xs">
-            ZANSZI STORE
-          </p>
-
-          <h1 className="mt-1.5 text-2xl font-black leading-tight sm:mt-2 sm:text-3xl lg:text-4xl">
-            Cleaning made simple
-          </h1>
-
-          <p className="mt-1.5 max-w-xl text-xs leading-5 text-blue-100 sm:mt-2 sm:text-sm">
-            Browse trusted cleaning products and order easily with Cash on Delivery.
-          </p>
-        </div>
-      </section>
-
       <section className="rounded-[22px] border border-slate-200 bg-white p-3 shadow-sm sm:rounded-3xl sm:p-4">
-        <div className="grid gap-3 md:grid-cols-[1fr_220px]">
-          <label className="flex items-center gap-3 rounded-2xl bg-[#F5F9FF] px-4 py-3">
-            <MagnifyingGlass size={20} className="text-[#0F4C9C]" />
+        <div className="flex items-center gap-2">
+          <label className="flex min-w-0 flex-1 items-center gap-3 rounded-2xl bg-[#F5F9FF] px-4 py-3">
+            <MagnifyingGlass size={20} className="shrink-0 text-[#0F4C9C]" />
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Search products..."
-              className="w-full bg-transparent text-sm outline-none"
+              className="min-w-0 flex-1 bg-transparent text-sm outline-none"
             />
           </label>
 
-          <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
-            <SortAscending size={20} className="text-[#0F4C9C]" />
+          <label className="flex h-[48px] shrink-0 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 sm:px-4">
+            <SortAscending size={19} className="text-[#0F4C9C]" />
             <select
               value={sortBy}
               onChange={(event) => setSortBy(event.target.value)}
-              className="w-full bg-transparent text-sm font-bold text-slate-700 outline-none"
+              className="max-w-[110px] bg-transparent text-xs font-black text-slate-700 outline-none sm:max-w-none sm:text-sm"
             >
-              <option value="featured">Featured first</option>
-              <option value="price_low">Price: Low to High</option>
-              <option value="price_high">Price: High to Low</option>
+              <option value="featured">Featured</option>
+              <option value="price_low">Low to High</option>
+              <option value="price_high">High to Low</option>
               <option value="newest">Newest</option>
-              <option value="stock">Most in stock</option>
+              <option value="stock">Most Stock</option>
             </select>
           </label>
         </div>
