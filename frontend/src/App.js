@@ -19,6 +19,8 @@ import AdminCustomers from "./pages/admin/AdminCustomers";
 import AdminManagers from "./pages/admin/AdminManagers";
 import AdminCostManagement from "./pages/admin/AdminCostManagement";
 import AdminDeliveryPartners from "./pages/admin/AdminDeliveryPartners";
+import AdminVendorApplications from "./pages/admin/AdminVendorApplications";
+
 
 import CustomerProducts from "./pages/customer/CustomerProducts";
 import ProductDetails from "./pages/customer/ProductDetails";
@@ -155,6 +157,12 @@ export default function App() {
                     path="/admin/categories"
                     element={<AdminCategories />}
                   />
+
+<Route
+  path="/admin/vendor-applications"
+  element={<AdminVendorApplications />}
+/>
+
 
                   <Route
                     path="/admin/orders"
