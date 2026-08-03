@@ -153,10 +153,45 @@ class CategoryIn(BaseModel):
     active: bool = True
 
 
+class StoreIn(BaseModel):
+    name: str = Field(min_length=2, max_length=120)
+    slug: str = Field(min_length=2, max_length=120)
+    description: Optional[str] = Field(default=None, max_length=2000)
+    logo_url: Optional[str] = None
+    banner_url: Optional[str] = None
+    phone: Optional[str] = None
+    whatsapp: Optional[str] = None
+    email: Optional[EmailStr] = None
+    address: Optional[str] = Field(default=None, max_length=500)
+    city: Optional[str] = Field(default=None, max_length=100)
+    state: Optional[str] = Field(default=None, max_length=100)
+    postal_code: Optional[str] = Field(default=None, max_length=12)
+    active: bool = True
+    featured: bool = False
+
+
+class StoreUpdate(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=2, max_length=120)
+    slug: Optional[str] = Field(default=None, min_length=2, max_length=120)
+    description: Optional[str] = Field(default=None, max_length=2000)
+    logo_url: Optional[str] = None
+    banner_url: Optional[str] = None
+    phone: Optional[str] = None
+    whatsapp: Optional[str] = None
+    email: Optional[EmailStr] = None
+    address: Optional[str] = Field(default=None, max_length=500)
+    city: Optional[str] = Field(default=None, max_length=100)
+    state: Optional[str] = Field(default=None, max_length=100)
+    postal_code: Optional[str] = Field(default=None, max_length=12)
+    active: Optional[bool] = None
+    featured: Optional[bool] = None
+
+
 class ProductIn(BaseModel):
     name: str = Field(min_length=2, max_length=150)
     description: Optional[str] = Field(default=None, max_length=3000)
     category_id: str
+    store_id: Optional[str] = None
     price: float = Field(gt=0)
     stock: int = Field(default=0, ge=0)
     unit: str = Field(default="piece", min_length=1, max_length=30)
@@ -170,6 +205,7 @@ class ProductUpdate(BaseModel):
     name: Optional[str] = Field(default=None, min_length=2, max_length=150)
     description: Optional[str] = Field(default=None, max_length=3000)
     category_id: Optional[str] = None
+    store_id: Optional[str] = None
     price: Optional[float] = Field(default=None, gt=0)
     stock: Optional[int] = Field(default=None, ge=0)
     unit: Optional[str] = Field(default=None, min_length=1, max_length=30)
@@ -336,6 +372,9 @@ async def admin_user(user=Depends(current_user)):
 async def startup():
     await db.users.create_index("email", unique=True)
     await db.categories.create_index("name", unique=True)
+    await db.stores.create_index("store_id", unique=True)
+    await db.stores.create_index("slug", unique=True)
+    await db.stores.create_index([("active", 1), ("featured", 1)])
     await db.products.create_index(
         [("name", "text"), ("description", "text")]
     )
@@ -781,6 +820,216 @@ async def delete_category(category_id: str, user=Depends(admin_user)):
     return {"message": "Category deleted"}
 
 
+# ---------- Stores ----------
+@api.get("/stores")
+async def list_stores(
+    featured: Optional[bool] = None,
+    include_inactive: bool = False,
+    user=Depends(customer_user),
+):
+    query = {}
+
+    if not (include_inactive and user["role"] == "admin"):
+        query["active"] = True
+
+    if featured is not None:
+        query["featured"] = featured
+
+    stores = []
+
+    async for store in db.stores.find(query).sort(
+        [("featured", -1), ("name", 1)]
+    ):
+        item = clean_doc(store)
+        item["product_count"] = await db.products.count_documents({
+            "store_id": store["store_id"],
+            "active": True,
+        })
+        stores.append(item)
+
+    return stores
+
+
+@api.get("/stores/{store_id_or_slug}")
+async def get_store(
+    store_id_or_slug: str,
+    user=Depends(customer_user),
+):
+    store = await db.stores.find_one({
+        "$or": [
+            {"store_id": store_id_or_slug},
+            {"slug": store_id_or_slug},
+        ]
+    })
+
+    if not store or (
+        not store.get("active", True)
+        and user["role"] != "admin"
+    ):
+        raise HTTPException(
+            status_code=404,
+            detail="Store not found",
+        )
+
+    item = clean_doc(store)
+
+    product_query = {"store_id": store["store_id"]}
+    if user["role"] != "admin":
+        product_query["active"] = True
+
+    products = []
+
+    async for product in db.products.find(product_query).sort(
+        "created_at",
+        -1,
+    ):
+        product_item = (
+            clean_doc(product)
+            if user["role"] == "admin"
+            else public_product_doc(product)
+        )
+        category = await db.categories.find_one({
+            "category_id": product.get("category_id")
+        })
+        product_item["category"] = clean_doc(category)
+        products.append(product_item)
+
+    item["products"] = products
+    item["product_count"] = len(products)
+
+    return item
+
+
+@api.post("/stores")
+async def create_store(
+    payload: StoreIn,
+    user=Depends(admin_user),
+):
+    name = payload.name.strip()
+    slug = payload.slug.strip().lower()
+
+    duplicate = await db.stores.find_one({
+        "$or": [
+            {
+                "name": {
+                    "$regex": f"^{name}$",
+                    "$options": "i",
+                }
+            },
+            {"slug": slug},
+        ]
+    })
+
+    if duplicate:
+        raise HTTPException(
+            status_code=409,
+            detail="Store name or slug already exists",
+        )
+
+    store = {
+        "store_id": new_id("str"),
+        **payload.model_dump(),
+        "name": name,
+        "slug": slug,
+        "created_at": now_iso(),
+        "updated_at": now_iso(),
+    }
+
+    await db.stores.insert_one(store)
+    return clean_doc(store)
+
+
+@api.patch("/stores/{store_id}")
+async def update_store(
+    store_id: str,
+    payload: StoreUpdate,
+    user=Depends(admin_user),
+):
+    existing = await db.stores.find_one({"store_id": store_id})
+
+    if not existing:
+        raise HTTPException(
+            status_code=404,
+            detail="Store not found",
+        )
+
+    updates = {
+        key: value
+        for key, value in payload.model_dump().items()
+        if value is not None
+    }
+
+    if "name" in updates:
+        updates["name"] = updates["name"].strip()
+
+    if "slug" in updates:
+        updates["slug"] = updates["slug"].strip().lower()
+
+    if "name" in updates or "slug" in updates:
+        conflict_query = {
+            "store_id": {"$ne": store_id},
+            "$or": [],
+        }
+
+        if "name" in updates:
+            conflict_query["$or"].append({
+                "name": {
+                    "$regex": f"^{updates['name']}$",
+                    "$options": "i",
+                }
+            })
+
+        if "slug" in updates:
+            conflict_query["$or"].append({
+                "slug": updates["slug"]
+            })
+
+        if conflict_query["$or"] and await db.stores.find_one(
+            conflict_query
+        ):
+            raise HTTPException(
+                status_code=409,
+                detail="Store name or slug already exists",
+            )
+
+    updates["updated_at"] = now_iso()
+
+    await db.stores.update_one(
+        {"store_id": store_id},
+        {"$set": updates},
+    )
+
+    return clean_doc(
+        await db.stores.find_one({"store_id": store_id})
+    )
+
+
+@api.delete("/stores/{store_id}")
+async def delete_store(
+    store_id: str,
+    user=Depends(admin_user),
+):
+    if await db.products.count_documents({
+        "store_id": store_id
+    }) > 0:
+        raise HTTPException(
+            status_code=409,
+            detail="Move or delete this store's products first",
+        )
+
+    result = await db.stores.delete_one({
+        "store_id": store_id
+    })
+
+    if not result.deleted_count:
+        raise HTTPException(
+            status_code=404,
+            detail="Store not found",
+        )
+
+    return {"message": "Store deleted"}
+
+
 # ---------- Products ----------
 @api.get("/products")
 async def list_products(
@@ -807,7 +1056,13 @@ async def list_products(
     async for product in db.products.find(query).sort("created_at", -1):
         item = clean_doc(product) if user["role"] == "admin" else public_product_doc(product)
         category = await db.categories.find_one({"category_id": product.get("category_id")})
+        store = None
+        if product.get("store_id"):
+            store = await db.stores.find_one({
+                "store_id": product.get("store_id")
+            })
         item["category"] = clean_doc(category)
+        item["store"] = clean_doc(store)
         products.append(item)
     return products
 
@@ -822,6 +1077,13 @@ async def get_product(product_id: str, user=Depends(customer_user)):
     result["category"] = clean_doc(
         await db.categories.find_one({"category_id": product.get("category_id")})
     )
+    result["store"] = clean_doc(
+        await db.stores.find_one({
+            "store_id": product.get("store_id")
+        })
+        if product.get("store_id")
+        else None
+    )
     return result
 
 
@@ -829,6 +1091,11 @@ async def get_product(product_id: str, user=Depends(customer_user)):
 async def create_product(payload: ProductIn, user=Depends(admin_user)):
     if not await db.categories.find_one({"category_id": payload.category_id}):
         raise HTTPException(status_code=400, detail="Invalid category")
+    if payload.store_id and not await db.stores.find_one({
+        "store_id": payload.store_id,
+        "active": True,
+    }):
+        raise HTTPException(status_code=400, detail="Invalid store")
     product = {
         "product_id": new_id("prd"),
         **payload.model_dump(),
@@ -846,6 +1113,10 @@ async def update_product(product_id: str, payload: ProductUpdate, user=Depends(a
     updates = {k: v for k, v in payload.model_dump().items() if v is not None}
     if "category_id" in updates and not await db.categories.find_one({"category_id": updates["category_id"]}):
         raise HTTPException(status_code=400, detail="Invalid category")
+    if "store_id" in updates and updates["store_id"] and not await db.stores.find_one({
+        "store_id": updates["store_id"]
+    }):
+        raise HTTPException(status_code=400, detail="Invalid store")
     updates["updated_at"] = now_iso()
     await db.products.update_one({"product_id": product_id}, {"$set": updates})
     return clean_doc(await db.products.find_one({"product_id": product_id}))
