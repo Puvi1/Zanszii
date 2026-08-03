@@ -114,6 +114,14 @@ export default function ProductDetails() {
   const [reviewMessage, setReviewMessage] = useState("");
 
   useEffect(() => {
+    window.scrollTo({
+      top: 0,
+      left: 0,
+      behavior: "auto",
+    });
+  }, [productId]);
+
+  useEffect(() => {
     let active = true;
 
     async function loadProduct() {
@@ -1138,66 +1146,72 @@ export default function ProductDetails() {
 
       {related.length > 0 && (
         <section>
-          <div className="mb-4 flex items-end justify-between">
+          <div className="mb-3 flex items-end justify-between gap-4">
             <div>
-              <p className="text-xs font-black uppercase tracking-[.2em] text-[#0F4C9C]">
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#0F4C9C]">
                 You may also like
               </p>
 
-              <h2 className="mt-1 text-2xl font-black text-slate-950">
+              <h2 className="mt-1 text-xl font-black text-slate-950 sm:text-2xl">
                 Related products
               </h2>
             </div>
 
             <Link
               to="/products"
-              className="font-bold text-[#0F4C9C]"
+              className="text-xs font-black text-[#0F4C9C] sm:text-sm"
             >
               View all
             </Link>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="flex gap-3 overflow-x-auto pb-2">
             {related.map((item) => (
               <Link
                 key={item.product_id}
                 to={`/products/${item.product_id}`}
-                className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg"
+                className="group min-w-[158px] max-w-[158px] overflow-hidden rounded-[20px] border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md sm:min-w-[180px] sm:max-w-[180px]"
               >
-                <div className="aspect-square overflow-hidden rounded-t-3xl bg-[#F5F9FF] p-4">
-  <img
-    src={productImages(item)[0]}
-    alt={item.name}
-    className="h-full w-full object-contain transition duration-300 hover:scale-105"
-    loading="lazy"
-    onError={(event) => {
-      event.currentTarget.src = FALLBACK;
-    }}
-  />
-</div>
-                <div className="space-y-2 p-4">
-  <p className="text-[10px] font-black uppercase tracking-[0.15em] text-[#0F4C9C]">
-    {item.category?.name || item.category_name || "HOME CARE"}
-  </p>
+                <div className="relative aspect-square overflow-hidden bg-[#F7FAFF] p-3">
+                  <img
+                    src={productImages(item)[0]}
+                    alt={item.name}
+                    className="h-full w-full object-contain transition duration-300 group-hover:scale-105"
+                    loading="lazy"
+                    onError={(event) => {
+                      event.currentTarget.src = FALLBACK;
+                    }}
+                  />
 
-  <h3 className="line-clamp-2 min-h-[44px] text-base font-black text-slate-900">
-    {item.name}
-  </h3>
+                  {item.featured && (
+                    <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-white/95 px-2 py-1 text-[9px] font-black text-[#0F4C9C] shadow-sm">
+                      <Star size={11} weight="fill" />
+                      Popular
+                    </span>
+                  )}
+                </div>
 
-  <p className="text-xl font-black text-[#062B5F]">
-    {money(item.price)}
-  </p>
+                <div className="p-3">
+                  <p className="line-clamp-1 text-[9px] font-black uppercase tracking-[0.13em] text-[#0F4C9C]">
+                    {item.category?.name ||
+                      item.category_name ||
+                      "ZANSZI"}
+                  </p>
 
-  <button
-    className="mt-2 w-full rounded-xl bg-[#0F4C9C] py-2.5 text-sm font-black text-white transition hover:bg-[#0B3C7D]"
-    onClick={(e) => {
-      e.preventDefault();
-      navigate(`/products/${item.product_id}`);
-    }}
-  >
-    View Product
-  </button>
-</div>
+                  <h3 className="mt-1 line-clamp-2 min-h-[36px] text-[13px] font-black leading-[18px] text-slate-900">
+                    {item.name}
+                  </h3>
+
+                  <div className="mt-3 flex items-center justify-between gap-2">
+                    <p className="text-base font-black text-[#062B5F]">
+                      {money(item.price)}
+                    </p>
+
+                    <span className="grid h-8 w-8 place-items-center rounded-xl bg-[#0F4C9C] text-white">
+                      <ArrowRight size={14} weight="bold" />
+                    </span>
+                  </div>
+                </div>
               </Link>
             ))}
           </div>
