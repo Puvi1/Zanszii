@@ -621,7 +621,9 @@ export default function ProductDetails() {
       <section className="grid gap-6 rounded-[28px] border border-slate-200 bg-white p-4 shadow-sm sm:p-6 lg:grid-cols-[1.05fr_.95fr]">
         <div>
           <div
-            className="relative aspect-square overflow-hidden rounded-[28px] border border-slate-100 bg-gradient-to-br from-white via-[#F8FBFF] to-[#EEF5FF] shadow-[0_14px_40px_rgba(15,76,156,0.10)]"
+            className="relative aspect-square touch-pan-y overflow-hidden rounded-[28px] border border-slate-100 bg-gradient-to-br from-white via-[#F8FBFF] to-[#EEF5FF] shadow-[0_14px_40px_rgba(15,76,156,0.10)]"
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
           >
             <button
               type="button"
