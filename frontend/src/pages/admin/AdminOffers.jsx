@@ -17,6 +17,11 @@ import {
   IndianRupee,
   Wallet,
   AlertTriangle,
+  Calculator,
+  ReceiptIndianRupee,
+  Users,
+  ShoppingBag,
+  BarChart3,
   X,
 } from "lucide-react";
 
@@ -110,15 +115,27 @@ export default function AdminOffers() {
   const [offers, setOffers] = useState([]);
   const [analytics, setAnalytics] = useState({
     summary: {
+      total_coupons: 0,
+      active_coupons: 0,
+      expired_coupons: 0,
       orders: 0,
+      customers: 0,
       gross_sales: 0,
       discount_given: 0,
       net_revenue: 0,
       product_cost: 0,
       net_profit: 0,
+      total_loss: 0,
+      loss_orders: 0,
+      profit_orders: 0,
       profit_margin: 0,
+      roi: 0,
     },
-    offers: [],
+    coupons: [],
+    orders: [],
+    products: [],
+    insights: {},
+    formula_reference: {},
   });
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -150,20 +167,26 @@ export default function AdminOffers() {
       );
 
       setAnalytics({
-        summary: analyticsResponse.data?.summary || {
-          orders: 0,
-          gross_sales: 0,
-          discount_given: 0,
-          net_revenue: 0,
-          product_cost: 0,
-          net_profit: 0,
-          profit_margin: 0,
-        },
-        offers: Array.isArray(
-          analyticsResponse.data?.offers
+        summary: analyticsResponse.data?.summary || {},
+        coupons: Array.isArray(
+          analyticsResponse.data?.coupons
         )
-          ? analyticsResponse.data.offers
+          ? analyticsResponse.data.coupons
           : [],
+        orders: Array.isArray(
+          analyticsResponse.data?.orders
+        )
+          ? analyticsResponse.data.orders
+          : [],
+        products: Array.isArray(
+          analyticsResponse.data?.products
+        )
+          ? analyticsResponse.data.products
+          : [],
+        insights:
+          analyticsResponse.data?.insights || {},
+        formula_reference:
+          analyticsResponse.data?.formula_reference || {},
       });
     } catch (requestError) {
       setError(
@@ -202,12 +225,12 @@ export default function AdminOffers() {
   const analyticsByOffer = useMemo(
     () =>
       Object.fromEntries(
-        (analytics.offers || []).map((item) => [
+        (analytics.coupons || []).map((item) => [
           item.offer_id,
           item,
         ])
       ),
-    [analytics.offers]
+    [analytics.coupons]
   );
 
   const summary = useMemo(() => {
@@ -397,6 +420,182 @@ export default function AdminOffers() {
     }
   };
 
+
+  const currency = (value) =>
+    `₹${Number(value || 0).toLocaleString("en-IN", {
+      maximumFractionDigits: 2,
+    })}`;
+
+  const completeCouponRows = offers.map((offer) => ({
+    ...offer,
+    ...(analyticsByOffer[offer.offer_id] || {}),
+  }));
+
+  const completeReportColumns = [
+    { label: "Coupon Code", value: (item) => item.code },
+    { label: "Title", value: (item) => item.title },
+    { label: "Offer", value: offerLabel },
+    { label: "Orders", value: (item) => item.orders || 0 },
+    {
+      label: "Customers",
+      value: (item) => item.customers || 0,
+    },
+    {
+      label: "Gross Sales",
+      value: (item) => Number(item.gross_sales || 0),
+    },
+    {
+      label: "Discount Given",
+      value: (item) => Number(item.discount_given || 0),
+    },
+    {
+      label: "Net Revenue",
+      value: (item) => Number(item.net_revenue || 0),
+    },
+    {
+      label: "Product Cost",
+      value: (item) => Number(item.product_cost || 0),
+    },
+    {
+      label: "Net Profit",
+      value: (item) => Number(item.net_profit || 0),
+    },
+    {
+      label: "Total Loss",
+      value: (item) => Number(item.total_loss || 0),
+    },
+    {
+      label: "Loss Orders",
+      value: (item) => Number(item.loss_orders || 0),
+    },
+    {
+      label: "Profit Margin %",
+      value: (item) => Number(item.profit_margin || 0),
+    },
+    {
+      label: "ROI",
+      value: (item) =>
+        item.roi == null ? "N/A" : Number(item.roi),
+    },
+    {
+      label: "Status",
+      value: (item) => offerStatus(item),
+    },
+  ];
+
+  const productReportColumns = [
+    { label: "Coupon", value: (item) => item.coupon_code },
+    { label: "Product", value: (item) => item.product_name },
+    {
+      label: "Quantity Sold",
+      value: (item) => item.quantity_sold || 0,
+    },
+    { label: "Orders", value: (item) => item.orders || 0 },
+    {
+      label: "Gross Sales",
+      value: (item) => Number(item.gross_sales || 0),
+    },
+    {
+      label: "Discount Given",
+      value: (item) => Number(item.discount_given || 0),
+    },
+    {
+      label: "Net Revenue",
+      value: (item) => Number(item.net_revenue || 0),
+    },
+    {
+      label: "Product Cost",
+      value: (item) => Number(item.product_cost || 0),
+    },
+    {
+      label: "Net Profit",
+      value: (item) => Number(item.net_profit || 0),
+    },
+    {
+      label: "Loss",
+      value: (item) => Number(item.loss || 0),
+    },
+    {
+      label: "Profit Margin %",
+      value: (item) => Number(item.profit_margin || 0),
+    },
+  ];
+
+  const orderReportColumns = [
+    {
+      label: "Order",
+      value: (item) =>
+        item.order_number || item.order_id,
+    },
+    { label: "Date", value: (item) => item.created_at || "" },
+    {
+      label: "Customer",
+      value: (item) =>
+        item.customer_name || item.customer_email || "",
+    },
+    { label: "Coupon", value: (item) => item.coupon_code },
+    {
+      label: "Gross Sales",
+      value: (item) => Number(item.gross_sales || 0),
+    },
+    {
+      label: "Discount Given",
+      value: (item) => Number(item.discount_given || 0),
+    },
+    {
+      label: "Net Revenue",
+      value: (item) => Number(item.net_revenue || 0),
+    },
+    {
+      label: "Product Cost",
+      value: (item) => Number(item.product_cost || 0),
+    },
+    {
+      label: "Net Profit",
+      value: (item) => Number(item.net_profit || 0),
+    },
+    {
+      label: "Loss",
+      value: (item) => Number(item.loss || 0),
+    },
+  ];
+
+  const exportCompletePdf = () => {
+    exportRowsToPdf({
+      rows: [
+        ...completeCouponRows,
+        ...analytics.products,
+        ...analytics.orders,
+      ],
+      columns: completeReportColumns,
+      fileName: "zanszii-complete-coupon-report",
+      title:
+        "ZANSZI Complete Coupon, Product & Loss Report",
+      landscape: true,
+    });
+  };
+
+  const exportCompleteExcel = () => {
+    exportRowsToExcel({
+      rows: completeCouponRows,
+      columns: completeReportColumns,
+      fileName: "zanszii-complete-coupon-report",
+      sheetName: "Coupon Summary",
+      additionalSheets: [
+        {
+          sheetName: "Product Wise",
+          rows: analytics.products,
+          columns: productReportColumns,
+        },
+        {
+          sheetName: "Order Wise",
+          rows: analytics.orders,
+          columns: orderReportColumns,
+        },
+      ],
+    });
+  };
+
   return (
     <div className="admin-page">
       <div className="page-heading-row">
@@ -566,6 +765,349 @@ export default function AdminOffers() {
           >
             Net profit = customer-paid revenue − product costs
           </p>
+        </div>
+      </div>
+
+      <div
+        className="panel"
+        style={{
+          marginBottom: "18px",
+          padding: "18px",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "flex-start",
+            justifyContent: "space-between",
+            gap: "14px",
+            flexWrap: "wrap",
+          }}
+        >
+          <div>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+              }}
+            >
+              <span
+                style={{
+                  width: 40,
+                  height: 40,
+                  display: "grid",
+                  placeItems: "center",
+                  borderRadius: 14,
+                  background: "#eff6ff",
+                  color: "#0F4C9C",
+                }}
+              >
+                <Calculator size={20} />
+              </span>
+
+              <div>
+                <strong style={{ fontSize: 18 }}>
+                  Coupon Profit Formula
+                </strong>
+                <p
+                  style={{
+                    margin: "3px 0 0",
+                    color: "#64748b",
+                    fontSize: 12,
+                  }}
+                >
+                  Uses your existing Cost Management values.
+                </p>
+              </div>
+            </div>
+
+            <div
+              style={{
+                marginTop: "14px",
+                display: "grid",
+                gap: "8px",
+                fontSize: 13,
+                color: "#334155",
+              }}
+            >
+              <p style={{ margin: 0 }}>
+                <strong>Gross Sales</strong> = Order subtotal before discount
+              </p>
+              <p style={{ margin: 0 }}>
+                <strong>Discount Given</strong> = Gross Sales − Net Revenue
+              </p>
+              <p style={{ margin: 0 }}>
+                <strong>Net Revenue</strong> = Customer-paid order total
+              </p>
+              <p style={{ margin: 0 }}>
+                <strong>Total Product Cost</strong> = Wholesale + Packaging + Delivery + Other Costs
+              </p>
+              <p style={{ margin: 0 }}>
+                <strong>Net Profit</strong> = Net Revenue − Total Product Cost
+              </p>
+              <p style={{ margin: 0 }}>
+                <strong>Profit Margin</strong> = Net Profit ÷ Net Revenue × 100
+              </p>
+              <p style={{ margin: 0 }}>
+                <strong>Coupon ROI</strong> = Net Profit ÷ Discount Given
+              </p>
+            </div>
+          </div>
+
+          <div
+            style={{
+              minWidth: 220,
+              padding: "14px",
+              borderRadius: 16,
+              background: "#f8fafc",
+            }}
+          >
+            <small
+              style={{
+                color: "#64748b",
+                fontWeight: 800,
+              }}
+            >
+              Current overall result
+            </small>
+
+            <p
+              style={{
+                margin: "6px 0 0",
+                fontSize: 22,
+                fontWeight: 900,
+                color:
+                  Number(analytics.summary.net_profit || 0) < 0
+                    ? "#e11d48"
+                    : "#047857",
+              }}
+            >
+              {currency(analytics.summary.net_profit || 0)}
+            </p>
+
+            <p
+              style={{
+                margin: "4px 0 0",
+                fontSize: 12,
+                color: "#64748b",
+              }}
+            >
+              {Number(
+                analytics.summary.profit_margin || 0
+              ).toFixed(1)}
+              % profit margin
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div
+        className="panel"
+        style={{
+          marginBottom: "18px",
+          padding: "18px",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "14px",
+            flexWrap: "wrap",
+          }}
+        >
+          <div>
+            <strong style={{ fontSize: 18 }}>
+              Complete Coupon Business Report
+            </strong>
+            <p
+              style={{
+                margin: "4px 0 0",
+                color: "#64748b",
+                fontSize: 12,
+                lineHeight: 1.6,
+              }}
+            >
+              Includes coupon summary, order-wise profit/loss,
+              product-wise discount allocation, costs, margins,
+              ROI and loss-making products.
+            </p>
+          </div>
+
+          <div
+            style={{
+              display: "flex",
+              gap: "10px",
+              flexWrap: "wrap",
+            }}
+          >
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={exportCompletePdf}
+            >
+              <Download size={17} />
+              Export Complete PDF
+            </button>
+
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={exportCompleteExcel}
+            >
+              <FileSpreadsheet size={17} />
+              Export Complete Excel
+            </button>
+          </div>
+        </div>
+
+        <div
+          style={{
+            marginTop: "16px",
+            display: "grid",
+            gridTemplateColumns:
+              "repeat(auto-fit, minmax(170px, 1fr))",
+            gap: "10px",
+          }}
+        >
+          {[
+            ["Coupon Summary", `${analytics.coupons.length} coupons`, Gift],
+            ["Orders Used", `${analytics.orders.length} orders`, ShoppingBag],
+            ["Product Details", `${analytics.products.length} product rows`, ReceiptIndianRupee],
+            ["Loss Orders", `${analytics.summary.loss_orders || 0} orders`, AlertTriangle],
+            ["Total Loss", currency(analytics.summary.total_loss || 0), Wallet],
+          ].map(([title, value, Icon]) => (
+            <div
+              key={title}
+              style={{
+                padding: "14px",
+                borderRadius: 16,
+                border: "1px solid #e2e8f0",
+                background: "#fff",
+              }}
+            >
+              <Icon size={18} color="#0F4C9C" />
+              <p
+                style={{
+                  margin: "8px 0 0",
+                  fontSize: 11,
+                  color: "#64748b",
+                  fontWeight: 800,
+                }}
+              >
+                {title}
+              </p>
+              <p
+                style={{
+                  margin: "4px 0 0",
+                  fontWeight: 900,
+                  color: "#0f172a",
+                }}
+              >
+                {value}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div
+        className="panel"
+        style={{
+          marginBottom: "18px",
+          padding: "18px",
+        }}
+      >
+        <div>
+          <strong style={{ fontSize: 18 }}>
+            Product-wise Coupon Impact
+          </strong>
+          <p
+            style={{
+              margin: "4px 0 0",
+              color: "#64748b",
+              fontSize: 12,
+            }}
+          >
+            Exact rupee discount allocated to each product.
+          </p>
+        </div>
+
+        <div
+          className="table-wrap"
+          style={{ marginTop: "14px" }}
+        >
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Coupon</th>
+                <th>Product</th>
+                <th>Qty</th>
+                <th>Orders</th>
+                <th>Gross</th>
+                <th>Discount</th>
+                <th>Net Revenue</th>
+                <th>Cost</th>
+                <th>Profit</th>
+                <th>Loss</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {analytics.products.length ? (
+                analytics.products.map((item) => (
+                  <tr
+                    key={`${item.coupon_code}-${item.product_id}`}
+                  >
+                    <td>
+                      <strong>{item.coupon_code}</strong>
+                    </td>
+                    <td>{item.product_name}</td>
+                    <td>{item.quantity_sold}</td>
+                    <td>{item.orders}</td>
+                    <td>{currency(item.gross_sales)}</td>
+                    <td>
+                      <strong style={{ color: "#d97706" }}>
+                        {currency(item.discount_given)}
+                      </strong>
+                    </td>
+                    <td>{currency(item.net_revenue)}</td>
+                    <td>{currency(item.product_cost)}</td>
+                    <td>
+                      <strong style={{ color: "#047857" }}>
+                        {currency(
+                          item.net_profit > 0
+                            ? item.net_profit
+                            : 0
+                        )}
+                      </strong>
+                    </td>
+                    <td>
+                      <strong
+                        style={{
+                          color:
+                            item.loss > 0
+                              ? "#e11d48"
+                              : "#64748b",
+                        }}
+                      >
+                        {currency(item.loss)}
+                      </strong>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="10" className="empty-cell">
+                    Product-level coupon data will appear after
+                    customers place coupon orders.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
 
