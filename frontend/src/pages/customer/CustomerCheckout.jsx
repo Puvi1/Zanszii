@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Briefcase, CheckCircle, Edit3, Home, MapPin, Plus, Star, Trash2, X } from "lucide-react";
+import { BadgePercent, Briefcase, CheckCircle, Edit3, Gift, Home, MapPin, Plus, Star, Tags, Trash2, X } from "lucide-react";
 import { api, formatApiError } from "../../lib/api";
 import { useAuth } from "../../context/AuthContext";
 import { useCart } from "../../context/CartContext";
@@ -40,6 +40,13 @@ export default function CustomerCheckout() {
   const [savingAddress, setSavingAddress] = useState(false);
   const [message, setMessage] = useState("");
 
+  const [availableOffers, setAvailableOffers] = useState([]);
+  const [offersLoading, setOffersLoading] = useState(true);
+  const [couponCode, setCouponCode] = useState("");
+  const [appliedOffer, setAppliedOffer] = useState(null);
+  const [couponApplying, setCouponApplying] = useState(false);
+  const [couponError, setCouponError] = useState("");
+
   const [form, setForm] = useState({
     delivery_address: "",
     city: "",
@@ -74,6 +81,15 @@ export default function CustomerCheckout() {
     addresses.find(
       (address) => address.address_id === selectedAddressId
     ) || null;
+
+  const appliedDiscount = Number(appliedOffer?.discount || 0);
+  const appliedDeliveryCharge = Number(
+    appliedOffer?.delivery_charge || 0
+  );
+  const checkoutTotal = appliedOffer
+    ? Number(appliedOffer.total || 0)
+    : Number(checkoutSubtotal || 0);
+  const totalSavings = Number(appliedOffer?.savings || 0);
 
   const applyAddress = (address) => {
     if (!address) return;
@@ -132,8 +148,27 @@ export default function CustomerCheckout() {
     }
   };
 
+
+  const loadAvailableOffers = async () => {
+    setOffersLoading(true);
+
+    try {
+      const response = await api.get("/offers/available");
+      const offers = Array.isArray(response.data?.offers)
+        ? response.data.offers
+        : [];
+
+      setAvailableOffers(offers);
+    } catch {
+      setAvailableOffers([]);
+    } finally {
+      setOffersLoading(false);
+    }
+  };
+
   useEffect(() => {
     loadAddresses();
+    loadAvailableOffers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
@@ -305,6 +340,69 @@ export default function CustomerCheckout() {
     }
   };
 
+
+  const validateCoupon = async (code) => {
+    const normalizedCode = String(code || "")
+      .trim()
+      .toUpperCase();
+
+    if (!normalizedCode) {
+      setCouponError("Enter a coupon code.");
+      return null;
+    }
+
+    setCouponApplying(true);
+    setCouponError("");
+    setMessage("");
+
+    try {
+      const response = await api.post("/offers/validate", {
+        code: normalizedCode,
+        subtotal: Number(checkoutSubtotal || 0),
+        delivery_charge: 0,
+        items: checkoutItems,
+      });
+
+      setCouponCode(normalizedCode);
+      setAppliedOffer(response.data);
+      setMessage(
+        `${response.data.code} applied. You saved ₹${Number(
+          response.data.savings || 0
+        ).toLocaleString("en-IN")}.`
+      );
+
+      return response.data;
+    } catch (requestError) {
+      setAppliedOffer(null);
+      setCouponError(
+        formatApiError(
+          requestError,
+          "Unable to apply this coupon."
+        )
+      );
+
+      return null;
+    } finally {
+      setCouponApplying(false);
+    }
+  };
+
+  const applyCoupon = async () => {
+    await validateCoupon(couponCode);
+  };
+
+  const applyAvailableOffer = async (offer) => {
+    setCouponCode(offer.code || "");
+    await validateCoupon(offer.code);
+  };
+
+  const removeCoupon = () => {
+    setAppliedOffer(null);
+    setCouponCode("");
+    setCouponError("");
+    setMessage("Coupon removed.");
+  };
+
   const submit = async (event) => {
     event?.preventDefault?.();
     setSaving(true);
@@ -314,12 +412,16 @@ export default function CustomerCheckout() {
       const payload = buyNowItem
         ? {
             ...form,
+            coupon_code: appliedOffer?.code || null,
             buy_now_item: {
               product_id: buyNowItem.product_id,
               quantity: Number(buyNowItem.quantity || 1),
             },
           }
-        : form;
+        : {
+            ...form,
+            coupon_code: appliedOffer?.code || null,
+          };
 
       const { data } = await api.post("/orders", payload);
 
@@ -632,12 +734,163 @@ export default function CustomerCheckout() {
           ))}
         </div>
 
+
+        <div className="mt-5 rounded-2xl bg-white/10 p-4">
+          <div className="flex items-center gap-2">
+            <BadgePercent size={19} className="text-[#F4B400]" />
+            <p className="font-black">Offers & Coupons</p>
+          </div>
+
+          {appliedOffer ? (
+            <div className="mt-3 rounded-2xl border border-emerald-300/30 bg-emerald-400/10 p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.14em] text-emerald-200">
+                    Applied
+                  </p>
+                  <p className="mt-1 font-black text-white">
+                    {appliedOffer.code}
+                  </p>
+                  <p className="mt-1 text-xs text-emerald-100">
+                    You saved ₹
+                    {Number(
+                      appliedOffer.savings || 0
+                    ).toLocaleString("en-IN")}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={removeCoupon}
+                  className="rounded-xl border border-white/20 px-3 py-2 text-xs font-black text-white"
+                >
+                  Remove
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="mt-3 flex gap-2">
+                <input
+                  value={couponCode}
+                  onChange={(event) =>
+                    setCouponCode(
+                      event.target.value.toUpperCase()
+                    )
+                  }
+                  placeholder="Enter coupon"
+                  className="min-w-0 flex-1 rounded-xl border border-white/20 bg-white/10 px-3 py-2.5 text-sm font-bold uppercase text-white placeholder:text-blue-200 outline-none"
+                />
+
+                <button
+                  type="button"
+                  onClick={applyCoupon}
+                  disabled={couponApplying}
+                  className="rounded-xl bg-[#F4B400] px-4 py-2.5 text-xs font-black text-[#062B5F] disabled:opacity-60"
+                >
+                  {couponApplying ? "Applying..." : "Apply"}
+                </button>
+              </div>
+
+              {couponError && (
+                <p className="mt-2 text-xs font-bold text-rose-200">
+                  {couponError}
+                </p>
+              )}
+            </>
+          )}
+
+          {!appliedOffer && (
+            <div className="mt-4">
+              <div className="flex items-center gap-2">
+                <Gift size={16} className="text-blue-200" />
+                <p className="text-xs font-black text-blue-100">
+                  Available offers
+                </p>
+              </div>
+
+              {offersLoading ? (
+                <div className="mt-3 h-16 animate-pulse rounded-xl bg-white/10" />
+              ) : availableOffers.length ? (
+                <div className="mt-3 flex gap-3 overflow-x-auto pb-1">
+                  {availableOffers.map((offer) => (
+                    <button
+                      key={offer.offer_id}
+                      type="button"
+                      onClick={() =>
+                        applyAvailableOffer(offer)
+                      }
+                      className="min-w-[210px] rounded-2xl border border-white/15 bg-white/10 p-3 text-left transition hover:bg-white/15"
+                    >
+                      <div className="flex items-start gap-2">
+                        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-[#F4B400] text-[#062B5F]">
+                          <Tags size={15} />
+                        </span>
+
+                        <div className="min-w-0">
+                          <p className="truncate text-xs font-black text-white">
+                            {offer.code}
+                          </p>
+                          <p className="mt-1 line-clamp-2 text-[11px] text-blue-100">
+                            {offer.title}
+                          </p>
+                          <p className="mt-2 text-[10px] font-bold text-[#F4B400]">
+                            Tap to apply
+                          </p>
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-2 text-xs text-blue-200">
+                  No offers available right now.
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="mt-5 space-y-3 border-t border-white/20 pt-5 text-sm">
+          <div className="flex justify-between text-blue-100">
+            <span>Subtotal</span>
+            <span className="font-bold text-white">
+              ₹{Number(checkoutTotal || 0).toLocaleString("en-IN")}
+            </span>
+          </div>
+
+          {appliedDiscount > 0 && (
+            <div className="flex justify-between text-emerald-200">
+              <span>Discount</span>
+              <span className="font-black">
+                -₹{appliedDiscount.toLocaleString("en-IN")}
+              </span>
+            </div>
+          )}
+
+          <div className="flex justify-between text-blue-100">
+            <span>Delivery</span>
+            <span className="font-bold text-emerald-200">
+              {appliedDeliveryCharge > 0
+                ? `₹${appliedDeliveryCharge.toLocaleString("en-IN")}`
+                : "FREE"}
+            </span>
+          </div>
+        </div>
+
         <div className="mt-5 flex justify-between border-t border-white/20 pt-5 text-2xl font-black">
           <span>Total</span>
           <span>
             ₹{Number(checkoutSubtotal || 0).toLocaleString("en-IN")}
           </span>
         </div>
+
+        {totalSavings > 0 && (
+          <div className="mt-3 rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-4 py-3 text-center text-sm font-black text-emerald-100">
+            🎉 You saved ₹
+            {totalSavings.toLocaleString("en-IN")}
+          </div>
+        )}
 
         <div className="mt-5 grid gap-3">
           <div className="rounded-2xl bg-white/10 p-4">
