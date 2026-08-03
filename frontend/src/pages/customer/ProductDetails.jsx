@@ -3,6 +3,9 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
   ArrowRight,
+  ArrowsOutSimple,
+  CaretLeft,
+  CaretRight,
   CheckCircle,
   Heart,
   ShareNetwork,
@@ -89,6 +92,9 @@ export default function ProductDetails() {
   const [product, setProduct] = useState(null);
   const [related, setRelated] = useState([]);
   const [selectedImage, setSelectedImage] = useState(FALLBACK);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [touchStartX, setTouchStartX] = useState(null);
   const [quantity, setQuantity] = useState(1);
 
   const [loading, setLoading] = useState(true);
@@ -155,6 +161,8 @@ export default function ProductDetails() {
 
         const images = productImages(data);
         setSelectedImage(images[0]);
+        setSelectedImageIndex(0);
+        setLightboxOpen(false);
 
         const wishlistIds = readWishlist();
         setWishlisted(wishlistIds.includes(data.product_id));
@@ -205,6 +213,74 @@ export default function ProductDetails() {
     () => productImages(product),
     [product]
   );
+
+  const showImageAt = (index) => {
+    if (!images.length) return;
+
+    const normalizedIndex =
+      (index + images.length) % images.length;
+
+    setSelectedImageIndex(normalizedIndex);
+    setSelectedImage(images[normalizedIndex]);
+  };
+
+  const showPreviousImage = () => {
+    showImageAt(selectedImageIndex - 1);
+  };
+
+  const showNextImage = () => {
+    showImageAt(selectedImageIndex + 1);
+  };
+
+  const handleTouchStart = (event) => {
+    setTouchStartX(event.touches?.[0]?.clientX ?? null);
+  };
+
+  const handleTouchEnd = (event) => {
+    if (touchStartX === null) return;
+
+    const endX = event.changedTouches?.[0]?.clientX;
+    if (typeof endX !== "number") {
+      setTouchStartX(null);
+      return;
+    }
+
+    const distance = touchStartX - endX;
+
+    if (Math.abs(distance) > 45) {
+      if (distance > 0) {
+        showNextImage();
+      } else {
+        showPreviousImage();
+      }
+    }
+
+    setTouchStartX(null);
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (!lightboxOpen) return;
+
+      if (event.key === "ArrowLeft") {
+        showPreviousImage();
+      }
+
+      if (event.key === "ArrowRight") {
+        showNextImage();
+      }
+
+      if (event.key === "Escape") {
+        setLightboxOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [lightboxOpen, selectedImageIndex, images.length]);
 
   const stock = Number(product?.stock || 0);
   const inStock = stock > 0;
@@ -553,15 +629,27 @@ export default function ProductDetails() {
 
       <section className="grid gap-6 rounded-[28px] border border-slate-200 bg-white p-4 shadow-sm sm:p-6 lg:grid-cols-[1.05fr_.95fr]">
         <div>
-          <div className="relative aspect-square overflow-hidden rounded-[24px] bg-[#F7FAFF]">
-            <img
-              src={selectedImage || FALLBACK}
-              alt={product.name}
-              className="h-full w-full object-contain p-4 transition duration-500 hover:scale-105"
-              onError={(event) => {
-                event.currentTarget.src = FALLBACK;
-              }}
-            />
+          <div
+            className="relative aspect-square overflow-hidden rounded-[24px] bg-[#F7FAFF]"
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+          >
+            <button
+              type="button"
+              onClick={() => setLightboxOpen(true)}
+              className="h-full w-full cursor-zoom-in"
+              aria-label="Open product image fullscreen"
+            >
+              <img
+                key={selectedImage}
+                src={selectedImage || FALLBACK}
+                alt={product.name}
+                className="h-full w-full object-contain p-4 transition duration-300"
+                onError={(event) => {
+                  event.currentTarget.src = FALLBACK;
+                }}
+              />
+            </button>
 
             {discountPercentage > 0 && (
               <span className="absolute left-3 top-3 rounded-full bg-emerald-500 px-2.5 py-1 text-[10px] font-black text-white shadow-sm">
@@ -569,75 +657,54 @@ export default function ProductDetails() {
               </span>
             )}
 
-            {product.featured && (
-              <span className="absolute left-4 top-4 inline-flex items-center gap-1 rounded-full bg-[#F4B400] px-3 py-1.5 text-xs font-black text-[#062B5F] shadow-sm">
-                <Star
-                  size={15}
-                  weight="fill"
-                />
+            {product.featured && discountPercentage <= 0 && (
+              <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-[#F4B400] px-2.5 py-1 text-[10px] font-black text-[#062B5F] shadow-sm">
+                <Star size={13} weight="fill" />
                 Featured
               </span>
             )}
 
-            <button
-              type="button"
-              onClick={handleShare}
-              disabled={sharing}
-              aria-label="Share product"
-              className="absolute right-3 top-3 grid h-10 w-10 place-items-center rounded-full bg-white text-slate-700 shadow-md transition hover:scale-105 disabled:opacity-50"
-            >
-              <ShareNetwork size={19} weight="bold" />
-            </button>
-
-            <button
-              type="button"
-              onClick={toggleWishlist}
-              aria-label={
-                wishlisted
-                  ? "Remove product from wishlist"
-                  : "Add product to wishlist"
-              }
-              className={`absolute bottom-3 right-3 grid h-10 w-10 place-items-center rounded-full shadow-md transition hover:scale-105 ${
-                wishlisted
-                  ? "bg-rose-500 text-white"
-                  : "bg-white text-slate-700"
-              }`}
-            >
-              <Heart
-                size={20}
-                weight={wishlisted ? "fill" : "regular"}
-              />
-            </button>
-          </div>
-
-          {images.length > 1 && (
-            <div className="mt-4 flex gap-3 overflow-x-auto pb-1">
-              {images.map((image, index) => (
-                <button
-                  type="button"
-                  key={`${image}-${index}`}
-                  onClick={() =>
-                    setSelectedImage(image)
-                  }
-                  className={`h-20 w-20 shrink-0 overflow-hidden rounded-2xl border-2 bg-[#F5F9FF] ${
-                    selectedImage === image
-                      ? "border-[#0F4C9C]"
-                      : "border-transparent"
-                  }`}
-                >
-                  <img
-                    src={image}
-                    alt={`${product.name} ${
-                      index + 1
+            {images.length > 1 && (
+            <div className="mt-3">
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {images.map((image, index) => (
+                  <button
+                    type="button"
+                    key={`${image}-${index}`}
+                    onClick={() => showImageAt(index)}
+                    className={`h-16 w-16 shrink-0 overflow-hidden rounded-xl border-2 bg-[#F5F9FF] p-1 transition ${
+                      selectedImageIndex === index
+                        ? "border-[#0F4C9C] shadow-sm"
+                        : "border-transparent"
                     }`}
-                    className="h-full w-full object-cover"
-                    onError={(event) => {
-                      event.currentTarget.src =
-                        FALLBACK;
-                    }}
+                  >
+                    <img
+                      src={image}
+                      alt={`${product.name} ${index + 1}`}
+                      className="h-full w-full object-contain"
+                      onError={(event) => {
+                        event.currentTarget.src = FALLBACK;
+                      }}
+                    />
+                  </button>
+                ))}
+              </div>
+
+              <div className="mt-2 flex justify-center gap-1.5">
+                {images.map((image, index) => (
+                  <button
+                    type="button"
+                    key={`dot-${image}-${index}`}
+                    onClick={() => showImageAt(index)}
+                    aria-label={`Open image ${index + 1}`}
+                    className={`h-1.5 rounded-full transition-all ${
+                      selectedImageIndex === index
+                        ? "w-5 bg-[#0F4C9C]"
+                        : "w-1.5 bg-slate-300"
+                    }`}
                   />
-                </button>
-              ))}
+                ))}
+              </div>
             </div>
           )}
         </div>
@@ -1202,6 +1269,79 @@ export default function ProductDetails() {
             ))}
           </div>
         </section>
+      )}
+
+      {lightboxOpen && (
+        <div
+          className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/95 p-4"
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+        >
+          <button
+            type="button"
+            onClick={() => setLightboxOpen(false)}
+            aria-label="Close fullscreen image"
+            className="absolute right-4 top-4 grid h-11 w-11 place-items-center rounded-full bg-white/10 text-white backdrop-blur"
+          >
+            <X size={22} weight="bold" />
+          </button>
+
+          {images.length > 1 && (
+            <>
+              <button
+                type="button"
+                onClick={showPreviousImage}
+                aria-label="Previous fullscreen image"
+                className="absolute left-3 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-white/10 text-white backdrop-blur"
+              >
+                <CaretLeft size={24} weight="bold" />
+              </button>
+
+              <button
+                type="button"
+                onClick={showNextImage}
+                aria-label="Next fullscreen image"
+                className="absolute right-3 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-white/10 text-white backdrop-blur"
+              >
+                <CaretRight size={24} weight="bold" />
+              </button>
+            </>
+          )}
+
+          <img
+            key={`lightbox-${selectedImage}`}
+            src={selectedImage || FALLBACK}
+            alt={product.name}
+            className="max-h-[82vh] max-w-[92vw] object-contain"
+            onError={(event) => {
+              event.currentTarget.src = FALLBACK;
+            }}
+          />
+
+          {images.length > 1 && (
+            <div className="absolute bottom-5 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full bg-white/10 px-3 py-2 backdrop-blur">
+              <span className="text-xs font-black text-white">
+                {selectedImageIndex + 1} / {images.length}
+              </span>
+
+              <div className="flex gap-1.5">
+                {images.map((image, index) => (
+                  <button
+                    type="button"
+                    key={`lightbox-dot-${image}-${index}`}
+                    onClick={() => showImageAt(index)}
+                    aria-label={`Open fullscreen image ${index + 1}`}
+                    className={`h-1.5 rounded-full transition-all ${
+                      selectedImageIndex === index
+                        ? "w-5 bg-white"
+                        : "w-1.5 bg-white/35"
+                    }`}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
       <div className="fixed inset-x-0 bottom-0 z-50 border-t border-slate-200 bg-white/95 p-3 shadow-[0_-10px_30px_rgba(15,23,42,0.08)] backdrop-blur md:hidden">
