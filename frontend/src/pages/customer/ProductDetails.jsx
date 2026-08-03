@@ -530,41 +530,7 @@ export default function ProductDetails() {
 
   return (
     <div className="space-y-8 pb-24 md:pb-10">
-      <div className="flex items-center justify-between gap-3">
-        <button
-          type="button"
-          onClick={() => navigate(-1)}
-          aria-label="Go back"
-          className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm"
-        >
-          <ArrowLeft size={18} weight="bold" />
-        </button>
 
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={handleShare}
-            disabled={sharing}
-            aria-label="Share product"
-            className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm disabled:opacity-50"
-          >
-            <ShareNetwork size={18} weight="bold" />
-          </button>
-
-          <Link
-            to="/cart"
-            aria-label="Open cart"
-            className="relative grid h-10 w-10 place-items-center rounded-xl bg-[#062B5F] text-white shadow-sm"
-          >
-            <ShoppingCart size={18} weight="fill" />
-            {Number(itemCount) > 0 && (
-              <span className="absolute -right-1.5 -top-1.5 grid min-h-5 min-w-5 place-items-center rounded-full bg-[#F4B400] px-1 text-[9px] font-black text-[#062B5F] ring-2 ring-white">
-                {itemCount > 99 ? "99+" : itemCount}
-              </span>
-            )}
-          </Link>
-        </div>
-      </div>
 
       {message && (
         <div className="flex items-center gap-2 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 font-semibold text-[#0F4C9C]">
@@ -606,23 +572,31 @@ export default function ProductDetails() {
 
             <button
               type="button"
+              onClick={handleShare}
+              disabled={sharing}
+              aria-label="Share product"
+              className="absolute right-3 top-3 grid h-10 w-10 place-items-center rounded-full bg-white text-slate-700 shadow-md transition hover:scale-105 disabled:opacity-50"
+            >
+              <ShareNetwork size={19} weight="bold" />
+            </button>
+
+            <button
+              type="button"
               onClick={toggleWishlist}
               aria-label={
                 wishlisted
                   ? "Remove product from wishlist"
                   : "Add product to wishlist"
               }
-              className={`absolute right-4 top-4 grid h-11 w-11 place-items-center rounded-full shadow-md transition ${
+              className={`absolute bottom-3 right-3 grid h-10 w-10 place-items-center rounded-full shadow-md transition hover:scale-105 ${
                 wishlisted
                   ? "bg-rose-500 text-white"
                   : "bg-white text-slate-700"
               }`}
             >
               <Heart
-                size={22}
-                weight={
-                  wishlisted ? "fill" : "regular"
-                }
+                size={20}
+                weight={wishlisted ? "fill" : "regular"}
               />
             </button>
           </div>
