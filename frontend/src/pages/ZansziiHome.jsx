@@ -7,6 +7,7 @@ import {
   ChevronRight,
   Clock3,
   Flame,
+  Grid3X3,
   Heart,
   Package,
   Search,
@@ -513,32 +514,35 @@ export default function ZANSZIHome() {
   const activeSlide = banners[activeBanner];
 
   return (
-    <div className="space-y-6 pb-28 md:space-y-8 md:pb-8">
+    <div className="space-y-5 pb-28 md:space-y-8 md:pb-8">
 
-      <section className="rounded-[24px] border border-slate-200 bg-white p-2 shadow-sm">
+      <section className="rounded-[22px] border border-slate-200 bg-white p-2 shadow-[0_8px_28px_rgba(15,23,42,0.06)]">
         <form
           onSubmit={submitSearch}
-          className="flex items-center gap-2 rounded-2xl bg-[#F5F9FF] p-1.5"
+          className="flex h-12 items-center gap-2 rounded-[16px] bg-[#F7FAFF] px-2 sm:h-14"
         >
-          <Search
-            className="ml-2 text-slate-400"
-            size={20}
-          />
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-slate-400">
+            <Search size={20} />
+          </span>
 
           <input
             value={search}
             onChange={(event) =>
               setSearch(event.target.value)
             }
-            placeholder="Search products, stores or categories..."
-            className="min-w-0 flex-1 bg-transparent px-1 py-2 text-sm font-semibold text-slate-900 outline-none"
+            placeholder="Search products, stores or categories"
+            className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-slate-900 outline-none placeholder:text-slate-400"
           />
 
           <button
-            className="rounded-xl bg-[#0F4C9C] px-4 py-2.5 text-xs font-black text-white sm:text-sm"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#062B5F] text-white shadow-sm transition hover:bg-[#0F4C9C] sm:h-10 sm:w-auto sm:px-4"
             type="submit"
+            aria-label="Search"
           >
-            Search
+            <Search size={17} className="sm:hidden" />
+            <span className="hidden text-sm font-black sm:inline">
+              Search
+            </span>
           </button>
         </form>
       </section>
@@ -550,45 +554,38 @@ export default function ZANSZIHome() {
       )}
 
       <section>
-        <div className="mb-3 flex items-center justify-between gap-4">
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#0F4C9C]">
-              Browse quickly
-            </p>
-
-            <h2 className="mt-1 text-xl font-black text-slate-900 sm:text-2xl">
-              Shop by category
-            </h2>
-          </div>
-
-          <Link
-            to="/products"
-            className="inline-flex items-center gap-1 text-xs font-black text-[#0F4C9C] sm:text-sm"
-          >
-            View all
-            <ChevronRight size={16} />
-          </Link>
-        </div>
-
-        <div className="flex gap-2.5 overflow-x-auto pb-2">
-          {categories.slice(0, 8).map((category, index) => (
+        <div className="flex gap-3 overflow-x-auto px-0.5 pb-2">
+          {categories.slice(0, 7).map((category, index) => (
             <Link
               key={category.category_id}
               to={`/products?category=${category.category_id}`}
-              className="group flex min-w-[92px] items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md"
+              className="group flex min-w-[72px] flex-col items-center text-center"
             >
-              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-[#F5F9FF] text-base transition group-hover:scale-105">
+              <span className="grid h-14 w-14 place-items-center rounded-[20px] border border-slate-200 bg-white text-xl shadow-[0_8px_24px_rgba(15,23,42,0.07)] transition duration-200 group-hover:-translate-y-0.5 group-hover:border-blue-200 group-hover:shadow-md">
                 {categoryIcons[index % categoryIcons.length]}
               </span>
 
-              <span className="line-clamp-1 text-[11px] font-black text-slate-800 sm:text-xs">
+              <span className="mt-2 line-clamp-2 text-[11px] font-black leading-4 text-slate-800">
                 {category.name}
               </span>
             </Link>
           ))}
 
+          <Link
+            to="/products"
+            className="group flex min-w-[72px] flex-col items-center text-center"
+          >
+            <span className="grid h-14 w-14 place-items-center rounded-[20px] border border-slate-200 bg-white text-slate-500 shadow-[0_8px_24px_rgba(15,23,42,0.07)] transition duration-200 group-hover:-translate-y-0.5 group-hover:border-blue-200 group-hover:text-[#0F4C9C] group-hover:shadow-md">
+              <Grid3X3 size={20} />
+            </span>
+
+            <span className="mt-2 text-[11px] font-black text-slate-800">
+              More
+            </span>
+          </Link>
+
           {!loading && categories.length === 0 && (
-            <div className="w-full rounded-2xl border border-dashed border-slate-300 bg-white py-6 text-center text-sm font-bold text-slate-500">
+            <div className="w-full rounded-2xl border border-dashed border-slate-300 bg-white py-5 text-center text-sm font-bold text-slate-500">
               Categories will appear here after they are added by admin.
             </div>
           )}
@@ -596,56 +593,50 @@ export default function ZANSZIHome() {
       </section>
 
       <section
-        className={`relative overflow-hidden rounded-[24px] bg-gradient-to-br ${activeSlide.accent} px-5 py-5 text-white shadow-[0_18px_50px_rgba(15,76,156,0.20)] sm:px-7 sm:py-7 lg:px-9 lg:py-8`}
+        className={`relative overflow-hidden rounded-[24px] bg-gradient-to-br ${activeSlide.accent} px-5 py-5 text-white shadow-[0_16px_40px_rgba(15,76,156,0.18)] sm:px-7 sm:py-6`}
       >
-        <div className="absolute -right-20 -top-24 h-64 w-64 rounded-full bg-white/10 blur-2xl" />
-        <div className="absolute -bottom-24 left-1/3 h-56 w-56 rounded-full bg-white/10 blur-3xl" />
+        <div className="absolute -right-16 -top-20 h-44 w-44 rounded-full bg-white/10 blur-2xl" />
+        <div className="absolute -bottom-20 left-1/3 h-40 w-40 rounded-full bg-white/10 blur-3xl" />
 
-        <div className="relative grid min-h-[180px] gap-6 lg:grid-cols-[1.25fr_.75fr] lg:items-center">
-          <div className="flex flex-col justify-center">
-            <span className="inline-flex w-fit items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.16em] backdrop-blur">
-              <Sparkles size={14} />
+        <div className="relative grid min-h-[155px] grid-cols-[1fr_auto] items-center gap-4 sm:min-h-[165px]">
+          <div className="min-w-0">
+            <p className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-white/75">
+              <Sparkles size={13} />
               {activeSlide.eyebrow}
-            </span>
+            </p>
 
-            <h1 className="mt-3 max-w-2xl text-2xl font-black leading-tight sm:text-3xl lg:text-4xl">
+            <h1 className="mt-2 max-w-xl text-[22px] font-black leading-[1.15] sm:text-3xl">
               {activeSlide.title}
             </h1>
 
-            <p className="mt-2 max-w-xl text-sm leading-6 text-white/85">
+            <p className="mt-2 line-clamp-2 max-w-xl text-xs leading-5 text-white/80 sm:text-sm">
               {activeSlide.description}
             </p>
 
-            <div className="mt-4 flex flex-wrap items-center gap-3">
+            <div className="mt-4 flex items-center gap-3">
               <Link
                 to={activeSlide.link}
-                className="inline-flex items-center gap-2 rounded-2xl bg-white px-5 py-3 text-sm font-black text-[#062B5F] shadow-lg"
+                className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-xs font-black text-[#062B5F] shadow-lg sm:text-sm"
               >
                 {activeSlide.action}
-                <ArrowRight size={17} />
+                <ArrowRight size={15} />
               </Link>
-
-              <span className="text-sm font-bold text-white/80">
-                Hello {firstName} 👋
-              </span>
             </div>
           </div>
 
-          <div className="hidden lg:flex lg:justify-end">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="rounded-2xl border border-white/20 bg-white/10 p-4 backdrop-blur">
-                <ShoppingBag size={22} />
-                <p className="mt-4 text-sm font-black">
-                  Easy shopping
-                </p>
+          <div className="hidden h-[120px] w-[120px] shrink-0 sm:grid sm:place-items-center">
+            <div className="relative h-full w-full">
+              <div className="absolute inset-2 rounded-[28px] border border-white/20 bg-white/10 backdrop-blur" />
+
+              <div className="absolute bottom-2 left-1/2 flex -translate-x-1/2 items-end gap-2">
+                <span className="h-14 w-7 rounded-t-xl rounded-b-md bg-white/85 shadow-lg" />
+                <span className="h-20 w-8 rounded-t-xl rounded-b-md bg-blue-200/90 shadow-lg" />
+                <span className="h-11 w-6 rounded-t-xl rounded-b-md bg-amber-100/90 shadow-lg" />
               </div>
 
-              <div className="rounded-2xl border border-white/20 bg-white/10 p-4 backdrop-blur">
-                <ShieldCheck size={22} />
-                <p className="mt-4 text-sm font-black">
-                  Trusted stores
-                </p>
-              </div>
+              <span className="absolute left-3 top-3 text-2xl">
+                🏪
+              </span>
             </div>
           </div>
         </div>
@@ -654,46 +645,46 @@ export default function ZANSZIHome() {
           type="button"
           onClick={previousBanner}
           aria-label="Previous banner"
-          className="absolute left-3 top-1/2 hidden h-10 w-10 -translate-y-1/2 place-items-center rounded-full bg-black/20 text-white backdrop-blur transition hover:bg-black/30 sm:grid"
+          className="absolute left-2 top-1/2 hidden h-8 w-8 -translate-y-1/2 place-items-center rounded-full bg-black/15 text-white backdrop-blur transition hover:bg-black/25 md:grid"
         >
-          <ChevronLeft size={21} />
+          <ChevronLeft size={18} />
         </button>
 
         <button
           type="button"
           onClick={nextBanner}
           aria-label="Next banner"
-          className="absolute right-3 top-1/2 hidden h-10 w-10 -translate-y-1/2 place-items-center rounded-full bg-black/20 text-white backdrop-blur transition hover:bg-black/30 sm:grid"
+          className="absolute right-2 top-1/2 hidden h-8 w-8 -translate-y-1/2 place-items-center rounded-full bg-black/15 text-white backdrop-blur transition hover:bg-black/25 md:grid"
         >
-          <ChevronRight size={21} />
+          <ChevronRight size={18} />
         </button>
 
-        <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 gap-2">
+        <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 gap-1.5">
           {banners.map((banner, index) => (
             <button
               type="button"
               key={banner.title}
               onClick={() => setActiveBanner(index)}
               aria-label={`Open banner ${index + 1}`}
-              className={`h-2 rounded-full transition-all ${
+              className={`h-1.5 rounded-full transition-all ${
                 index === activeBanner
-                  ? "w-7 bg-white"
-                  : "w-2 bg-white/45"
+                  ? "w-5 bg-white"
+                  : "w-1.5 bg-white/40"
               }`}
             />
           ))}
         </div>
       </section>
 
-      <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+      <section className="rounded-[22px] border border-slate-200 bg-white p-3.5 shadow-[0_8px_28px_rgba(15,23,42,0.06)] sm:p-5">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-amber-600">
               <Zap size={15} fill="currentColor" />
               Limited-time savings
             </p>
 
-            <h2 className="mt-1 text-xl font-black text-slate-900">
+            <h2 className="text-xl font-black text-slate-900">
               Flash deals
             </h2>
           </div>
