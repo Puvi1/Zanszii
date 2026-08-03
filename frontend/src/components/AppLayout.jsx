@@ -13,6 +13,7 @@ import {
   Menu,
   Package,
   ShoppingCart,
+  Store,
   Tags,
   Truck,
   User,
@@ -157,6 +158,20 @@ function CustomerLayout({ user, signOut }) {
                 {text}
               </NavLink>
             ))}
+
+            <NavLink
+              to="/become-partner"
+              className={({ isActive }) =>
+                `inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-bold transition ${
+                  isActive
+                    ? "bg-blue-50 text-[#0F4C9C]"
+                    : "text-slate-600 hover:bg-slate-50 hover:text-[#0F4C9C]"
+                }`
+              }
+            >
+              <Store size={17} />
+              Partner
+            </NavLink>
           </nav>
 
           <NavLink
