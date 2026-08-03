@@ -21,7 +21,6 @@ import AdminCostManagement from "./pages/admin/AdminCostManagement";
 import AdminDeliveryPartners from "./pages/admin/AdminDeliveryPartners";
 import AdminVendorApplications from "./pages/admin/AdminVendorApplications";
 
-
 import CustomerProducts from "./pages/customer/CustomerProducts";
 import ProductDetails from "./pages/customer/ProductDetails";
 import CustomerCart from "./pages/customer/CustomerCart";
@@ -35,7 +34,6 @@ import CustomerAddresses from "./pages/customer/CustomerAddresses";
 import CustomerNotifications from "./pages/customer/CustomerNotifications";
 import CustomerOffers from "./pages/customer/CustomerOffers";
 import BecomePartner from "./pages/customer/BecomePartner";
-
 
 
 import ManagerDeliveries from "./pages/manager/ManagerDeliveries";
@@ -120,7 +118,6 @@ export default function App() {
   element={<BecomePartner />}
 />
 
-
                 </Route>
               </Route>
 
@@ -158,11 +155,10 @@ export default function App() {
                     element={<AdminCategories />}
                   />
 
-<Route
-  path="/admin/vendor-applications"
-  element={<AdminVendorApplications />}
-/>
-
+                  <Route
+                    path="/admin/vendor-applications"
+                    element={<AdminVendorApplications />}
+                  />
 
                   <Route
                     path="/admin/orders"
