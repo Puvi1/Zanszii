@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import {
   BadgeIndianRupee,
@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useCart } from "@/context/CartContext";
+import { api } from "@/lib/api";
 
 const customerLinks = [
   ["/", "Home", Home],
@@ -52,6 +53,39 @@ const adminLinks = [
 
 function CustomerLayout({ user, signOut }) {
   const { itemCount } = useCart();
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadUnreadCount = async () => {
+      try {
+        const response = await api.get("/notifications/unread-count");
+
+        if (active) {
+          setUnreadNotifications(
+            Number(response.data?.unread_count || 0)
+          );
+        }
+      } catch {
+        if (active) {
+          setUnreadNotifications(0);
+        }
+      }
+    };
+
+    loadUnreadCount();
+
+    const interval = window.setInterval(
+      loadUnreadCount,
+      30000
+    );
+
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, []);
 
   const wishlistCount = (() => {
     try {
@@ -125,14 +159,21 @@ function CustomerLayout({ user, signOut }) {
             ))}
           </nav>
 
-          <button
-            type="button"
-            aria-label="Notifications"
+          <NavLink
+            to="/notifications"
+            aria-label="Open notifications"
             className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:bg-slate-50 sm:h-11 sm:w-11 sm:rounded-2xl"
           >
             <Bell size={19} />
-            <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-white" />
-          </button>
+
+            {unreadNotifications > 0 && (
+              <span className="absolute -right-1.5 -top-1.5 grid min-h-[19px] min-w-[19px] place-items-center rounded-full bg-rose-500 px-1 text-[9px] font-black text-white ring-2 ring-white">
+                {unreadNotifications > 99
+                  ? "99+"
+                  : unreadNotifications}
+              </span>
+            )}
+          </NavLink>
 
           <NavLink
             to="/cart"
