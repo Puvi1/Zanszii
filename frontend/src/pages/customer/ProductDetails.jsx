@@ -733,49 +733,34 @@ export default function ProductDetails() {
             </p>
           </div>
 
-          <div className="mt-6 grid gap-3 sm:grid-cols-3">
-            <div className="rounded-2xl border border-slate-200 p-4">
-              <Truck
-                size={25}
-                className="text-[#0F4C9C]"
-              />
+          <div className="mt-5 grid grid-cols-3 gap-2">
+            <div className="rounded-2xl border border-slate-200 bg-white p-2.5 text-center shadow-sm">
+              <span className="mx-auto grid h-8 w-8 place-items-center rounded-xl bg-blue-50 text-[#0F4C9C]">
+                <Truck size={17} />
+              </span>
 
-              <p className="mt-2 text-sm font-black text-slate-900">
+              <p className="mt-1.5 text-[10px] font-black leading-4 text-slate-900">
                 Fast delivery
               </p>
-
-              <p className="mt-1 text-xs text-slate-500">
-                Quick local dispatch
-              </p>
             </div>
 
-            <div className="rounded-2xl border border-slate-200 p-4">
-              <ShieldCheck
-                size={25}
-                className="text-[#0F4C9C]"
-              />
+            <div className="rounded-2xl border border-slate-200 bg-white p-2.5 text-center shadow-sm">
+              <span className="mx-auto grid h-8 w-8 place-items-center rounded-xl bg-emerald-50 text-emerald-600">
+                <ShieldCheck size={17} />
+              </span>
 
-              <p className="mt-2 text-sm font-black text-slate-900">
+              <p className="mt-1.5 text-[10px] font-black leading-4 text-slate-900">
                 Quality assured
               </p>
-
-              <p className="mt-1 text-xs text-slate-500">
-                Trusted Zanszii quality
-              </p>
             </div>
 
-            <div className="rounded-2xl border border-slate-200 p-4">
-              <Package
-                size={25}
-                className="text-[#0F4C9C]"
-              />
+            <div className="rounded-2xl border border-slate-200 bg-white p-2.5 text-center shadow-sm">
+              <span className="mx-auto grid h-8 w-8 place-items-center rounded-xl bg-amber-50 text-amber-600">
+                <Package size={17} />
+              </span>
 
-              <p className="mt-2 text-sm font-black text-slate-900">
+              <p className="mt-1.5 text-[10px] font-black leading-4 text-slate-900">
                 Secure packing
-              </p>
-
-              <p className="mt-1 text-xs text-slate-500">
-                Packed with care
               </p>
             </div>
           </div>
