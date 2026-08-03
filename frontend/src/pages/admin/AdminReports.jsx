@@ -1,18 +1,27 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  AlertTriangle,
   BarChart3,
+  BadgePercent,
+  Box,
+  ChevronDown,
+  ChevronUp,
   Download,
   FileSpreadsheet,
   IndianRupee,
   PackageCheck,
   RefreshCw,
   ShoppingBag,
+  Sparkles,
+  TrendingDown,
   TrendingUp,
   Trophy,
   Users,
+  Wallet,
 } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+
 import { api, formatApiError } from "../../lib/api";
 import { exportRowsToExcel } from "../../utils/exportData";
 
@@ -31,159 +40,72 @@ const safeText = (value, fallback = "—") =>
     ? fallback
     : String(value);
 
-const productColumns = [
-  { label: "Product", value: (row) => row.product_name },
-  { label: "Category", value: (row) => row.category },
-  { label: "Units Sold", value: (row) => row.quantity_sold },
-  { label: "Revenue", value: (row) => row.revenue },
-  { label: "Cost", value: (row) => row.cost },
-  { label: "Profit", value: (row) => row.profit },
-  {
-    label: "Margin",
-    value: (row) => `${Number(row.margin || 0).toFixed(2)}%`,
-  },
-];
+const percent = (value) =>
+  `${Number(value || 0).toFixed(1)}%`;
 
-const getTop = (items, field, limit = 6) =>
-  [...(items || [])]
-    .sort((a, b) => Number(b?.[field] || 0) - Number(a?.[field] || 0))
-    .slice(0, limit);
+const resultTone = (value) => {
+  const amount = Number(value || 0);
 
-const drawMetricCard = (doc, x, y, width, label, value) => {
-  doc.setDrawColor(225, 231, 239);
-  doc.setFillColor(248, 250, 252);
-  doc.roundedRect(x, y, width, 24, 3, 3, "FD");
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(8);
-  doc.setTextColor(100, 116, 139);
-  doc.text(label, x + 5, y + 8);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(13);
-  doc.setTextColor(15, 23, 42);
-  doc.text(String(value), x + 5, y + 18);
+  if (amount < 0) return "#e11d48";
+  if (amount === 0) return "#64748b";
+  return "#047857";
 };
 
-const drawBarChart = (
-  doc,
-  { x, y, width, height, title, data, labelKey, valueKey }
-) => {
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(11);
-  doc.setTextColor(15, 23, 42);
-  doc.text(title, x, y);
-
-  if (!data.length) {
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
-    doc.setTextColor(100, 116, 139);
-    doc.text("No data available", x, y + 10);
-    return;
-  }
-
-  const maxValue = Math.max(
-    ...data.map((item) => Number(item?.[valueKey] || 0)),
-    1
-  );
-  const rowHeight = Math.min(11, height / data.length);
-
-  data.forEach((item, index) => {
-    const rowY = y + 7 + index * rowHeight;
-    const label = safeText(item?.[labelKey], "Product").slice(0, 22);
-    const value = Number(item?.[valueKey] || 0);
-    const availableWidth = width - 64;
-    const barWidth = (value / maxValue) * availableWidth;
-
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(7);
-    doc.setTextColor(51, 65, 85);
-    doc.text(label, x, rowY + 4);
-
-    doc.setFillColor(226, 232, 240);
-    doc.roundedRect(x + 46, rowY, availableWidth, 5, 1, 1, "F");
-    doc.setFillColor(37, 99, 235);
-    doc.roundedRect(x + 46, rowY, Math.max(barWidth, 1), 5, 1, 1, "F");
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(7);
-    doc.setTextColor(15, 23, 42);
-    doc.text(
-      valueKey === "quantity_sold" ? number(value) : money(value),
-      x + width,
-      rowY + 4,
-      { align: "right" }
-    );
-  });
-};
-
-const drawLineChart = (doc, { x, y, width, height, title, data }) => {
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(11);
-  doc.setTextColor(15, 23, 42);
-  doc.text(title, x, y);
-
-  const plotX = x + 8;
-  const plotY = y + 8;
-  const plotW = width - 16;
-  const plotH = height - 18;
-
-  doc.setDrawColor(203, 213, 225);
-  doc.line(plotX, plotY + plotH, plotX + plotW, plotY + plotH);
-  doc.line(plotX, plotY, plotX, plotY + plotH);
-
-  if (!data.length) {
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
-    doc.setTextColor(100, 116, 139);
-    doc.text("No trend data available", plotX + 4, plotY + 12);
-    return;
-  }
-
-  const maxValue = Math.max(
-    ...data.map((item) => Number(item.revenue || 0)),
-    1
-  );
-  const stepX = data.length > 1 ? plotW / (data.length - 1) : plotW;
-  const points = data.map((item, index) => ({
-    x: plotX + index * stepX,
-    y: plotY + plotH - (Number(item.revenue || 0) / maxValue) * plotH,
-  }));
-
-  doc.setDrawColor(37, 99, 235);
-  doc.setLineWidth(0.8);
-  points.forEach((point, index) => {
-    if (index > 0) {
-      doc.line(points[index - 1].x, points[index - 1].y, point.x, point.y);
-    }
-    doc.setFillColor(37, 99, 235);
-    doc.circle(point.x, point.y, 1.2, "F");
-  });
-
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(6);
-  doc.setTextColor(100, 116, 139);
-  const indexes = [0, Math.floor((data.length - 1) / 2), data.length - 1];
-  [...new Set(indexes)].forEach((index) => {
-    const label = data[index]?.date || data[index]?.month || "";
-    doc.text(label.slice(5), points[index].x, plotY + plotH + 5, {
-      align: "center",
-    });
-  });
+const healthTone = (score) => {
+  if (score >= 80) return "#047857";
+  if (score >= 60) return "#d97706";
+  return "#e11d48";
 };
 
 export default function AdminReports() {
-  const [data, setData] = useState(null);
+  const [report, setReport] = useState(null);
+  const [couponAnalytics, setCouponAnalytics] = useState(null);
+  const [products, setProducts] = useState([]);
+  const [orders, setOrders] = useState([]);
+
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState("");
 
+  const [activeTab, setActiveTab] = useState("overview");
+  const [expandedOrderId, setExpandedOrderId] = useState("");
+
   const load = async () => {
     setLoading(true);
     setError("");
+
     try {
-      const response = await api.get("/admin/reports");
-      setData(response.data);
-    } catch (err) {
-      setError(formatApiError(err));
+      const [
+        reportResponse,
+        couponResponse,
+        productResponse,
+        orderResponse,
+      ] = await Promise.all([
+        api.get("/admin/reports"),
+        api.get("/admin/offers/analytics"),
+        api.get("/admin/products"),
+        api.get("/admin/orders"),
+      ]);
+
+      setReport(reportResponse.data || {});
+      setCouponAnalytics(couponResponse.data || {});
+      setProducts(
+        Array.isArray(productResponse.data?.products)
+          ? productResponse.data.products
+          : []
+      );
+      setOrders(
+        Array.isArray(orderResponse.data)
+          ? orderResponse.data
+          : []
+      );
+    } catch (requestError) {
+      setError(
+        formatApiError(
+          requestError,
+          "Unable to prepare the complete business report."
+        )
+      );
     } finally {
       setLoading(false);
     }
@@ -193,298 +115,678 @@ export default function AdminReports() {
     load();
   }, []);
 
-  const productAnalysis = data?.product_analysis || [];
-  const categoryAnalysis = data?.category_analysis || [];
-  const topCustomers = data?.top_customers || [];
-  const trendData = data?.monthly_sales?.length
-    ? data.monthly_sales
-    : data?.daily_sales || [];
-
-  const topRevenueProducts = useMemo(
-    () => getTop(productAnalysis, "revenue", 6),
-    [productAnalysis]
+  const completedOrders = useMemo(
+    () =>
+      orders.filter((order) =>
+        ["delivered", "completed"].includes(order.status)
+      ),
+    [orders]
   );
 
-  const topProfitProducts = useMemo(
-    () => getTop(productAnalysis, "profit", 6),
-    [productAnalysis]
-  );
+  const orderProfitRows = useMemo(() => {
+    return completedOrders.map((order) => {
+      const grossSales = Number(
+        order.subtotal ??
+          (order.items || []).reduce(
+            (sum, item) =>
+              sum + Number(item.line_total || 0),
+            0
+          )
+      );
+
+      const discount = Number(order.discount || 0);
+      const netRevenue = Number(
+        order.total ?? grossSales - discount
+      );
+
+      const productCost = Number(
+        order.product_cost ??
+          (order.items || []).reduce(
+            (sum, item) =>
+              sum + Number(item.total_cost || 0),
+            0
+          )
+      );
+
+      const netProfit = Number(
+        order.net_profit ?? netRevenue - productCost
+      );
+
+      const loss =
+        netProfit < 0
+          ? Math.abs(netProfit)
+          : Number(order.loss || 0);
+
+      return {
+        ...order,
+        gross_sales: grossSales,
+        discount_given: discount,
+        net_revenue: netRevenue,
+        product_cost: productCost,
+        net_profit: netProfit,
+        loss,
+        profit_margin:
+          netRevenue > 0
+            ? (netProfit / netRevenue) * 100
+            : 0,
+      };
+    });
+  }, [completedOrders]);
+
+  const stockSummary = useMemo(() => {
+    const activeProducts = products.filter(
+      (product) => product.active !== false
+    );
+    const lowStock = activeProducts.filter(
+      (product) =>
+        Number(product.stock || 0) > 0 &&
+        Number(product.stock || 0) <= 5
+    );
+    const outOfStock = activeProducts.filter(
+      (product) => Number(product.stock || 0) <= 0
+    );
+
+    return {
+      total: products.length,
+      active: activeProducts.length,
+      lowStock,
+      outOfStock,
+      inventoryValue: products.reduce(
+        (sum, product) => {
+          const unitCost =
+            Number(product.wholesale_price || 0) +
+            Number(product.packaging_cost || 0) +
+            Number(product.delivery_cost || 0) +
+            Number(product.other_cost || 0);
+
+          return (
+            sum +
+            unitCost * Number(product.stock || 0)
+          );
+        },
+        0
+      ),
+    };
+  }, [products]);
+
+  const financial = useMemo(() => {
+    const revenue = Number(report?.revenue || 0);
+    const productCost = Number(report?.total_cost || 0);
+
+    const couponDiscount = Number(
+      couponAnalytics?.summary?.discount_given || 0
+    );
+    const couponRevenue = Number(
+      couponAnalytics?.summary?.net_revenue || 0
+    );
+    const couponProfit = Number(
+      couponAnalytics?.summary?.net_profit || 0
+    );
+    const couponLoss = Number(
+      couponAnalytics?.summary?.total_loss || 0
+    );
+
+    const orderLoss = orderProfitRows.reduce(
+      (sum, order) => sum + Number(order.loss || 0),
+      0
+    );
+
+    const netProfit = revenue - productCost;
+    const totalLoss = Math.max(couponLoss, orderLoss);
+
+    return {
+      revenue,
+      productCost,
+      couponDiscount,
+      couponRevenue,
+      couponProfit,
+      couponLoss,
+      netProfit,
+      totalLoss,
+      margin:
+        revenue > 0 ? (netProfit / revenue) * 100 : 0,
+    };
+  }, [report, couponAnalytics, orderProfitRows]);
+
+  const healthScore = useMemo(() => {
+    let score = 100;
+
+    if (financial.margin < 10) score -= 25;
+    else if (financial.margin < 20) score -= 12;
+
+    if (financial.totalLoss > 0) score -= 15;
+
+    if (stockSummary.outOfStock.length > 0) score -= 12;
+    if (stockSummary.lowStock.length > 3) score -= 8;
+
+    if (
+      Number(
+        couponAnalytics?.summary?.profit_margin || 0
+      ) < 0
+    ) {
+      score -= 15;
+    }
+
+    if (Number(report?.cancelled_orders || 0) > 5) {
+      score -= 10;
+    }
+
+    return Math.max(0, Math.min(100, score));
+  }, [
+    financial,
+    stockSummary,
+    couponAnalytics,
+    report,
+  ]);
+
+  const insights = useMemo(() => {
+    const result = [];
+
+    if (report?.most_profitable_product) {
+      result.push(
+        `${report.most_profitable_product.product_name} is the most profitable product with ${money(
+          report.most_profitable_product.profit
+        )} profit.`
+      );
+    }
+
+    if (couponAnalytics?.insights?.best_coupon) {
+      result.push(
+        `${couponAnalytics.insights.best_coupon.code} is the best-performing coupon with ${money(
+          couponAnalytics.insights.best_coupon.net_profit
+        )} net profit.`
+      );
+    }
+
+    if (
+      couponAnalytics?.insights?.highest_loss_product &&
+      Number(
+        couponAnalytics.insights.highest_loss_product
+          .loss || 0
+      ) > 0
+    ) {
+      result.push(
+        `${couponAnalytics.insights.highest_loss_product.product_name} has the highest coupon-related loss of ${money(
+          couponAnalytics.insights.highest_loss_product
+            .loss
+        )}.`
+      );
+    }
+
+    if (stockSummary.outOfStock.length) {
+      result.push(
+        `${stockSummary.outOfStock.length} products are out of stock and need attention.`
+      );
+    }
+
+    if (stockSummary.lowStock.length) {
+      result.push(
+        `${stockSummary.lowStock.length} products are running low on stock.`
+      );
+    }
+
+    result.push(
+      `Overall business margin is ${percent(
+        financial.margin
+      )}.`
+    );
+
+    return result;
+  }, [
+    report,
+    couponAnalytics,
+    stockSummary,
+    financial,
+  ]);
 
   const exportExcel = () => {
+    const rows = [
+      {
+        section: "Executive Summary",
+        metric: "Total Revenue",
+        value: financial.revenue,
+      },
+      {
+        section: "Executive Summary",
+        metric: "Total Product Cost",
+        value: financial.productCost,
+      },
+      {
+        section: "Executive Summary",
+        metric: "Coupon Discount Given",
+        value: financial.couponDiscount,
+      },
+      {
+        section: "Executive Summary",
+        metric: "Net Profit",
+        value: financial.netProfit,
+      },
+      {
+        section: "Executive Summary",
+        metric: "Total Loss",
+        value: financial.totalLoss,
+      },
+      ...((report?.product_analysis || []).map(
+        (item) => ({
+          section: "Product Analysis",
+          metric: item.product_name,
+          value: item.profit,
+          revenue: item.revenue,
+          cost: item.cost,
+          margin: item.margin,
+        })
+      )),
+      ...((couponAnalytics?.products || []).map(
+        (item) => ({
+          section: "Coupon Product Impact",
+          metric: `${item.coupon_code} - ${item.product_name}`,
+          value: item.net_profit,
+          revenue: item.net_revenue,
+          cost: item.product_cost,
+          discount: item.discount_given,
+          loss: item.loss,
+        })
+      )),
+      ...orderProfitRows.map((order) => ({
+        section: "Order Profit & Loss",
+        metric:
+          order.order_number || order.order_id,
+        value: order.net_profit,
+        revenue: order.net_revenue,
+        cost: order.product_cost,
+        discount: order.discount_given,
+        loss: order.loss,
+      })),
+    ];
+
     exportRowsToExcel({
-      rows: productAnalysis,
-      columns: productColumns,
-      fileName: "zanszii-detailed-business-report",
-      sheetName: "Product Analysis",
+      rows,
+      columns: [
+        {
+          label: "Section",
+          value: (row) => row.section,
+        },
+        {
+          label: "Metric / Item",
+          value: (row) => row.metric,
+        },
+        {
+          label: "Value / Profit",
+          value: (row) => row.value ?? "",
+        },
+        {
+          label: "Revenue",
+          value: (row) => row.revenue ?? "",
+        },
+        {
+          label: "Cost",
+          value: (row) => row.cost ?? "",
+        },
+        {
+          label: "Discount",
+          value: (row) => row.discount ?? "",
+        },
+        {
+          label: "Loss",
+          value: (row) => row.loss ?? "",
+        },
+        {
+          label: "Margin",
+          value: (row) => row.margin ?? "",
+        },
+      ],
+      fileName: "zanszi-complete-business-report",
+      sheetName: "Complete Report",
     });
   };
 
   const exportDetailedPDF = () => {
-    if (!data) return;
+    if (!report) return;
+
     setExporting(true);
 
     try {
-      const doc = new jsPDF("landscape", "mm", "a4");
-      const pageWidth = doc.internal.pageSize.getWidth();
-      const pageHeight = doc.internal.pageSize.getHeight();
+      const doc = new jsPDF(
+        "landscape",
+        "mm",
+        "a4"
+      );
+      const width =
+        doc.internal.pageSize.getWidth();
+      const height =
+        doc.internal.pageSize.getHeight();
       const margin = 14;
 
-      doc.setFillColor(15, 23, 42);
-      doc.rect(0, 0, pageWidth, 46, "F");
-      doc.setTextColor(255, 255, 255);
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(24);
-      doc.text("ZANSZII", margin, 20);
-      doc.setFontSize(15);
-      doc.text("Business Performance & Profit Analytics Report", margin, 31);
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(9);
-      doc.setTextColor(203, 213, 225);
-      doc.text(
-        `Generated: ${new Date(data.generated_at || Date.now()).toLocaleString("en-IN")}`,
-        margin,
-        39
-      );
+      const addHeader = (title, subtitle) => {
+        doc.setFillColor(6, 43, 95);
+        doc.rect(0, 0, width, 34, "F");
 
-      drawMetricCard(doc, margin, 54, 50, "Total revenue", money(data.revenue));
-      drawMetricCard(doc, margin + 55, 54, 50, "Total cost", money(data.total_cost));
-      drawMetricCard(doc, margin + 110, 54, 50, "Gross profit", money(data.gross_profit));
-      drawMetricCard(
-        doc,
-        margin + 165,
-        54,
-        50,
-        "Profit margin",
-        `${Number(data.profit_margin || 0).toFixed(2)}%`
-      );
-      drawMetricCard(doc, margin + 220, 54, 50, "Units sold", number(data.total_units_sold));
+        doc.setTextColor(255, 255, 255);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(20);
+        doc.text("ZANSZI", margin, 15);
 
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(13);
-      doc.setTextColor(15, 23, 42);
-      doc.text("Executive highlights", margin, 89);
+        doc.setFontSize(13);
+        doc.text(title, margin, 24);
 
-      const highlights = [
-        [
-          "Best-selling product",
-          data.best_selling_product?.product_name,
-          `${number(data.best_selling_product?.quantity_sold)} units`,
-        ],
-        [
-          "Highest revenue product",
-          data.highest_revenue_product?.product_name,
-          money(data.highest_revenue_product?.revenue),
-        ],
-        [
-          "Most profitable product",
-          data.most_profitable_product?.product_name,
-          money(data.most_profitable_product?.profit),
-        ],
-        [
-          "Highest margin product",
-          data.highest_margin_product?.product_name,
-          `${Number(data.highest_margin_product?.margin || 0).toFixed(2)}%`,
-        ],
-      ];
-
-      highlights.forEach((item, index) => {
-        const x = margin + index * 68;
-        doc.setDrawColor(226, 232, 240);
-        doc.roundedRect(x, 94, 63, 31, 3, 3, "S");
         doc.setFont("helvetica", "normal");
         doc.setFontSize(7);
-        doc.setTextColor(100, 116, 139);
-        doc.text(item[0], x + 4, 102);
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(9);
-        doc.setTextColor(15, 23, 42);
-        doc.text(safeText(item[1]).slice(0, 28), x + 4, 112);
-        doc.setFontSize(8);
-        doc.setTextColor(37, 99, 235);
-        doc.text(item[2], x + 4, 120);
-      });
+        doc.setTextColor(203, 213, 225);
+        doc.text(subtitle, margin, 30);
+      };
 
-      drawBarChart(doc, {
-        x: margin,
-        y: 139,
-        width: 126,
-        height: 52,
-        title: "Top products by revenue",
-        data: topRevenueProducts,
-        labelKey: "product_name",
-        valueKey: "revenue",
-      });
-
-      drawBarChart(doc, {
-        x: 154,
-        y: 139,
-        width: 126,
-        height: 52,
-        title: "Top products by profit",
-        data: topProfitProducts,
-        labelKey: "product_name",
-        valueKey: "profit",
-      });
-
-      doc.addPage("landscape");
-      drawLineChart(doc, {
-        x: margin,
-        y: 20,
-        width: 130,
-        height: 72,
-        title: "Revenue trend",
-        data: trendData,
-      });
-      drawBarChart(doc, {
-        x: 154,
-        y: 20,
-        width: 126,
-        height: 72,
-        title: "Best-selling products by quantity",
-        data: getTop(productAnalysis, "quantity_sold", 7),
-        labelKey: "product_name",
-        valueKey: "quantity_sold",
-      });
-
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(13);
-      doc.setTextColor(15, 23, 42);
-      doc.text("Product-wise profit analysis", margin, 107);
-
-      autoTable(doc, {
-        startY: 113,
-        head: [["Product", "Category", "Units", "Revenue", "Cost", "Profit", "Margin"]],
-        body: productAnalysis.map((item) => [
-          item.product_name,
-          item.category,
-          number(item.quantity_sold),
-          money(item.revenue),
-          money(item.cost),
-          money(item.profit),
-          `${Number(item.margin || 0).toFixed(2)}%`,
-        ]),
-        theme: "grid",
-        styles: { fontSize: 7.5, cellPadding: 2.2, valign: "middle" },
-        headStyles: {
-          fillColor: [15, 23, 42],
-          textColor: [255, 255, 255],
-          fontStyle: "bold",
-        },
-        alternateRowStyles: { fillColor: [248, 250, 252] },
-        margin: { left: margin, right: margin },
-      });
-
-      doc.addPage("landscape");
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(15);
-      doc.setTextColor(15, 23, 42);
-      doc.text("Category performance", margin, 18);
-
-      autoTable(doc, {
-        startY: 25,
-        head: [["Category", "Units", "Revenue", "Cost", "Profit", "Margin"]],
-        body: categoryAnalysis.map((item) => [
-          item.category,
-          number(item.quantity_sold),
-          money(item.revenue),
-          money(item.cost),
-          money(item.profit),
-          `${Number(item.margin || 0).toFixed(2)}%`,
-        ]),
-        theme: "grid",
-        headStyles: {
-          fillColor: [37, 99, 235],
-          textColor: [255, 255, 255],
-        },
-        styles: { fontSize: 8, cellPadding: 2.5 },
-        margin: { left: margin, right: margin },
-      });
-
-      const categoryEnd = doc.lastAutoTable?.finalY || 70;
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(15);
-      doc.setTextColor(15, 23, 42);
-      doc.text("Top customers", margin, categoryEnd + 14);
-
-      autoTable(doc, {
-        startY: categoryEnd + 20,
-        head: [["Customer", "Email", "Orders", "Revenue"]],
-        body: topCustomers.map((item) => [
-          item.customer_name,
-          item.customer_email || "—",
-          number(item.orders),
-          money(item.revenue),
-        ]),
-        theme: "grid",
-        headStyles: {
-          fillColor: [15, 23, 42],
-          textColor: [255, 255, 255],
-        },
-        styles: { fontSize: 8, cellPadding: 2.4 },
-        margin: { left: margin, right: margin },
-      });
-
-      doc.addPage("landscape");
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(16);
-      doc.setTextColor(15, 23, 42);
-      doc.text("Management insights", margin, 20);
-
-      const insights = [
-        data.best_selling_product
-          ? `${data.best_selling_product.product_name} is the best-selling product with ${number(data.best_selling_product.quantity_sold)} units sold.`
-          : "No delivered product sales are available yet.",
-        data.most_profitable_product
-          ? `${data.most_profitable_product.product_name} generated the highest product profit of ${money(data.most_profitable_product.profit)}.`
-          : "Profit performance will appear after delivered sales are available.",
-        data.highest_margin_product
-          ? `${data.highest_margin_product.product_name} has the strongest margin at ${Number(data.highest_margin_product.margin || 0).toFixed(2)}%.`
-          : "Margin comparison is not available yet.",
-        categoryAnalysis[0]
-          ? `${categoryAnalysis[0].category} is the leading category with ${money(categoryAnalysis[0].revenue)} in revenue.`
-          : "Category performance is not available yet.",
-        `Average order value is ${money(data.average_order_value)} across ${number(data.delivered_orders)} delivered orders.`,
-        `Overall gross profit is ${money(data.gross_profit)} with a margin of ${Number(data.profit_margin || 0).toFixed(2)}%.`,
-      ];
-
-      insights.forEach((insight, index) => {
-        const y = 34 + index * 20;
-        doc.setFillColor(248, 250, 252);
-        doc.setDrawColor(226, 232, 240);
-        doc.roundedRect(margin, y, pageWidth - margin * 2, 14, 2, 2, "FD");
-        doc.setFillColor(37, 99, 235);
-        doc.circle(margin + 6, y + 7, 1.7, "F");
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(10);
-        doc.setTextColor(30, 41, 59);
-        doc.text(insight, margin + 12, y + 8.5);
-      });
-
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(8);
-      doc.setTextColor(100, 116, 139);
-      doc.text(
-        "Results are based on delivered orders and the latest costs configured in Cost Management.",
-        margin,
-        pageHeight - 12
+      addHeader(
+        "Complete Business Intelligence Report",
+        `Generated ${new Date().toLocaleString(
+          "en-IN"
+        )}`
       );
 
-      const pageCount = doc.getNumberOfPages();
-      for (let page = 1; page <= pageCount; page += 1) {
+      const metrics = [
+        ["Revenue", money(financial.revenue)],
+        ["Product Cost", money(financial.productCost)],
+        [
+          "Coupon Discount",
+          money(financial.couponDiscount),
+        ],
+        ["Net Profit", money(financial.netProfit)],
+        ["Total Loss", money(financial.totalLoss)],
+        ["Margin", percent(financial.margin)],
+        ["Health Score", `${healthScore}/100`],
+      ];
+
+      metrics.forEach(([label, value], index) => {
+        const x = margin + index * 38.5;
+
+        doc.setDrawColor(226, 232, 240);
+        doc.setFillColor(248, 250, 252);
+        doc.roundedRect(
+          x,
+          43,
+          34,
+          22,
+          2,
+          2,
+          "FD"
+        );
+
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(6.5);
+        doc.setTextColor(100, 116, 139);
+        doc.text(label, x + 3, 50);
+
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(10);
+        doc.setTextColor(15, 23, 42);
+        doc.text(String(value), x + 3, 60);
+      });
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(12);
+      doc.setTextColor(15, 23, 42);
+      doc.text("Executive Insights", margin, 78);
+
+      insights.slice(0, 6).forEach(
+        (insight, index) => {
+          const y = 86 + index * 14;
+
+          doc.setFillColor(248, 250, 252);
+          doc.roundedRect(
+            margin,
+            y,
+            width - margin * 2,
+            10,
+            2,
+            2,
+            "F"
+          );
+
+          doc.setFillColor(37, 99, 235);
+          doc.circle(margin + 5, y + 5, 1.3, "F");
+
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(8);
+          doc.setTextColor(51, 65, 85);
+          doc.text(insight, margin + 10, y + 6);
+        }
+      );
+
+      doc.addPage("landscape");
+      addHeader(
+        "Product Profitability",
+        "Revenue, cost, profit, loss and margin by product"
+      );
+
+      autoTable(doc, {
+        startY: 42,
+        head: [
+          [
+            "Product",
+            "Category",
+            "Units",
+            "Revenue",
+            "Cost",
+            "Profit",
+            "Margin",
+          ],
+        ],
+        body: (report.product_analysis || []).map(
+          (item) => [
+            item.product_name,
+            item.category,
+            number(item.quantity_sold),
+            money(item.revenue),
+            money(item.cost),
+            money(item.profit),
+            percent(item.margin),
+          ]
+        ),
+        theme: "grid",
+        styles: {
+          fontSize: 7.5,
+          cellPadding: 2.2,
+        },
+        headStyles: {
+          fillColor: [6, 43, 95],
+          textColor: [255, 255, 255],
+        },
+        alternateRowStyles: {
+          fillColor: [248, 250, 252],
+        },
+        margin: {
+          left: margin,
+          right: margin,
+        },
+      });
+
+      doc.addPage("landscape");
+      addHeader(
+        "Coupon Performance & Product Impact",
+        "Coupon discount, revenue, cost, profit and loss"
+      );
+
+      autoTable(doc, {
+        startY: 42,
+        head: [
+          [
+            "Coupon",
+            "Product",
+            "Qty",
+            "Gross",
+            "Discount",
+            "Net Revenue",
+            "Cost",
+            "Profit",
+            "Loss",
+          ],
+        ],
+        body: (
+          couponAnalytics?.products || []
+        ).map((item) => [
+          item.coupon_code,
+          item.product_name,
+          number(item.quantity_sold),
+          money(item.gross_sales),
+          money(item.discount_given),
+          money(item.net_revenue),
+          money(item.product_cost),
+          money(
+            Math.max(
+              Number(item.net_profit || 0),
+              0
+            )
+          ),
+          money(item.loss),
+        ]),
+        theme: "grid",
+        styles: {
+          fontSize: 7,
+          cellPadding: 2,
+        },
+        headStyles: {
+          fillColor: [15, 76, 156],
+          textColor: [255, 255, 255],
+        },
+        margin: {
+          left: margin,
+          right: margin,
+        },
+      });
+
+      doc.addPage("landscape");
+      addHeader(
+        "Order-wise Profit & Loss",
+        "Every delivered order with revenue, discount, cost, profit and loss"
+      );
+
+      autoTable(doc, {
+        startY: 42,
+        head: [
+          [
+            "Order",
+            "Customer",
+            "Coupon",
+            "Gross",
+            "Discount",
+            "Net Revenue",
+            "Cost",
+            "Profit",
+            "Loss",
+            "Margin",
+          ],
+        ],
+        body: orderProfitRows.map((order) => [
+          order.order_number || order.order_id,
+          order.customer_name ||
+            order.customer_email ||
+            "Customer",
+          order.coupon_code || "—",
+          money(order.gross_sales),
+          money(order.discount_given),
+          money(order.net_revenue),
+          money(order.product_cost),
+          money(
+            Math.max(
+              Number(order.net_profit || 0),
+              0
+            )
+          ),
+          money(order.loss),
+          percent(order.profit_margin),
+        ]),
+        theme: "grid",
+        styles: {
+          fontSize: 7,
+          cellPadding: 2,
+        },
+        headStyles: {
+          fillColor: [6, 43, 95],
+          textColor: [255, 255, 255],
+        },
+        margin: {
+          left: margin,
+          right: margin,
+        },
+      });
+
+      doc.addPage("landscape");
+      addHeader(
+        "Inventory & Risk",
+        "Low-stock, out-of-stock and current inventory value"
+      );
+
+      autoTable(doc, {
+        startY: 42,
+        head: [
+          [
+            "Product",
+            "Stock",
+            "Selling Price",
+            "Unit Cost",
+            "Stock Value",
+            "Status",
+          ],
+        ],
+        body: products.map((product) => {
+          const unitCost =
+            Number(product.wholesale_price || 0) +
+            Number(product.packaging_cost || 0) +
+            Number(product.delivery_cost || 0) +
+            Number(product.other_cost || 0);
+
+          const stock = Number(product.stock || 0);
+
+          return [
+            product.name,
+            number(stock),
+            money(product.price),
+            money(unitCost),
+            money(unitCost * stock),
+            stock <= 0
+              ? "Out of stock"
+              : stock <= 5
+                ? "Low stock"
+                : "Healthy",
+          ];
+        }),
+        theme: "grid",
+        styles: {
+          fontSize: 7,
+          cellPadding: 2,
+        },
+        headStyles: {
+          fillColor: [15, 76, 156],
+          textColor: [255, 255, 255],
+        },
+        margin: {
+          left: margin,
+          right: margin,
+        },
+      });
+
+      const pageCount =
+        doc.getNumberOfPages();
+
+      for (
+        let page = 1;
+        page <= pageCount;
+        page += 1
+      ) {
         doc.setPage(page);
         doc.setFont("helvetica", "normal");
         doc.setFontSize(7);
         doc.setTextColor(148, 163, 184);
+
         doc.text(
-          `Zanszii confidential business report • Page ${page} of ${pageCount}`,
-          pageWidth - margin,
-          pageHeight - 6,
+          `ZANSZI confidential report • Page ${page} of ${pageCount}`,
+          width - margin,
+          height - 6,
           { align: "right" }
         );
       }
 
       doc.save(
-        `zanszii-detailed-business-report-${new Date()
+        `zanszi-complete-business-report-${new Date()
           .toISOString()
           .slice(0, 10)}.pdf`
       );
@@ -493,25 +795,43 @@ export default function AdminReports() {
     }
   };
 
-  if (loading && !data) {
+  if (loading && !report) {
     return (
       <div className="admin-page">
         <div className="cost-empty-state">
-          <RefreshCw size={34} className="spin" />
-          <h3>Preparing business analytics...</h3>
+          <RefreshCw
+            size={34}
+            className="spin"
+          />
+          <h3>
+            Preparing complete business intelligence...
+          </h3>
         </div>
       </div>
     );
   }
 
+  const tabs = [
+    ["overview", "Overview"],
+    ["finance", "Finance"],
+    ["sales", "Sales & Orders"],
+    ["coupons", "Coupons"],
+    ["inventory", "Inventory"],
+  ];
+
   return (
-    <div className="admin-page reports-page">
+    <div className="admin-page">
       <div className="page-heading-row">
         <div>
-          <span className="eyebrow">Business intelligence</span>
-          <h1>Reports & Profit Analytics</h1>
+          <span className="eyebrow">
+            Executive business intelligence
+          </span>
+
+          <h1>Complete Business Report</h1>
+
           <p>
-            Understand sales, costs, profit, customers and top-performing products.
+            Sales, costs, coupons, profit, loss, inventory
+            and order performance in one professional dashboard.
           </p>
         </div>
 
@@ -522,7 +842,10 @@ export default function AdminReports() {
             onClick={load}
             disabled={loading}
           >
-            <RefreshCw size={18} className={loading ? "spin" : ""} />
+            <RefreshCw
+              size={18}
+              className={loading ? "spin" : ""}
+            />
             Refresh
           </button>
 
@@ -530,157 +853,968 @@ export default function AdminReports() {
             type="button"
             className="btn btn-primary"
             onClick={exportDetailedPDF}
-            disabled={loading || exporting || !data}
+            disabled={
+              loading || exporting || !report
+            }
           >
             <Download size={18} />
-            {exporting ? "Creating PDF..." : "Download Detailed PDF"}
+            {exporting
+              ? "Creating report..."
+              : "Complete PDF"}
           </button>
 
           <button
             type="button"
             className="btn btn-ghost"
             onClick={exportExcel}
-            disabled={loading || productAnalysis.length === 0}
+            disabled={loading || !report}
           >
             <FileSpreadsheet size={18} />
-            Export Excel
+            Complete Excel
           </button>
         </div>
       </div>
 
-      {error && <div className="alert alert-error">{error}</div>}
-
-      <section className="metric-grid compact">
-        <div className="metric-card static">
-          <span className="metric-icon"><IndianRupee /></span>
-          <span className="metric-copy">
-            <small>Total revenue</small>
-            <strong>{money(data?.revenue)}</strong>
-          </span>
+      {error && (
+        <div className="alert alert-error">
+          {error}
         </div>
+      )}
 
-        <div className="metric-card static">
-          <span className="metric-icon"><TrendingUp /></span>
-          <span className="metric-copy">
-            <small>Gross profit</small>
-            <strong>{money(data?.gross_profit)}</strong>
-          </span>
-        </div>
+      <section
+        className="panel"
+        style={{
+          padding: 18,
+          marginBottom: 18,
+          background:
+            "linear-gradient(135deg, #062B5F, #0F4C9C)",
+          color: "white",
+          border: "none",
+        }}
+      >
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns:
+              "minmax(200px, .7fr) minmax(240px, 1.3fr)",
+            gap: 20,
+            alignItems: "center",
+          }}
+        >
+          <div>
+            <p
+              style={{
+                margin: 0,
+                fontSize: 11,
+                fontWeight: 900,
+                textTransform: "uppercase",
+                letterSpacing: ".14em",
+                color: "#bfdbfe",
+              }}
+            >
+              Business Health
+            </p>
 
-        <div className="metric-card static">
-          <span className="metric-icon"><BarChart3 /></span>
-          <span className="metric-copy">
-            <small>Profit margin</small>
-            <strong>{Number(data?.profit_margin || 0).toFixed(2)}%</strong>
-          </span>
-        </div>
+            <div
+              style={{
+                marginTop: 8,
+                display: "flex",
+                alignItems: "baseline",
+                gap: 8,
+              }}
+            >
+              <strong
+                style={{
+                  fontSize: 46,
+                  color: "white",
+                }}
+              >
+                {healthScore}
+              </strong>
+              <span style={{ color: "#bfdbfe" }}>
+                / 100
+              </span>
+            </div>
 
-        <div className="metric-card static">
-          <span className="metric-icon"><ShoppingBag /></span>
-          <span className="metric-copy">
-            <small>Delivered orders</small>
-            <strong>{number(data?.delivered_orders)}</strong>
-          </span>
-        </div>
+            <p
+              style={{
+                margin: "5px 0 0",
+                color: "#dbeafe",
+                fontSize: 13,
+              }}
+            >
+              {healthScore >= 80
+                ? "Healthy business performance"
+                : healthScore >= 60
+                  ? "Stable, but needs attention"
+                  : "Critical areas need action"}
+            </p>
+          </div>
 
-        <div className="metric-card static">
-          <span className="metric-icon"><PackageCheck /></span>
-          <span className="metric-copy">
-            <small>Units sold</small>
-            <strong>{number(data?.total_units_sold)}</strong>
-          </span>
-        </div>
-
-        <div className="metric-card static">
-          <span className="metric-icon"><Users /></span>
-          <span className="metric-copy">
-            <small>Customers</small>
-            <strong>{number(data?.customers)}</strong>
-          </span>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns:
+                "repeat(auto-fit, minmax(160px, 1fr))",
+              gap: 10,
+            }}
+          >
+            {[
+              [
+                "Revenue",
+                money(financial.revenue),
+                IndianRupee,
+              ],
+              [
+                "Net Profit",
+                money(financial.netProfit),
+                Wallet,
+              ],
+              [
+                "Total Loss",
+                money(financial.totalLoss),
+                TrendingDown,
+              ],
+              [
+                "Margin",
+                percent(financial.margin),
+                BarChart3,
+              ],
+            ].map(([label, value, Icon]) => (
+              <div
+                key={label}
+                style={{
+                  padding: 13,
+                  borderRadius: 15,
+                  background: "rgba(255,255,255,.10)",
+                  border:
+                    "1px solid rgba(255,255,255,.12)",
+                }}
+              >
+                <Icon size={18} />
+                <p
+                  style={{
+                    margin: "7px 0 0",
+                    fontSize: 11,
+                    color: "#bfdbfe",
+                    fontWeight: 800,
+                  }}
+                >
+                  {label}
+                </p>
+                <strong
+                  style={{
+                    display: "block",
+                    marginTop: 3,
+                    fontSize: 18,
+                  }}
+                >
+                  {value}
+                </strong>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
-      <section className="report-card-grid">
-        <div className="panel export-card">
+      <div
+        className="panel"
+        style={{
+          marginBottom: 18,
+          padding: 8,
+          display: "flex",
+          gap: 6,
+          overflowX: "auto",
+        }}
+      >
+        {tabs.map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            onClick={() => setActiveTab(value)}
+            style={{
+              border: 0,
+              borderRadius: 11,
+              padding: "10px 14px",
+              whiteSpace: "nowrap",
+              fontWeight: 900,
+              cursor: "pointer",
+              background:
+                activeTab === value
+                  ? "#0F4C9C"
+                  : "transparent",
+              color:
+                activeTab === value
+                  ? "white"
+                  : "#64748b",
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === "overview" && (
+        <>
+          <section
+            style={{
+              display: "grid",
+              gridTemplateColumns:
+                "repeat(auto-fit, minmax(180px, 1fr))",
+              gap: 12,
+              marginBottom: 18,
+            }}
+          >
+            {[
+              [
+                "Total Revenue",
+                money(financial.revenue),
+                IndianRupee,
+              ],
+              [
+                "Product Cost",
+                money(financial.productCost),
+                Box,
+              ],
+              [
+                "Coupon Discount",
+                money(financial.couponDiscount),
+                BadgePercent,
+              ],
+              [
+                "Net Profit",
+                money(financial.netProfit),
+                TrendingUp,
+              ],
+              [
+                "Total Loss",
+                money(financial.totalLoss),
+                TrendingDown,
+              ],
+              [
+                "Delivered Orders",
+                number(report?.delivered_orders),
+                ShoppingBag,
+              ],
+            ].map(([label, value, Icon]) => (
+              <div
+                key={label}
+                className="panel"
+                style={{ padding: 15 }}
+              >
+                <span
+                  style={{
+                    width: 38,
+                    height: 38,
+                    display: "grid",
+                    placeItems: "center",
+                    borderRadius: 13,
+                    background: "#eff6ff",
+                    color: "#0F4C9C",
+                  }}
+                >
+                  <Icon size={18} />
+                </span>
+
+                <p
+                  style={{
+                    margin: "10px 0 0",
+                    fontSize: 11,
+                    color: "#64748b",
+                    fontWeight: 800,
+                  }}
+                >
+                  {label}
+                </p>
+
+                <strong
+                  style={{
+                    display: "block",
+                    marginTop: 3,
+                    fontSize: 19,
+                    color:
+                      label === "Total Loss"
+                        ? "#e11d48"
+                        : "#0f172a",
+                  }}
+                >
+                  {value}
+                </strong>
+              </div>
+            ))}
+          </section>
+
+          <section
+            className="panel"
+            style={{ padding: 18 }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+              }}
+            >
+              <span
+                style={{
+                  width: 40,
+                  height: 40,
+                  display: "grid",
+                  placeItems: "center",
+                  borderRadius: 14,
+                  background: "#fff7ed",
+                  color: "#d97706",
+                }}
+              >
+                <Sparkles size={20} />
+              </span>
+
+              <div>
+                <strong style={{ fontSize: 18 }}>
+                  Management Insights
+                </strong>
+                <p
+                  style={{
+                    margin: "3px 0 0",
+                    color: "#64748b",
+                    fontSize: 12,
+                  }}
+                >
+                  Quick actions from current business data.
+                </p>
+              </div>
+            </div>
+
+            <div
+              style={{
+                marginTop: 15,
+                display: "grid",
+                gap: 9,
+              }}
+            >
+              {insights.map((insight, index) => (
+                <div
+                  key={`${insight}-${index}`}
+                  style={{
+                    padding: "12px 13px",
+                    borderRadius: 13,
+                    background: "#f8fafc",
+                    border: "1px solid #e2e8f0",
+                    color: "#334155",
+                    fontSize: 13,
+                  }}
+                >
+                  {insight}
+                </div>
+              ))}
+            </div>
+          </section>
+        </>
+      )}
+
+      {activeTab === "finance" && (
+        <section
+          className="panel"
+          style={{ padding: 18 }}
+        >
+          <h2 style={{ marginTop: 0 }}>
+            Financial Overview
+          </h2>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns:
+                "repeat(auto-fit, minmax(180px, 1fr))",
+              gap: 12,
+              marginTop: 14,
+            }}
+          >
+            {[
+              ["Sales Revenue", financial.revenue],
+              ["Product Cost", financial.productCost],
+              [
+                "Coupon Discount",
+                financial.couponDiscount,
+              ],
+              ["Net Profit", financial.netProfit],
+              ["Total Loss", financial.totalLoss],
+            ].map(([label, value]) => (
+              <div
+                key={label}
+                style={{
+                  padding: 15,
+                  borderRadius: 15,
+                  background: "#f8fafc",
+                  border: "1px solid #e2e8f0",
+                }}
+              >
+                <small
+                  style={{
+                    color: "#64748b",
+                    fontWeight: 800,
+                  }}
+                >
+                  {label}
+                </small>
+
+                <p
+                  style={{
+                    margin: "5px 0 0",
+                    fontSize: 20,
+                    fontWeight: 900,
+                    color:
+                      label === "Total Loss"
+                        ? "#e11d48"
+                        : resultTone(
+                            label === "Net Profit"
+                              ? value
+                              : 1
+                          ),
+                  }}
+                >
+                  {money(value)}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          <div
+            style={{
+              marginTop: 16,
+              padding: 15,
+              borderRadius: 15,
+              background: "#eff6ff",
+              color: "#1e3a8a",
+              lineHeight: 1.7,
+              fontSize: 13,
+            }}
+          >
+            <strong>Net Profit Formula:</strong>{" "}
+            Revenue − Product Costs. Coupon discounts are
+            tracked separately and are already reflected in
+            customer-paid revenue for coupon orders.
+          </div>
+        </section>
+      )}
+
+      {activeTab === "sales" && (
+        <section
+          className="panel"
+          style={{ padding: 18 }}
+        >
           <div>
-            <span className="eyebrow">Best seller</span>
-            <h2>{safeText(data?.best_selling_product?.product_name, "No sales yet")}</h2>
-            <p>
-              {number(data?.best_selling_product?.quantity_sold)} units sold ·{" "}
-              {money(data?.best_selling_product?.revenue)} revenue
+            <h2 style={{ margin: 0 }}>
+              Order-wise Profit & Loss
+            </h2>
+            <p
+              style={{
+                margin: "4px 0 0",
+                color: "#64748b",
+                fontSize: 12,
+              }}
+            >
+              Expand any delivered order for complete details.
             </p>
           </div>
-          <Trophy size={34} />
-        </div>
 
-        <div className="panel export-card">
-          <div>
-            <span className="eyebrow">Most profitable</span>
-            <h2>{safeText(data?.most_profitable_product?.product_name, "No profit data")}</h2>
-            <p>
-              {money(data?.most_profitable_product?.profit)} profit ·{" "}
-              {Number(data?.most_profitable_product?.margin || 0).toFixed(2)}% margin
-            </p>
-          </div>
-          <TrendingUp size={34} />
-        </div>
-      </section>
+          <div
+            style={{
+              marginTop: 14,
+              display: "grid",
+              gap: 9,
+            }}
+          >
+            {orderProfitRows.length ? (
+              orderProfitRows.map((order) => {
+                const expanded =
+                  expandedOrderId === order.order_id;
+                const isLoss =
+                  Number(order.loss || 0) > 0;
 
-      <section className="panel">
-        <div className="page-heading-row">
-          <div>
-            <h2>Product Profit Analysis</h2>
-            <p>Delivered sales combined with private product cost information.</p>
-          </div>
-        </div>
+                return (
+                  <div
+                    key={order.order_id}
+                    style={{
+                      border: "1px solid #e2e8f0",
+                      borderRadius: 15,
+                      overflow: "hidden",
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setExpandedOrderId(
+                          expanded
+                            ? ""
+                            : order.order_id
+                        )
+                      }
+                      style={{
+                        width: "100%",
+                        border: 0,
+                        background: "white",
+                        padding: "13px 14px",
+                        cursor: "pointer",
+                        display: "grid",
+                        gridTemplateColumns:
+                          "minmax(150px, 1.4fr) minmax(100px, .8fr) minmax(100px, .8fr) auto",
+                        gap: 10,
+                        alignItems: "center",
+                        textAlign: "left",
+                      }}
+                    >
+                      <div>
+                        <strong>
+                          {order.order_number ||
+                            order.order_id}
+                        </strong>
+                        <small
+                          style={{
+                            display: "block",
+                            marginTop: 3,
+                            color: "#64748b",
+                          }}
+                        >
+                          {order.customer_name ||
+                            "Customer"}{" "}
+                          · {order.coupon_code || "No coupon"}
+                        </small>
+                      </div>
 
-        {productAnalysis.length === 0 ? (
-          <div className="cost-empty-state">
-            <PackageCheck size={38} />
-            <h3>No delivered product sales yet</h3>
-            <p>Product performance will appear after orders are delivered.</p>
+                      <div>
+                        <small style={{ color: "#64748b" }}>
+                          Revenue
+                        </small>
+                        <strong
+                          style={{ display: "block" }}
+                        >
+                          {money(order.net_revenue)}
+                        </strong>
+                      </div>
+
+                      <div>
+                        <small style={{ color: "#64748b" }}>
+                          Result
+                        </small>
+                        <strong
+                          style={{
+                            display: "block",
+                            color: isLoss
+                              ? "#e11d48"
+                              : "#047857",
+                          }}
+                        >
+                          {isLoss
+                            ? `-${money(order.loss)}`
+                            : `+${money(
+                                Math.max(
+                                  Number(
+                                    order.net_profit || 0
+                                  ),
+                                  0
+                                )
+                              )}`}
+                        </strong>
+                      </div>
+
+                      {expanded ? (
+                        <ChevronUp size={18} />
+                      ) : (
+                        <ChevronDown size={18} />
+                      )}
+                    </button>
+
+                    {expanded && (
+                      <div
+                        style={{
+                          padding: 14,
+                          background: "#f8fafc",
+                          borderTop:
+                            "1px solid #e2e8f0",
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "grid",
+                            gridTemplateColumns:
+                              "repeat(auto-fit, minmax(130px, 1fr))",
+                            gap: 9,
+                          }}
+                        >
+                          {[
+                            [
+                              "Gross Sales",
+                              order.gross_sales,
+                            ],
+                            [
+                              "Discount",
+                              order.discount_given,
+                            ],
+                            [
+                              "Net Revenue",
+                              order.net_revenue,
+                            ],
+                            [
+                              "Product Cost",
+                              order.product_cost,
+                            ],
+                            [
+                              "Net Profit",
+                              order.net_profit,
+                            ],
+                            ["Loss", order.loss],
+                          ].map(([label, value]) => (
+                            <div
+                              key={label}
+                              style={{
+                                padding: 11,
+                                background: "white",
+                                borderRadius: 12,
+                                border:
+                                  "1px solid #e2e8f0",
+                              }}
+                            >
+                              <small
+                                style={{
+                                  color: "#64748b",
+                                  fontWeight: 800,
+                                }}
+                              >
+                                {label}
+                              </small>
+                              <p
+                                style={{
+                                  margin: "4px 0 0",
+                                  fontWeight: 900,
+                                  color:
+                                    label === "Loss" &&
+                                    Number(value) > 0
+                                      ? "#e11d48"
+                                      : "#0f172a",
+                                }}
+                              >
+                                {money(value)}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            ) : (
+              <div className="empty-cell">
+                No delivered orders available.
+              </div>
+            )}
           </div>
-        ) : (
-          <div className="cost-table-wrapper">
-            <table className="cost-table">
+        </section>
+      )}
+
+      {activeTab === "coupons" && (
+        <section
+          className="panel"
+          style={{ padding: 18 }}
+        >
+          <h2 style={{ marginTop: 0 }}>
+            Coupon Performance
+          </h2>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns:
+                "repeat(auto-fit, minmax(180px, 1fr))",
+              gap: 11,
+              marginBottom: 16,
+            }}
+          >
+            {[
+              [
+                "Coupon Orders",
+                number(
+                  couponAnalytics?.summary?.orders
+                ),
+              ],
+              [
+                "Discount Given",
+                money(
+                  couponAnalytics?.summary
+                    ?.discount_given
+                ),
+              ],
+              [
+                "Coupon Profit",
+                money(
+                  couponAnalytics?.summary?.net_profit
+                ),
+              ],
+              [
+                "Coupon Loss",
+                money(
+                  couponAnalytics?.summary?.total_loss
+                ),
+              ],
+            ].map(([label, value]) => (
+              <div
+                key={label}
+                style={{
+                  padding: 14,
+                  borderRadius: 14,
+                  background: "#f8fafc",
+                  border: "1px solid #e2e8f0",
+                }}
+              >
+                <small
+                  style={{
+                    color: "#64748b",
+                    fontWeight: 800,
+                  }}
+                >
+                  {label}
+                </small>
+                <p
+                  style={{
+                    margin: "4px 0 0",
+                    fontSize: 18,
+                    fontWeight: 900,
+                    color:
+                      label === "Coupon Loss"
+                        ? "#e11d48"
+                        : "#0f172a",
+                  }}
+                >
+                  {value}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          <div className="table-wrap">
+            <table className="data-table">
               <thead>
                 <tr>
-                  <th>Product</th>
-                  <th>Category</th>
-                  <th>Units</th>
-                  <th>Revenue</th>
-                  <th>Total Cost</th>
+                  <th>Coupon</th>
+                  <th>Orders</th>
+                  <th>Gross</th>
+                  <th>Discount</th>
+                  <th>Cost</th>
                   <th>Profit</th>
+                  <th>Loss</th>
                   <th>Margin</th>
                 </tr>
               </thead>
+
               <tbody>
-                {productAnalysis.map((item) => (
-                  <tr key={item.product_id || item.product_name}>
-                    <td><strong>{item.product_name}</strong></td>
-                    <td>{item.category}</td>
-                    <td>{number(item.quantity_sold)}</td>
-                    <td>{money(item.revenue)}</td>
-                    <td>{money(item.cost)}</td>
-                    <td>
-                      <strong
-                        className={
-                          Number(item.profit) >= 0
-                            ? "cost-positive"
-                            : "cost-negative"
-                        }
-                      >
-                        {money(item.profit)}
-                      </strong>
+                {(couponAnalytics?.coupons || [])
+                  .length ? (
+                  couponAnalytics.coupons.map(
+                    (item) => (
+                      <tr key={item.offer_id}>
+                        <td>
+                          <strong>{item.code}</strong>
+                        </td>
+                        <td>{item.orders}</td>
+                        <td>
+                          {money(item.gross_sales)}
+                        </td>
+                        <td>
+                          {money(item.discount_given)}
+                        </td>
+                        <td>
+                          {money(item.product_cost)}
+                        </td>
+                        <td>
+                          <strong
+                            style={{
+                              color: "#047857",
+                            }}
+                          >
+                            {money(
+                              Math.max(
+                                Number(
+                                  item.net_profit || 0
+                                ),
+                                0
+                              )
+                            )}
+                          </strong>
+                        </td>
+                        <td>
+                          <strong
+                            style={{
+                              color:
+                                Number(
+                                  item.total_loss || 0
+                                ) > 0
+                                  ? "#e11d48"
+                                  : "#64748b",
+                            }}
+                          >
+                            {money(item.total_loss)}
+                          </strong>
+                        </td>
+                        <td>
+                          {percent(
+                            item.profit_margin
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  )
+                ) : (
+                  <tr>
+                    <td
+                      colSpan="8"
+                      className="empty-cell"
+                    >
+                      No coupon analytics available.
                     </td>
-                    <td>{Number(item.margin || 0).toFixed(2)}%</td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
           </div>
-        )}
-      </section>
+        </section>
+      )}
+
+      {activeTab === "inventory" && (
+        <section
+          className="panel"
+          style={{ padding: 18 }}
+        >
+          <h2 style={{ marginTop: 0 }}>
+            Inventory Health
+          </h2>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns:
+                "repeat(auto-fit, minmax(170px, 1fr))",
+              gap: 11,
+            }}
+          >
+            {[
+              ["Products", stockSummary.total],
+              ["Active", stockSummary.active],
+              [
+                "Low Stock",
+                stockSummary.lowStock.length,
+              ],
+              [
+                "Out of Stock",
+                stockSummary.outOfStock.length,
+              ],
+              [
+                "Inventory Cost Value",
+                money(stockSummary.inventoryValue),
+              ],
+            ].map(([label, value]) => (
+              <div
+                key={label}
+                style={{
+                  padding: 14,
+                  borderRadius: 14,
+                  background: "#f8fafc",
+                  border: "1px solid #e2e8f0",
+                }}
+              >
+                <small
+                  style={{
+                    color: "#64748b",
+                    fontWeight: 800,
+                  }}
+                >
+                  {label}
+                </small>
+                <p
+                  style={{
+                    margin: "4px 0 0",
+                    fontSize: 18,
+                    fontWeight: 900,
+                    color:
+                      label === "Out of Stock" &&
+                      Number(value) > 0
+                        ? "#e11d48"
+                        : "#0f172a",
+                  }}
+                >
+                  {value}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          {(stockSummary.lowStock.length > 0 ||
+            stockSummary.outOfStock.length >
+              0) && (
+            <div
+              style={{
+                marginTop: 16,
+                display: "grid",
+                gap: 9,
+              }}
+            >
+              {[
+                ...stockSummary.outOfStock,
+                ...stockSummary.lowStock,
+              ].map((product) => (
+                <div
+                  key={product.product_id}
+                  style={{
+                    padding: "12px 13px",
+                    borderRadius: 13,
+                    border: "1px solid #e2e8f0",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent:
+                      "space-between",
+                    gap: 12,
+                  }}
+                >
+                  <div>
+                    <strong>{product.name}</strong>
+                    <small
+                      style={{
+                        display: "block",
+                        marginTop: 3,
+                        color: "#64748b",
+                      }}
+                    >
+                      Current stock:{" "}
+                      {number(product.stock)}
+                    </small>
+                  </div>
+
+                  <span
+                    style={{
+                      borderRadius: 999,
+                      padding: "5px 9px",
+                      fontSize: 10,
+                      fontWeight: 900,
+                      background:
+                        Number(product.stock || 0) <= 0
+                          ? "#fff1f2"
+                          : "#fff7ed",
+                      color:
+                        Number(product.stock || 0) <= 0
+                          ? "#be123c"
+                          : "#c2410c",
+                    }}
+                  >
+                    {Number(product.stock || 0) <= 0
+                      ? "Out of stock"
+                      : "Low stock"}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
     </div>
   );
 }
