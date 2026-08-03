@@ -142,6 +142,10 @@ export default function AdminOffers() {
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState(null);
+  const [showProductReport, setShowProductReport] = useState(false);
+  const [showOrderReport, setShowOrderReport] = useState(false);
+  const [expandedProductKey, setExpandedProductKey] = useState("");
+  const [expandedOrderId, setExpandedOrderId] = useState("");
   const [form, setForm] = useState(EMPTY_FORM);
 
   const [loading, setLoading] = useState(true);
@@ -1017,98 +1021,706 @@ export default function AdminOffers() {
         className="panel"
         style={{
           marginBottom: "18px",
-          padding: "18px",
+          padding: "16px",
         }}
       >
-        <div>
-          <strong style={{ fontSize: 18 }}>
-            Product-wise Coupon Impact
-          </strong>
-          <p
-            style={{
-              margin: "4px 0 0",
-              color: "#64748b",
-              fontSize: 12,
-            }}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "12px",
+            flexWrap: "wrap",
+          }}
+        >
+          <div>
+            <strong style={{ fontSize: 17 }}>
+              Product-wise Coupon Impact
+            </strong>
+            <p
+              style={{
+                margin: "4px 0 0",
+                color: "#64748b",
+                fontSize: 12,
+              }}
+            >
+              Compact product profitability and exact discount allocation.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={() =>
+              setShowProductReport((current) => !current)
+            }
           >
-            Exact rupee discount allocated to each product.
-          </p>
+            {showProductReport ? "Hide details" : "View product report"}
+          </button>
         </div>
 
         <div
-          className="table-wrap"
-          style={{ marginTop: "14px" }}
+          style={{
+            marginTop: "14px",
+            display: "grid",
+            gridTemplateColumns:
+              "repeat(auto-fit, minmax(150px, 1fr))",
+            gap: "10px",
+          }}
         >
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Coupon</th>
-                <th>Product</th>
-                <th>Qty</th>
-                <th>Orders</th>
-                <th>Gross</th>
-                <th>Discount</th>
-                <th>Net Revenue</th>
-                <th>Cost</th>
-                <th>Profit</th>
-                <th>Loss</th>
-              </tr>
-            </thead>
+          {[
+            [
+              "Products",
+              analytics.products.length,
+              ReceiptIndianRupee,
+            ],
+            [
+              "Discount",
+              currency(
+                analytics.summary.discount_given || 0
+              ),
+              BadgePercent,
+            ],
+            [
+              "Net Profit",
+              currency(
+                Math.max(
+                  Number(
+                    analytics.summary.net_profit || 0
+                  ),
+                  0
+                )
+              ),
+              TrendingUp,
+            ],
+            [
+              "Total Loss",
+              currency(
+                analytics.summary.total_loss || 0
+              ),
+              AlertTriangle,
+            ],
+          ].map(([title, value, Icon]) => (
+            <div
+              key={title}
+              style={{
+                padding: "12px",
+                borderRadius: 14,
+                background: "#f8fafc",
+                border: "1px solid #e2e8f0",
+              }}
+            >
+              <Icon size={17} color="#0F4C9C" />
+              <p
+                style={{
+                  margin: "7px 0 0",
+                  fontSize: 11,
+                  color: "#64748b",
+                  fontWeight: 800,
+                }}
+              >
+                {title}
+              </p>
+              <p
+                style={{
+                  margin: "3px 0 0",
+                  fontSize: 17,
+                  fontWeight: 900,
+                  color:
+                    title === "Total Loss"
+                      ? "#e11d48"
+                      : "#0f172a",
+                }}
+              >
+                {value}
+              </p>
+            </div>
+          ))}
+        </div>
 
-            <tbody>
-              {analytics.products.length ? (
-                analytics.products.map((item) => (
-                  <tr
-                    key={`${item.coupon_code}-${item.product_id}`}
+        {showProductReport && (
+          <div
+            style={{
+              marginTop: "14px",
+              display: "grid",
+              gap: "10px",
+            }}
+          >
+            {analytics.products.length ? (
+              analytics.products.map((item) => {
+                const rowKey = `${item.coupon_code}-${item.product_id}`;
+                const expanded =
+                  expandedProductKey === rowKey;
+                const margin = Number(
+                  item.profit_margin || 0
+                );
+                const resultLabel =
+                  item.loss > 0
+                    ? "Loss"
+                    : margin >= 40
+                      ? "Excellent"
+                      : margin >= 20
+                        ? "Good"
+                        : margin >= 10
+                          ? "Average"
+                          : margin > 0
+                            ? "Low"
+                            : "No profit";
+
+                return (
+                  <div
+                    key={rowKey}
+                    style={{
+                      border: "1px solid #e2e8f0",
+                      borderRadius: 16,
+                      overflow: "hidden",
+                      background: "#fff",
+                    }}
                   >
-                    <td>
-                      <strong>{item.coupon_code}</strong>
-                    </td>
-                    <td>{item.product_name}</td>
-                    <td>{item.quantity_sold}</td>
-                    <td>{item.orders}</td>
-                    <td>{currency(item.gross_sales)}</td>
-                    <td>
-                      <strong style={{ color: "#d97706" }}>
-                        {currency(item.discount_given)}
-                      </strong>
-                    </td>
-                    <td>{currency(item.net_revenue)}</td>
-                    <td>{currency(item.product_cost)}</td>
-                    <td>
-                      <strong style={{ color: "#047857" }}>
-                        {currency(
-                          item.net_profit > 0
-                            ? item.net_profit
-                            : 0
-                        )}
-                      </strong>
-                    </td>
-                    <td>
-                      <strong
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setExpandedProductKey(
+                          expanded ? "" : rowKey
+                        )
+                      }
+                      style={{
+                        width: "100%",
+                        padding: "13px 14px",
+                        border: 0,
+                        background: "white",
+                        display: "grid",
+                        gridTemplateColumns:
+                          "minmax(150px, 1.4fr) minmax(90px, .8fr) minmax(90px, .7fr) auto",
+                        alignItems: "center",
+                        gap: "10px",
+                        textAlign: "left",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <div>
+                        <strong
+                          style={{
+                            display: "block",
+                            color: "#0f172a",
+                          }}
+                        >
+                          {item.product_name}
+                        </strong>
+                        <small
+                          style={{
+                            color: "#64748b",
+                            fontWeight: 800,
+                          }}
+                        >
+                          {item.coupon_code} · Qty{" "}
+                          {item.quantity_sold}
+                        </small>
+                      </div>
+
+                      <div>
+                        <small style={{ color: "#64748b" }}>
+                          Discount
+                        </small>
+                        <strong
+                          style={{
+                            display: "block",
+                            color: "#d97706",
+                          }}
+                        >
+                          {currency(item.discount_given)}
+                        </strong>
+                      </div>
+
+                      <div>
+                        <small style={{ color: "#64748b" }}>
+                          Result
+                        </small>
+                        <strong
+                          style={{
+                            display: "block",
+                            color:
+                              item.loss > 0
+                                ? "#e11d48"
+                                : "#047857",
+                          }}
+                        >
+                          {item.loss > 0
+                            ? `-${currency(item.loss)}`
+                            : `+${currency(
+                                Math.max(
+                                  Number(
+                                    item.net_profit || 0
+                                  ),
+                                  0
+                                )
+                              )}`}
+                        </strong>
+                      </div>
+
+                      <span
                         style={{
+                          borderRadius: 999,
+                          padding: "5px 9px",
+                          fontSize: 10,
+                          fontWeight: 900,
+                          background:
+                            item.loss > 0
+                              ? "#fff1f2"
+                              : "#ecfdf5",
                           color:
                             item.loss > 0
-                              ? "#e11d48"
-                              : "#64748b",
+                              ? "#be123c"
+                              : "#047857",
                         }}
                       >
-                        {currency(item.loss)}
-                      </strong>
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan="10" className="empty-cell">
-                    Product-level coupon data will appear after
-                    customers place coupon orders.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                        {resultLabel}
+                      </span>
+                    </button>
+
+                    {expanded && (
+                      <div
+                        style={{
+                          padding: "14px",
+                          borderTop:
+                            "1px solid #e2e8f0",
+                          background: "#f8fafc",
+                          display: "grid",
+                          gridTemplateColumns:
+                            "repeat(auto-fit, minmax(130px, 1fr))",
+                          gap: "10px",
+                        }}
+                      >
+                        {[
+                          ["Gross Sales", item.gross_sales],
+                          ["Discount", item.discount_given],
+                          ["Net Revenue", item.net_revenue],
+                          ["Product Cost", item.product_cost],
+                          [
+                            "Profit",
+                            Math.max(
+                              Number(item.net_profit || 0),
+                              0
+                            ),
+                          ],
+                          ["Loss", item.loss],
+                          [
+                            "Margin",
+                            `${Number(
+                              item.profit_margin || 0
+                            ).toFixed(1)}%`,
+                          ],
+                          ["Orders", item.orders],
+                        ].map(([label, value]) => (
+                          <div
+                            key={label}
+                            style={{
+                              padding: "10px",
+                              borderRadius: 12,
+                              background: "white",
+                              border:
+                                "1px solid #e2e8f0",
+                            }}
+                          >
+                            <small
+                              style={{
+                                color: "#64748b",
+                                fontWeight: 800,
+                              }}
+                            >
+                              {label}
+                            </small>
+                            <p
+                              style={{
+                                margin: "4px 0 0",
+                                fontWeight: 900,
+                                color:
+                                  label === "Loss" &&
+                                  Number(value) > 0
+                                    ? "#e11d48"
+                                    : "#0f172a",
+                              }}
+                            >
+                              {typeof value === "number"
+                                ? currency(value)
+                                : value}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            ) : (
+              <div className="empty-cell">
+                Product coupon analytics will appear after coupon orders.
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div
+        className="panel"
+        style={{
+          marginBottom: "18px",
+          padding: "16px",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "12px",
+            flexWrap: "wrap",
+          }}
+        >
+          <div>
+            <strong style={{ fontSize: 17 }}>
+              Order-wise Profit & Loss
+            </strong>
+            <p
+              style={{
+                margin: "4px 0 0",
+                color: "#64748b",
+                fontSize: 12,
+              }}
+            >
+              Open any coupon order to understand customer payment,
+              product cost, profit and loss.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={() =>
+              setShowOrderReport((current) => !current)
+            }
+          >
+            {showOrderReport ? "Hide orders" : "View order report"}
+          </button>
         </div>
+
+        {showOrderReport && (
+          <div
+            style={{
+              marginTop: "14px",
+              display: "grid",
+              gap: "10px",
+            }}
+          >
+            {analytics.orders.length ? (
+              analytics.orders.map((order) => {
+                const expanded =
+                  expandedOrderId === order.order_id;
+                const isLoss =
+                  Number(order.loss || 0) > 0;
+
+                return (
+                  <div
+                    key={order.order_id}
+                    style={{
+                      border: "1px solid #e2e8f0",
+                      borderRadius: 16,
+                      overflow: "hidden",
+                      background: "#fff",
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setExpandedOrderId(
+                          expanded ? "" : order.order_id
+                        )
+                      }
+                      style={{
+                        width: "100%",
+                        padding: "13px 14px",
+                        border: 0,
+                        background: "white",
+                        display: "grid",
+                        gridTemplateColumns:
+                          "minmax(150px, 1.4fr) minmax(100px, .8fr) minmax(100px, .8fr) auto",
+                        alignItems: "center",
+                        gap: "10px",
+                        textAlign: "left",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <div>
+                        <strong
+                          style={{
+                            display: "block",
+                            color: "#0f172a",
+                          }}
+                        >
+                          {order.order_number ||
+                            order.order_id}
+                        </strong>
+                        <small style={{ color: "#64748b" }}>
+                          {order.customer_name ||
+                            order.customer_email ||
+                            "Customer"}{" "}
+                          · {order.coupon_code}
+                        </small>
+                      </div>
+
+                      <div>
+                        <small style={{ color: "#64748b" }}>
+                          Customer Paid
+                        </small>
+                        <strong
+                          style={{ display: "block" }}
+                        >
+                          {currency(order.net_revenue)}
+                        </strong>
+                      </div>
+
+                      <div>
+                        <small style={{ color: "#64748b" }}>
+                          Result
+                        </small>
+                        <strong
+                          style={{
+                            display: "block",
+                            color: isLoss
+                              ? "#e11d48"
+                              : "#047857",
+                          }}
+                        >
+                          {isLoss
+                            ? `-${currency(order.loss)}`
+                            : `+${currency(
+                                Math.max(
+                                  Number(
+                                    order.net_profit || 0
+                                  ),
+                                  0
+                                )
+                              )}`}
+                        </strong>
+                      </div>
+
+                      <span
+                        style={{
+                          borderRadius: 999,
+                          padding: "5px 9px",
+                          fontSize: 10,
+                          fontWeight: 900,
+                          background: isLoss
+                            ? "#fff1f2"
+                            : "#ecfdf5",
+                          color: isLoss
+                            ? "#be123c"
+                            : "#047857",
+                        }}
+                      >
+                        {isLoss ? "Loss" : "Profit"}
+                      </span>
+                    </button>
+
+                    {expanded && (
+                      <div
+                        style={{
+                          borderTop:
+                            "1px solid #e2e8f0",
+                          background: "#f8fafc",
+                          padding: "14px",
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "grid",
+                            gridTemplateColumns:
+                              "repeat(auto-fit, minmax(130px, 1fr))",
+                            gap: "10px",
+                          }}
+                        >
+                          {[
+                            ["Gross Sales", order.gross_sales],
+                            [
+                              "Discount",
+                              order.discount_given,
+                            ],
+                            [
+                              "Customer Paid",
+                              order.net_revenue,
+                            ],
+                            [
+                              "Product Cost",
+                              order.product_cost,
+                            ],
+                            [
+                              "Profit",
+                              Math.max(
+                                Number(
+                                  order.net_profit || 0
+                                ),
+                                0
+                              ),
+                            ],
+                            ["Loss", order.loss],
+                          ].map(([label, value]) => (
+                            <div
+                              key={label}
+                              style={{
+                                padding: "10px",
+                                borderRadius: 12,
+                                background: "white",
+                                border:
+                                  "1px solid #e2e8f0",
+                              }}
+                            >
+                              <small
+                                style={{
+                                  color: "#64748b",
+                                  fontWeight: 800,
+                                }}
+                              >
+                                {label}
+                              </small>
+                              <p
+                                style={{
+                                  margin: "4px 0 0",
+                                  fontWeight: 900,
+                                  color:
+                                    label === "Loss" &&
+                                    Number(value) > 0
+                                      ? "#e11d48"
+                                      : "#0f172a",
+                                }}
+                              >
+                                {currency(value)}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+
+                        <div
+                          style={{
+                            marginTop: "12px",
+                            display: "grid",
+                            gap: "8px",
+                          }}
+                        >
+                          {(order.items || []).map((item) => (
+                            <div
+                              key={`${order.order_id}-${item.product_id}`}
+                              style={{
+                                padding: "11px 12px",
+                                borderRadius: 12,
+                                background: "white",
+                                border:
+                                  "1px solid #e2e8f0",
+                                display: "grid",
+                                gridTemplateColumns:
+                                  "minmax(140px, 1fr) repeat(4, minmax(80px, .7fr))",
+                                gap: "8px",
+                                alignItems: "center",
+                              }}
+                            >
+                              <div>
+                                <strong
+                                  style={{
+                                    display: "block",
+                                  }}
+                                >
+                                  {item.name}
+                                </strong>
+                                <small
+                                  style={{
+                                    color: "#64748b",
+                                  }}
+                                >
+                                  Qty {item.quantity}
+                                </small>
+                              </div>
+                              <div>
+                                <small>Gross</small>
+                                <strong
+                                  style={{
+                                    display: "block",
+                                  }}
+                                >
+                                  {currency(
+                                    item.gross_revenue ||
+                                      item.line_total
+                                  )}
+                                </strong>
+                              </div>
+                              <div>
+                                <small>Discount</small>
+                                <strong
+                                  style={{
+                                    display: "block",
+                                    color: "#d97706",
+                                  }}
+                                >
+                                  {currency(
+                                    item.allocated_discount
+                                  )}
+                                </strong>
+                              </div>
+                              <div>
+                                <small>Cost</small>
+                                <strong
+                                  style={{
+                                    display: "block",
+                                  }}
+                                >
+                                  {currency(
+                                    item.total_cost
+                                  )}
+                                </strong>
+                              </div>
+                              <div>
+                                <small>Result</small>
+                                <strong
+                                  style={{
+                                    display: "block",
+                                    color:
+                                      Number(
+                                        item.loss || 0
+                                      ) > 0
+                                        ? "#e11d48"
+                                        : "#047857",
+                                  }}
+                                >
+                                  {Number(
+                                    item.loss || 0
+                                  ) > 0
+                                    ? `-${currency(
+                                        item.loss
+                                      )}`
+                                    : `+${currency(
+                                        Math.max(
+                                          Number(
+                                            item.net_profit ||
+                                              0
+                                          ),
+                                          0
+                                        )
+                                      )}`}
+                                </strong>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            ) : (
+              <div className="empty-cell">
+                Order-wise report will appear after coupon orders.
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="panel toolbar-panel">
