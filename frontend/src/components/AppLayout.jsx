@@ -313,15 +313,21 @@ export default function AppLayout() {
     <div className="app-shell">
       <style>{`
         .sidebar {
-          overflow-y: auto;
+          overflow-y: auto !important;
+          overscroll-behavior: contain;
           scrollbar-width: none;
           -ms-overflow-style: none;
+          -webkit-overflow-scrolling: touch;
         }
 
         .sidebar::-webkit-scrollbar {
           display: none;
           width: 0;
           height: 0;
+        }
+
+        .sidebar nav {
+          min-height: max-content;
         }
       `}</style>
 
