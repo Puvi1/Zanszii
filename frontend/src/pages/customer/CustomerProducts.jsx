@@ -72,24 +72,24 @@ export default function CustomerProducts() {
 
   return (
     <div className="space-y-6">
-      <section className="rounded-[22px] border border-slate-200 bg-white p-3 shadow-sm sm:rounded-3xl sm:p-4">
+      <div className="space-y-2.5">
         <div className="flex items-center gap-2">
-          <label className="flex min-w-0 flex-1 items-center gap-3 rounded-2xl bg-[#F5F9FF] px-4 py-3">
-            <MagnifyingGlass size={20} className="shrink-0 text-[#0F4C9C]" />
+          <label className="flex h-10 min-w-0 flex-1 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 shadow-sm">
+            <MagnifyingGlass size={16} className="shrink-0 text-[#0F4C9C]" />
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search products..."
-              className="min-w-0 flex-1 bg-transparent text-sm outline-none"
+              placeholder="Search products"
+              className="min-w-0 flex-1 bg-transparent text-xs outline-none placeholder:text-slate-400 sm:text-sm"
             />
           </label>
 
-          <label className="flex h-[48px] shrink-0 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 sm:px-4">
-            <SortAscending size={19} className="text-[#0F4C9C]" />
+          <label className="flex h-10 shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2.5 shadow-sm sm:px-3">
+            <SortAscending size={16} className="shrink-0 text-[#0F4C9C]" />
             <select
               value={sortBy}
               onChange={(event) => setSortBy(event.target.value)}
-              className="max-w-[110px] bg-transparent text-xs font-black text-slate-700 outline-none sm:max-w-none sm:text-sm"
+              className="max-w-[88px] bg-transparent text-[11px] font-black text-slate-700 outline-none sm:max-w-none sm:text-xs"
             >
               <option value="featured">Featured</option>
               <option value="price_low">Low to High</option>
@@ -100,16 +100,16 @@ export default function CustomerProducts() {
           </label>
         </div>
 
-        <div className="mt-3 flex items-center gap-2 overflow-x-auto pb-1">
-          <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-slate-100 px-3 py-2 text-xs font-black text-slate-600">
-            <Funnel size={14} />
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+          <span className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full bg-slate-100 px-2.5 text-[10px] font-black text-slate-600">
+            <Funnel size={12} />
             Filter
           </span>
 
           <button
             type="button"
             onClick={() => setCategoryId("")}
-            className={`shrink-0 rounded-full px-3 py-2 text-xs font-black transition ${
+            className={`h-8 shrink-0 rounded-full px-3 text-[10px] font-black transition ${
               !categoryId
                 ? "bg-[#0F4C9C] text-white"
                 : "border border-slate-200 bg-white text-slate-600"
@@ -123,7 +123,7 @@ export default function CustomerProducts() {
               key={category.category_id}
               type="button"
               onClick={() => setCategoryId(category.category_id)}
-              className={`shrink-0 rounded-full px-3 py-2 text-xs font-black transition ${
+              className={`h-8 shrink-0 rounded-full px-3 text-[10px] font-black transition ${
                 categoryId === category.category_id
                   ? "bg-[#0F4C9C] text-white"
                   : "border border-slate-200 bg-white text-slate-600"
@@ -134,7 +134,7 @@ export default function CustomerProducts() {
           ))}
         </div>
 
-        <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
+        <div className="flex items-center justify-between px-0.5 text-[10px] text-slate-500">
           <span>
             {shown.length} {shown.length === 1 ? "product" : "products"}
           </span>
@@ -148,11 +148,11 @@ export default function CustomerProducts() {
               }}
               className="font-black text-[#0F4C9C]"
             >
-              Clear filters
+              Clear
             </button>
           )}
         </div>
-      </section>
+      </div>
 
       {message && <div className="rounded-2xl bg-blue-50 px-4 py-3 font-semibold text-[#0F4C9C]">{message}</div>}
 
