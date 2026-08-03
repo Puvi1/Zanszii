@@ -1733,45 +1733,91 @@ async def admin_offer_analytics(user=Depends(admin_user)):
         async for offer in db.offers.find({}).sort("created_at", -1)
     ]
 
-    analytics = []
-    overall = {
+    coupon_rows = []
+    order_rows = []
+    product_aggregate = {}
+    overall_customer_ids = set()
+
+    summary = {
+        "total_coupons": len(offers),
+        "active_coupons": 0,
+        "expired_coupons": 0,
         "orders": 0,
+        "customers": 0,
         "gross_sales": 0.0,
         "discount_given": 0.0,
         "net_revenue": 0.0,
         "product_cost": 0.0,
         "net_profit": 0.0,
+        "total_loss": 0.0,
+        "loss_orders": 0,
+        "profit_orders": 0,
     }
 
+    now = datetime.now(timezone.utc)
+
     for offer in offers:
+        if offer.get("active", True):
+            expires_at = offer.get("expires_at")
+            if expires_at:
+                try:
+                    expiry = datetime.fromisoformat(
+                        str(expires_at).replace("Z", "+00:00")
+                    )
+                    if expiry < now:
+                        summary["expired_coupons"] += 1
+                    else:
+                        summary["active_coupons"] += 1
+                except ValueError:
+                    summary["active_coupons"] += 1
+            else:
+                summary["active_coupons"] += 1
+
         offer_id = offer.get("offer_id")
         code = offer.get("code")
 
-        order_query = {
-            "$or": [
-                {"offer_id": offer_id},
-                {"coupon_code": code},
-            ]
-        }
-
         orders = [
             clean_doc(order)
-            async for order in db.orders.find(order_query).sort(
-                "created_at",
-                -1,
-            )
+            async for order in db.orders.find({
+                "$or": [
+                    {"offer_id": offer_id},
+                    {"coupon_code": code},
+                ]
+            }).sort("created_at", -1)
         ]
 
-        gross_sales = 0.0
-        discount_given = 0.0
-        net_revenue = 0.0
-        product_cost = 0.0
-        customer_ids = set()
+        coupon_customer_ids = set()
+        coupon_gross = 0.0
+        coupon_discount = 0.0
+        coupon_net_revenue = 0.0
+        coupon_cost = 0.0
+        coupon_profit = 0.0
+        coupon_loss = 0.0
+        coupon_loss_orders = 0
 
         for order in orders:
-            gross_sales += float(order.get("subtotal", 0) or 0)
-            discount_given += float(order.get("discount", 0) or 0)
-            net_revenue += float(order.get("total", 0) or 0)
+            order_id = order.get("order_id")
+            gross_sales = round(
+                float(
+                    order.get(
+                        "subtotal",
+                        sum(
+                            float(item.get("line_total", 0) or 0)
+                            for item in order.get("items", [])
+                        ),
+                    )
+                    or 0
+                ),
+                2,
+            )
+            discount = round(
+                float(order.get("discount", 0) or 0),
+                2,
+            )
+            net_revenue = round(
+                float(order.get("total", gross_sales - discount) or 0),
+                2,
+            )
 
             customer_key = (
                 order.get("user_id")
@@ -1779,107 +1825,296 @@ async def admin_offer_analytics(user=Depends(admin_user)):
                 or order.get("customer_name")
             )
             if customer_key:
-                customer_ids.add(customer_key)
+                coupon_customer_ids.add(customer_key)
+                overall_customer_ids.add(customer_key)
 
+            product_map = {}
             for item in order.get("items", []):
-                product = await db.products.find_one({
-                    "product_id": item.get("product_id")
-                }) or {}
-
-                unit_cost = sum(
-                    float(product.get(field, 0) or 0)
-                    for field in (
-                        "wholesale_price",
-                        "packaging_cost",
-                        "delivery_cost",
-                        "other_cost",
-                    )
+                product_map[item.get("product_id")] = (
+                    await db.products.find_one({
+                        "product_id": item.get("product_id")
+                    })
+                    or {}
                 )
 
-                quantity = int(item.get("quantity", 0) or 0)
-                product_cost += unit_cost * quantity
+            enriched_items = order.get("items", [])
+            needs_recalculation = any(
+                "allocated_discount" not in item
+                or "total_cost" not in item
+                for item in enriched_items
+            )
 
-        net_profit = net_revenue - product_cost
+            if needs_recalculation:
+                enriched_items = allocate_order_discount_and_costs(
+                    enriched_items,
+                    discount,
+                    product_map,
+                )
+
+            order_cost = round(
+                sum(
+                    float(item.get("total_cost", 0) or 0)
+                    for item in enriched_items
+                ),
+                2,
+            )
+            order_profit = round(net_revenue - order_cost, 2)
+            order_loss = (
+                round(abs(order_profit), 2)
+                if order_profit < 0
+                else 0.0
+            )
+
+            if order_loss > 0:
+                coupon_loss_orders += 1
+
+            coupon_gross += gross_sales
+            coupon_discount += discount
+            coupon_net_revenue += net_revenue
+            coupon_cost += order_cost
+            coupon_profit += order_profit
+            coupon_loss += order_loss
+
+            order_rows.append({
+                "order_id": order_id,
+                "order_number": order.get("order_number"),
+                "created_at": order.get("created_at"),
+                "customer_name": order.get("customer_name"),
+                "customer_email": order.get("customer_email"),
+                "coupon_code": code,
+                "gross_sales": gross_sales,
+                "discount_given": discount,
+                "net_revenue": net_revenue,
+                "product_cost": order_cost,
+                "net_profit": order_profit,
+                "loss": order_loss,
+                "profit_margin": round(
+                    (order_profit / net_revenue) * 100
+                    if net_revenue > 0
+                    else 0.0,
+                    2,
+                ),
+                "items": enriched_items,
+            })
+
+            for item in enriched_items:
+                product_id = item.get("product_id")
+                key = (code, product_id)
+
+                row = product_aggregate.setdefault(
+                    key,
+                    {
+                        "coupon_code": code,
+                        "offer_id": offer_id,
+                        "product_id": product_id,
+                        "product_name": item.get("name") or "Product",
+                        "quantity_sold": 0,
+                        "orders": set(),
+                        "gross_sales": 0.0,
+                        "discount_given": 0.0,
+                        "net_revenue": 0.0,
+                        "product_cost": 0.0,
+                        "net_profit": 0.0,
+                        "loss": 0.0,
+                    },
+                )
+
+                row["quantity_sold"] += int(
+                    item.get("quantity", 0) or 0
+                )
+                row["orders"].add(order_id)
+                row["gross_sales"] += float(
+                    item.get("gross_revenue", item.get("line_total", 0))
+                    or 0
+                )
+                row["discount_given"] += float(
+                    item.get("allocated_discount", 0) or 0
+                )
+                row["net_revenue"] += float(
+                    item.get("net_revenue", 0) or 0
+                )
+                row["product_cost"] += float(
+                    item.get("total_cost", 0) or 0
+                )
+                row["net_profit"] += float(
+                    item.get("net_profit", 0) or 0
+                )
+                row["loss"] += float(
+                    item.get("loss", 0) or 0
+                )
+
         order_count = len(orders)
-        margin = (
-            (net_profit / net_revenue) * 100
-            if net_revenue > 0
+        average_order_value = (
+            coupon_net_revenue / order_count
+            if order_count
             else 0.0
         )
-        average_order_value = (
-            net_revenue / order_count
-            if order_count > 0
+        profit_margin = (
+            coupon_profit / coupon_net_revenue * 100
+            if coupon_net_revenue > 0
             else 0.0
         )
         roi = (
-            net_profit / discount_given
-            if discount_given > 0
+            coupon_profit / coupon_discount
+            if coupon_discount > 0
             else None
         )
 
-        row = {
+        coupon_rows.append({
             "offer_id": offer_id,
             "code": code,
             "title": offer.get("title"),
+            "offer_type": offer.get("offer_type"),
+            "discount_value": offer.get("discount_value"),
+            "active": offer.get("active", True),
+            "featured": offer.get("featured", False),
+            "starts_at": offer.get("starts_at"),
+            "expires_at": offer.get("expires_at"),
             "orders": order_count,
-            "customers": len(customer_ids),
-            "gross_sales": round(gross_sales, 2),
-            "discount_given": round(discount_given, 2),
-            "net_revenue": round(net_revenue, 2),
-            "product_cost": round(product_cost, 2),
-            "net_profit": round(net_profit, 2),
-            "profit_margin": round(margin, 2),
+            "customers": len(coupon_customer_ids),
+            "gross_sales": round(coupon_gross, 2),
+            "discount_given": round(coupon_discount, 2),
+            "net_revenue": round(coupon_net_revenue, 2),
+            "product_cost": round(coupon_cost, 2),
+            "net_profit": round(coupon_profit, 2),
+            "total_loss": round(coupon_loss, 2),
+            "loss_orders": coupon_loss_orders,
+            "profit_margin": round(profit_margin, 2),
             "average_order_value": round(
                 average_order_value,
                 2,
             ),
             "roi": round(roi, 2) if roi is not None else None,
-            "loss_making": net_profit < 0,
-        }
+            "loss_making": coupon_profit < 0,
+        })
 
-        analytics.append(row)
+        summary["orders"] += order_count
+        summary["gross_sales"] += coupon_gross
+        summary["discount_given"] += coupon_discount
+        summary["net_revenue"] += coupon_net_revenue
+        summary["product_cost"] += coupon_cost
+        summary["net_profit"] += coupon_profit
+        summary["total_loss"] += coupon_loss
+        summary["loss_orders"] += coupon_loss_orders
+        summary["profit_orders"] += order_count - coupon_loss_orders
 
-        overall["orders"] += order_count
-        overall["gross_sales"] += gross_sales
-        overall["discount_given"] += discount_given
-        overall["net_revenue"] += net_revenue
-        overall["product_cost"] += product_cost
-        overall["net_profit"] += net_profit
+    product_rows = []
+    for row in product_aggregate.values():
+        orders_count = len(row.pop("orders"))
+        row["orders"] = orders_count
 
-    overall["gross_sales"] = round(
-        overall["gross_sales"],
-        2,
-    )
-    overall["discount_given"] = round(
-        overall["discount_given"],
-        2,
-    )
-    overall["net_revenue"] = round(
-        overall["net_revenue"],
-        2,
-    )
-    overall["product_cost"] = round(
-        overall["product_cost"],
-        2,
-    )
-    overall["net_profit"] = round(
-        overall["net_profit"],
-        2,
-    )
-    overall["profit_margin"] = round(
+        for field in (
+            "gross_sales",
+            "discount_given",
+            "net_revenue",
+            "product_cost",
+            "net_profit",
+            "loss",
+        ):
+            row[field] = round(row[field], 2)
+
+        row["profit_margin"] = round(
+            (
+                row["net_profit"]
+                / row["net_revenue"]
+                * 100
+            )
+            if row["net_revenue"] > 0
+            else 0.0,
+            2,
+        )
+        row["loss_making"] = row["net_profit"] < 0
+        product_rows.append(row)
+
+    summary["customers"] = len(overall_customer_ids)
+
+    for field in (
+        "gross_sales",
+        "discount_given",
+        "net_revenue",
+        "product_cost",
+        "net_profit",
+        "total_loss",
+    ):
+        summary[field] = round(summary[field], 2)
+
+    summary["profit_margin"] = round(
         (
-            overall["net_profit"]
-            / overall["net_revenue"]
+            summary["net_profit"]
+            / summary["net_revenue"]
             * 100
         )
-        if overall["net_revenue"] > 0
-        else 0,
+        if summary["net_revenue"] > 0
+        else 0.0,
         2,
+    )
+    summary["roi"] = round(
+        (
+            summary["net_profit"]
+            / summary["discount_given"]
+        )
+        if summary["discount_given"] > 0
+        else 0.0,
+        2,
+    )
+
+    best_coupon = max(
+        coupon_rows,
+        key=lambda item: item.get("net_profit", 0),
+        default=None,
+    )
+    worst_coupon = min(
+        coupon_rows,
+        key=lambda item: item.get("net_profit", 0),
+        default=None,
+    )
+    highest_discount_product = max(
+        product_rows,
+        key=lambda item: item.get("discount_given", 0),
+        default=None,
+    )
+    highest_loss_product = max(
+        product_rows,
+        key=lambda item: item.get("loss", 0),
+        default=None,
     )
 
     return {
-        "summary": overall,
-        "offers": analytics,
+        "summary": summary,
+        "coupons": coupon_rows,
+        "orders": order_rows,
+        "products": sorted(
+            product_rows,
+            key=lambda item: item.get("discount_given", 0),
+            reverse=True,
+        ),
+        "insights": {
+            "best_coupon": best_coupon,
+            "worst_coupon": worst_coupon,
+            "highest_discount_product": highest_discount_product,
+            "highest_loss_product": highest_loss_product,
+            "overall_result": (
+                "profitable"
+                if summary["net_profit"] >= 0
+                else "loss_making"
+            ),
+        },
+        "formula_reference": {
+            "gross_sales": "Order subtotal before coupon discount",
+            "discount_given": "Gross sales minus net revenue",
+            "net_revenue": "Amount paid by customer",
+            "product_cost": (
+                "Wholesale + packaging + delivery + other cost"
+            ),
+            "net_profit": "Net revenue minus product cost",
+            "loss": (
+                "Absolute value of net profit when net profit is below zero"
+            ),
+            "profit_margin": (
+                "Net profit divided by net revenue multiplied by 100"
+            ),
+            "roi": "Net profit divided by coupon discount given",
+        },
         "generated_at": now_iso(),
     }
 
@@ -2026,6 +2261,106 @@ async def notify_order_status(order: dict, status: str):
     )
 
 
+
+def allocate_order_discount_and_costs(
+    items: List[dict],
+    total_discount: float,
+    product_map: dict,
+) -> List[dict]:
+    """
+    Allocate the order-level coupon discount proportionally across products,
+    snapshot product costs, and calculate item-level profit/loss.
+    """
+    normalized_items = [dict(item) for item in items]
+    gross_total = round(
+        sum(float(item.get("line_total", 0) or 0) for item in normalized_items),
+        2,
+    )
+    discount_total = round(max(float(total_discount or 0), 0), 2)
+
+    allocated_so_far = 0.0
+
+    for index, item in enumerate(normalized_items):
+        line_total = round(float(item.get("line_total", 0) or 0), 2)
+        quantity = int(item.get("quantity", 0) or 0)
+        product = product_map.get(item.get("product_id"), {}) or {}
+
+        if index == len(normalized_items) - 1:
+            allocated_discount = round(
+                discount_total - allocated_so_far,
+                2,
+            )
+        elif gross_total > 0:
+            allocated_discount = round(
+                discount_total * (line_total / gross_total),
+                2,
+            )
+            allocated_so_far += allocated_discount
+        else:
+            allocated_discount = 0.0
+
+        allocated_discount = min(
+            max(allocated_discount, 0.0),
+            line_total,
+        )
+
+        unit_cost = round(
+            sum(
+                float(product.get(field, 0) or 0)
+                for field in (
+                    "wholesale_price",
+                    "packaging_cost",
+                    "delivery_cost",
+                    "other_cost",
+                )
+            ),
+            2,
+        )
+        total_cost = round(unit_cost * quantity, 2)
+        net_revenue = round(line_total - allocated_discount, 2)
+        net_profit = round(net_revenue - total_cost, 2)
+        loss = round(abs(net_profit), 2) if net_profit < 0 else 0.0
+        profit = round(net_profit, 2) if net_profit > 0 else 0.0
+        profit_margin = round(
+            (net_profit / net_revenue) * 100
+            if net_revenue > 0
+            else 0.0,
+            2,
+        )
+
+        item.update({
+            "gross_revenue": line_total,
+            "allocated_discount": allocated_discount,
+            "net_revenue": net_revenue,
+            "unit_cost": unit_cost,
+            "total_cost": total_cost,
+            "net_profit": net_profit,
+            "profit": profit,
+            "loss": loss,
+            "profit_margin": profit_margin,
+            "cost_snapshot": {
+                "wholesale_price": round(
+                    float(product.get("wholesale_price", 0) or 0),
+                    2,
+                ),
+                "packaging_cost": round(
+                    float(product.get("packaging_cost", 0) or 0),
+                    2,
+                ),
+                "delivery_cost": round(
+                    float(product.get("delivery_cost", 0) or 0),
+                    2,
+                ),
+                "other_cost": round(
+                    float(product.get("other_cost", 0) or 0),
+                    2,
+                ),
+            },
+        })
+
+    return normalized_items
+
+
 # ---------- Orders ----------
 @api.post("/orders")
 async def create_order(payload: OrderCreate, user=Depends(customer_user)):
@@ -2101,6 +2436,44 @@ async def create_order(payload: OrderCreate, user=Depends(customer_user)):
         )
         order_total = float(coupon_result["total"])
 
+    product_map = {}
+    for item in order_items:
+        product_map[item["product_id"]] = (
+            await db.products.find_one({
+                "product_id": item["product_id"]
+            })
+            or {}
+        )
+
+    order_items = allocate_order_discount_and_costs(
+        order_items,
+        discount,
+        product_map,
+    )
+
+    order_product_cost = round(
+        sum(
+            float(item.get("total_cost", 0) or 0)
+            for item in order_items
+        ),
+        2,
+    )
+    order_net_profit = round(
+        float(order_total) - order_product_cost,
+        2,
+    )
+    order_loss = (
+        round(abs(order_net_profit), 2)
+        if order_net_profit < 0
+        else 0.0
+    )
+    order_profit_margin = round(
+        (order_net_profit / float(order_total)) * 100
+        if float(order_total) > 0
+        else 0.0,
+        2,
+    )
+
     order_id = new_id("ord")
     order = {
         "order_id": order_id,
@@ -2128,6 +2501,10 @@ async def create_order(payload: OrderCreate, user=Depends(customer_user)):
             if coupon_result
             else 0.0
         ),
+        "product_cost": order_product_cost,
+        "net_profit": order_net_profit,
+        "loss": order_loss,
+        "profit_margin": order_profit_margin,
         "payment_method": "cash_on_delivery",
         "payment_status": "pending",
         "delivery_address": payload.delivery_address,
