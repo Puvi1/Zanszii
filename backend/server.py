@@ -1725,6 +1725,165 @@ async def delete_product_cost(product_id: str, user=Depends(admin_user)):
     }
 
 
+# ---------- Coupon profitability analytics ----------
+@api.get("/admin/offers/analytics")
+async def admin_offer_analytics(user=Depends(admin_user)):
+    offers = [
+        clean_doc(offer)
+        async for offer in db.offers.find({}).sort("created_at", -1)
+    ]
+
+    analytics = []
+    overall = {
+        "orders": 0,
+        "gross_sales": 0.0,
+        "discount_given": 0.0,
+        "net_revenue": 0.0,
+        "product_cost": 0.0,
+        "net_profit": 0.0,
+    }
+
+    for offer in offers:
+        offer_id = offer.get("offer_id")
+        code = offer.get("code")
+
+        order_query = {
+            "$or": [
+                {"offer_id": offer_id},
+                {"coupon_code": code},
+            ]
+        }
+
+        orders = [
+            clean_doc(order)
+            async for order in db.orders.find(order_query).sort(
+                "created_at",
+                -1,
+            )
+        ]
+
+        gross_sales = 0.0
+        discount_given = 0.0
+        net_revenue = 0.0
+        product_cost = 0.0
+        customer_ids = set()
+
+        for order in orders:
+            gross_sales += float(order.get("subtotal", 0) or 0)
+            discount_given += float(order.get("discount", 0) or 0)
+            net_revenue += float(order.get("total", 0) or 0)
+
+            customer_key = (
+                order.get("user_id")
+                or order.get("customer_email")
+                or order.get("customer_name")
+            )
+            if customer_key:
+                customer_ids.add(customer_key)
+
+            for item in order.get("items", []):
+                product = await db.products.find_one({
+                    "product_id": item.get("product_id")
+                }) or {}
+
+                unit_cost = sum(
+                    float(product.get(field, 0) or 0)
+                    for field in (
+                        "wholesale_price",
+                        "packaging_cost",
+                        "delivery_cost",
+                        "other_cost",
+                    )
+                )
+
+                quantity = int(item.get("quantity", 0) or 0)
+                product_cost += unit_cost * quantity
+
+        net_profit = net_revenue - product_cost
+        order_count = len(orders)
+        margin = (
+            (net_profit / net_revenue) * 100
+            if net_revenue > 0
+            else 0.0
+        )
+        average_order_value = (
+            net_revenue / order_count
+            if order_count > 0
+            else 0.0
+        )
+        roi = (
+            net_profit / discount_given
+            if discount_given > 0
+            else None
+        )
+
+        row = {
+            "offer_id": offer_id,
+            "code": code,
+            "title": offer.get("title"),
+            "orders": order_count,
+            "customers": len(customer_ids),
+            "gross_sales": round(gross_sales, 2),
+            "discount_given": round(discount_given, 2),
+            "net_revenue": round(net_revenue, 2),
+            "product_cost": round(product_cost, 2),
+            "net_profit": round(net_profit, 2),
+            "profit_margin": round(margin, 2),
+            "average_order_value": round(
+                average_order_value,
+                2,
+            ),
+            "roi": round(roi, 2) if roi is not None else None,
+            "loss_making": net_profit < 0,
+        }
+
+        analytics.append(row)
+
+        overall["orders"] += order_count
+        overall["gross_sales"] += gross_sales
+        overall["discount_given"] += discount_given
+        overall["net_revenue"] += net_revenue
+        overall["product_cost"] += product_cost
+        overall["net_profit"] += net_profit
+
+    overall["gross_sales"] = round(
+        overall["gross_sales"],
+        2,
+    )
+    overall["discount_given"] = round(
+        overall["discount_given"],
+        2,
+    )
+    overall["net_revenue"] = round(
+        overall["net_revenue"],
+        2,
+    )
+    overall["product_cost"] = round(
+        overall["product_cost"],
+        2,
+    )
+    overall["net_profit"] = round(
+        overall["net_profit"],
+        2,
+    )
+    overall["profit_margin"] = round(
+        (
+            overall["net_profit"]
+            / overall["net_revenue"]
+            * 100
+        )
+        if overall["net_revenue"] > 0
+        else 0,
+        2,
+    )
+
+    return {
+        "summary": overall,
+        "offers": analytics,
+        "generated_at": now_iso(),
+    }
+
+
 # ---------- Cart ----------
 async def build_cart(user_id: str):
     cart = await db.carts.find_one({"user_id": user_id}) or {"user_id": user_id, "items": []}
