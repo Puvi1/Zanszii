@@ -32,6 +32,8 @@ import CustomerWishlist from "./pages/customer/CustomerWishlist";
 import CustomerAddresses from "./pages/customer/CustomerAddresses";
 import CustomerNotifications from "./pages/customer/CustomerNotifications";
 import CustomerOffers from "./pages/customer/CustomerOffers";
+import BecomePartner from "./pages/customer/BecomePartner";
+
 
 
 import ManagerDeliveries from "./pages/manager/ManagerDeliveries";
@@ -110,6 +112,12 @@ export default function App() {
   path="/profile"
   element={<CustomerProfile />}
 />
+
+<Route
+  path="/become-partner"
+  element={<BecomePartner />}
+/>
+
 
                 </Route>
               </Route>
