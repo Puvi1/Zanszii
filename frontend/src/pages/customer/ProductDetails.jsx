@@ -4,6 +4,7 @@ import {
   ArrowLeft,
   CheckCircle,
   Heart,
+  ShareNetwork,
   Minus,
   Package,
   Plus,
@@ -96,6 +97,7 @@ export default function ProductDetails() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [wishlisted, setWishlisted] = useState(false);
+  const [sharing, setSharing] = useState(false);
 
   const [reviewData, setReviewData] = useState({
     reviews: [],
@@ -285,6 +287,54 @@ export default function ProductDetails() {
     }
   };
 
+
+  const originalPrice = Number(
+    product?.mrp ||
+      product?.original_price ||
+      product?.price ||
+      0
+  );
+
+  const currentPrice = Number(product?.price || 0);
+
+  const discountPercentage =
+    originalPrice > currentPrice
+      ? Math.round(
+          ((originalPrice - currentPrice) / originalPrice) * 100
+        )
+      : 0;
+
+  const savingsAmount =
+    originalPrice > currentPrice
+      ? originalPrice - currentPrice
+      : 0;
+
+  const handleShare = async () => {
+    if (!product) return;
+
+    setSharing(true);
+
+    try {
+      const shareData = {
+        title: product.name,
+        text: `Check out ${product.name} on ZANSZI`,
+        url: window.location.href,
+      };
+
+      if (navigator.share) {
+        await navigator.share(shareData);
+      } else {
+        await navigator.clipboard.writeText(window.location.href);
+        setMessage("Product link copied.");
+      }
+    } catch (shareError) {
+      if (shareError?.name !== "AbortError") {
+        setMessage("Unable to share this product.");
+      }
+    } finally {
+      setSharing(false);
+    }
+  };
 
   const openReviewModal = () => {
     const ownReview = reviewData.own_review;
@@ -484,22 +534,36 @@ export default function ProductDetails() {
         <button
           type="button"
           onClick={() => navigate(-1)}
-          className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 font-bold text-slate-700 shadow-sm"
+          aria-label="Go back"
+          className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm"
         >
-          <ArrowLeft size={19} />
-          Back
+          <ArrowLeft size={18} weight="bold" />
         </button>
 
-        <Link
-          to="/cart"
-          className="inline-flex items-center gap-2 rounded-2xl bg-[#062B5F] px-4 py-3 font-bold text-white"
-        >
-          <ShoppingCart
-            size={20}
-            weight="fill"
-          />
-          Cart ({itemCount})
-        </Link>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleShare}
+            disabled={sharing}
+            aria-label="Share product"
+            className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm disabled:opacity-50"
+          >
+            <ShareNetwork size={18} weight="bold" />
+          </button>
+
+          <Link
+            to="/cart"
+            aria-label="Open cart"
+            className="relative grid h-10 w-10 place-items-center rounded-xl bg-[#062B5F] text-white shadow-sm"
+          >
+            <ShoppingCart size={18} weight="fill" />
+            {Number(itemCount) > 0 && (
+              <span className="absolute -right-1.5 -top-1.5 grid min-h-5 min-w-5 place-items-center rounded-full bg-[#F4B400] px-1 text-[9px] font-black text-[#062B5F] ring-2 ring-white">
+                {itemCount > 99 ? "99+" : itemCount}
+              </span>
+            )}
+          </Link>
+        </div>
       </div>
 
       {message && (
@@ -512,17 +576,23 @@ export default function ProductDetails() {
         </div>
       )}
 
-      <section className="grid gap-8 rounded-[34px] border border-slate-200 bg-white p-4 shadow-sm md:p-7 lg:grid-cols-[1.05fr_.95fr]">
+      <section className="grid gap-6 rounded-[28px] border border-slate-200 bg-white p-4 shadow-sm sm:p-6 lg:grid-cols-[1.05fr_.95fr]">
         <div>
-          <div className="relative aspect-square overflow-hidden rounded-[28px] bg-[#F5F9FF]">
+          <div className="relative aspect-square overflow-hidden rounded-[24px] bg-[#F7FAFF]">
             <img
               src={selectedImage || FALLBACK}
               alt={product.name}
-              className="h-full w-full object-contain p-4 transition duration-500 hover:scale-110"
+              className="h-full w-full object-contain p-4 transition duration-500 hover:scale-105"
               onError={(event) => {
                 event.currentTarget.src = FALLBACK;
               }}
             />
+
+            {discountPercentage > 0 && (
+              <span className="absolute left-3 top-3 rounded-full bg-emerald-500 px-2.5 py-1 text-[10px] font-black text-white shadow-sm">
+                {discountPercentage}% OFF
+              </span>
+            )}
 
             {product.featured && (
               <span className="absolute left-4 top-4 inline-flex items-center gap-1 rounded-full bg-[#F4B400] px-3 py-1.5 text-xs font-black text-[#062B5F] shadow-sm">
@@ -613,16 +683,40 @@ export default function ProductDetails() {
               </span>
             </div>
 
-            <div className="mt-6 rounded-3xl bg-[#F5F9FF] p-5">
-              <p className="text-3xl font-black text-[#062B5F]">
-                {money(product.price)}
-              </p>
+            <div className="mt-4 rounded-2xl bg-[#F7FAFF] p-4">
+              <div className="flex flex-wrap items-end gap-2">
+                <p className="text-3xl font-black text-[#062B5F]">
+                  {money(currentPrice)}
+                </p>
 
-              <p className="mt-1 text-sm font-medium text-slate-500">
-                Price per {product.unit || "unit"} ·
-                Inclusive of applicable taxes
+                {originalPrice > currentPrice && (
+                  <>
+                    <p className="pb-1 text-sm font-bold text-slate-400 line-through">
+                      {money(originalPrice)}
+                    </p>
+
+                    <span className="mb-1 rounded-full bg-emerald-100 px-2 py-1 text-[10px] font-black text-emerald-700">
+                      Save {money(savingsAmount)}
+                    </span>
+                  </>
+                )}
+              </div>
+
+              <p className="mt-1 text-xs font-medium text-slate-500">
+                Per {product.unit || "unit"} · Inclusive of taxes
               </p>
             </div>
+
+            {(product.business_name || product.seller_name) && (
+              <div className="mt-4 rounded-2xl border border-slate-200 p-4">
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
+                  Sold by
+                </p>
+                <p className="mt-1 font-black text-slate-900">
+                  {product.business_name || product.seller_name}
+                </p>
+              </div>
+            )}
 
           {/* Mobile buttons */}
           <div className="mt-6 grid grid-cols-2 gap-3 md:hidden">
@@ -844,7 +938,7 @@ export default function ProductDetails() {
       </section>
 
 
-      <section className="rounded-[30px] border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+      <section id="product-reviews" className="rounded-[30px] border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.18em] text-[#0F4C9C]">
@@ -1135,6 +1229,29 @@ export default function ProductDetails() {
           </div>
         </section>
       )}
+
+      <div className="fixed inset-x-0 bottom-0 z-50 border-t border-slate-200 bg-white/95 p-3 shadow-[0_-10px_30px_rgba(15,23,42,0.08)] backdrop-blur md:hidden">
+        <div className="mx-auto grid max-w-xl grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={handleAddToCart}
+            disabled={!inStock || adding || buying}
+            className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border-2 border-[#0F4C9C] px-3 text-sm font-black text-[#0F4C9C] disabled:opacity-40"
+          >
+            <ShoppingCart size={18} weight="fill" />
+            {adding ? "Adding..." : "Add to cart"}
+          </button>
+
+          <button
+            type="button"
+            onClick={handleBuyNow}
+            disabled={!inStock || adding || buying}
+            className="min-h-12 rounded-xl bg-[#0F4C9C] px-3 text-sm font-black text-white disabled:bg-slate-300"
+          >
+            {buying ? "Please wait..." : "Buy now"}
+          </button>
+        </div>
+      </div>
 
       {reviewModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-end justify-center bg-slate-950/50 backdrop-blur-sm sm:items-center sm:p-5">
