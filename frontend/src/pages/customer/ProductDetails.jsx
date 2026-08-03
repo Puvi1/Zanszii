@@ -3,9 +3,6 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
   ArrowRight,
-  ArrowsOutSimple,
-  CaretLeft,
-  CaretRight,
   CheckCircle,
   Heart,
   ShareNetwork,
@@ -624,9 +621,7 @@ export default function ProductDetails() {
       <section className="grid gap-6 rounded-[28px] border border-slate-200 bg-white p-4 shadow-sm sm:p-6 lg:grid-cols-[1.05fr_.95fr]">
         <div>
           <div
-            className="relative aspect-square overflow-hidden rounded-[24px] bg-[#F7FAFF]"
-            onTouchStart={handleTouchStart}
-            onTouchEnd={handleTouchEnd}
+            className="relative aspect-square overflow-hidden rounded-[28px] border border-slate-100 bg-gradient-to-br from-white via-[#F8FBFF] to-[#EEF5FF] shadow-[0_14px_40px_rgba(15,76,156,0.10)]"
           >
             <button
               type="button"
@@ -638,7 +633,7 @@ export default function ProductDetails() {
                 key={selectedImage}
                 src={selectedImage || FALLBACK}
                 alt={product.name}
-                className="h-full w-full object-contain p-4 transition duration-300"
+                className="h-full w-full object-contain p-5 transition duration-300"
                 onError={(event) => {
                   event.currentTarget.src = FALLBACK;
                 }}
@@ -658,38 +653,12 @@ export default function ProductDetails() {
               </span>
             )}
 
-            {images.length > 1 && (
-              <>
-                <button
-                  type="button"
-                  onClick={showPreviousImage}
-                  aria-label="Previous product image"
-                  className="absolute left-3 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full bg-white/95 text-slate-700 shadow-md backdrop-blur transition hover:scale-105"
-                >
-                  <CaretLeft size={19} weight="bold" />
-                </button>
-
-                <button
-                  type="button"
-                  onClick={showNextImage}
-                  aria-label="Next product image"
-                  className="absolute right-3 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full bg-white/95 text-slate-700 shadow-md backdrop-blur transition hover:scale-105"
-                >
-                  <CaretRight size={19} weight="bold" />
-                </button>
-
-                <span className="absolute bottom-3 left-3 rounded-full bg-slate-950/65 px-2.5 py-1 text-[10px] font-black text-white backdrop-blur">
-                  {selectedImageIndex + 1} / {images.length}
-                </span>
-              </>
-            )}
-
             <button
               type="button"
               onClick={handleShare}
               disabled={sharing}
               aria-label="Share product"
-              className="absolute right-3 top-3 grid h-10 w-10 place-items-center rounded-full bg-white text-slate-700 shadow-md transition hover:scale-105 disabled:opacity-50"
+              className="absolute right-3 top-3 grid h-10 w-10 place-items-center rounded-full border border-white/70 bg-white/95 text-slate-700 shadow-[0_8px_24px_rgba(15,23,42,0.12)] backdrop-blur transition hover:scale-105 disabled:opacity-50"
             >
               <ShareNetwork size={19} weight="bold" />
             </button>
@@ -702,10 +671,10 @@ export default function ProductDetails() {
                   ? "Remove product from wishlist"
                   : "Add product to wishlist"
               }
-              className={`absolute bottom-3 right-3 grid h-10 w-10 place-items-center rounded-full shadow-md transition hover:scale-105 ${
+              className={`absolute bottom-3 right-3 grid h-10 w-10 place-items-center rounded-full border border-white/70 shadow-[0_8px_24px_rgba(15,23,42,0.12)] backdrop-blur transition hover:scale-105 ${
                 wishlisted
                   ? "bg-rose-500 text-white"
-                  : "bg-white text-slate-700"
+                  : "bg-white/95 text-slate-700"
               }`}
             >
               <Heart
@@ -713,58 +682,23 @@ export default function ProductDetails() {
                 weight={wishlisted ? "fill" : "regular"}
               />
             </button>
-
-            <button
-              type="button"
-              onClick={() => setLightboxOpen(true)}
-              aria-label="View fullscreen"
-              className="absolute bottom-3 right-16 grid h-10 w-10 place-items-center rounded-full bg-white text-slate-700 shadow-md transition hover:scale-105"
-            >
-              <ArrowsOutSimple size={18} weight="bold" />
-            </button>
           </div>
 
           {images.length > 1 && (
-            <div className="mt-3">
-              <div className="flex gap-2 overflow-x-auto pb-1">
-                {images.map((image, index) => (
-                  <button
-                    type="button"
-                    key={`${image}-${index}`}
-                    onClick={() => showImageAt(index)}
-                    className={`h-16 w-16 shrink-0 overflow-hidden rounded-xl border-2 bg-[#F5F9FF] p-1 transition ${
-                      selectedImageIndex === index
-                        ? "border-[#0F4C9C] shadow-sm"
-                        : "border-transparent"
-                    }`}
-                  >
-                    <img
-                      src={image}
-                      alt={`${product.name} ${index + 1}`}
-                      className="h-full w-full object-contain"
-                      onError={(event) => {
-                        event.currentTarget.src = FALLBACK;
-                      }}
-                    />
-                  </button>
-                ))}
-              </div>
-
-              <div className="mt-2 flex justify-center gap-1.5">
-                {images.map((image, index) => (
-                  <button
-                    type="button"
-                    key={`dot-${image}-${index}`}
-                    onClick={() => showImageAt(index)}
-                    aria-label={`Open image ${index + 1}`}
-                    className={`h-1.5 rounded-full transition-all ${
-                      selectedImageIndex === index
-                        ? "w-5 bg-[#0F4C9C]"
-                        : "w-1.5 bg-slate-300"
-                    }`}
-                  />
-                ))}
-              </div>
+            <div className="mt-3 flex justify-center gap-1.5">
+              {images.map((image, index) => (
+                <button
+                  type="button"
+                  key={`dot-${image}-${index}`}
+                  onClick={() => showImageAt(index)}
+                  aria-label={`Open image ${index + 1}`}
+                  className={`h-1.5 rounded-full transition-all duration-300 ${
+                    selectedImageIndex === index
+                      ? "w-6 bg-[#0F4C9C]"
+                      : "w-2 bg-slate-300 hover:bg-slate-400"
+                  }`}
+                />
+              ))}
             </div>
           )}
         </div>
@@ -1341,64 +1275,36 @@ export default function ProductDetails() {
             type="button"
             onClick={() => setLightboxOpen(false)}
             aria-label="Close fullscreen image"
-            className="absolute right-4 top-4 grid h-11 w-11 place-items-center rounded-full bg-white/10 text-white backdrop-blur"
+            className="absolute right-4 top-4 grid h-11 w-11 place-items-center rounded-full border border-white/10 bg-white/10 text-white backdrop-blur"
           >
             <X size={22} weight="bold" />
           </button>
-
-          {images.length > 1 && (
-            <>
-              <button
-                type="button"
-                onClick={showPreviousImage}
-                aria-label="Previous fullscreen image"
-                className="absolute left-3 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-white/10 text-white backdrop-blur"
-              >
-                <CaretLeft size={24} weight="bold" />
-              </button>
-
-              <button
-                type="button"
-                onClick={showNextImage}
-                aria-label="Next fullscreen image"
-                className="absolute right-3 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-white/10 text-white backdrop-blur"
-              >
-                <CaretRight size={24} weight="bold" />
-              </button>
-            </>
-          )}
 
           <img
             key={`lightbox-${selectedImage}`}
             src={selectedImage || FALLBACK}
             alt={product.name}
-            className="max-h-[82vh] max-w-[92vw] object-contain"
+            className="max-h-[84vh] max-w-[94vw] object-contain"
             onError={(event) => {
               event.currentTarget.src = FALLBACK;
             }}
           />
 
           {images.length > 1 && (
-            <div className="absolute bottom-5 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full bg-white/10 px-3 py-2 backdrop-blur">
-              <span className="text-xs font-black text-white">
-                {selectedImageIndex + 1} / {images.length}
-              </span>
-
-              <div className="flex gap-1.5">
-                {images.map((image, index) => (
-                  <button
-                    type="button"
-                    key={`lightbox-dot-${image}-${index}`}
-                    onClick={() => showImageAt(index)}
-                    aria-label={`Open fullscreen image ${index + 1}`}
-                    className={`h-1.5 rounded-full transition-all ${
-                      selectedImageIndex === index
-                        ? "w-5 bg-white"
-                        : "w-1.5 bg-white/35"
-                    }`}
-                  />
-                ))}
-              </div>
+            <div className="absolute bottom-6 left-1/2 flex -translate-x-1/2 gap-1.5 rounded-full bg-white/10 px-3 py-2 backdrop-blur">
+              {images.map((image, index) => (
+                <button
+                  type="button"
+                  key={`lightbox-dot-${image}-${index}`}
+                  onClick={() => showImageAt(index)}
+                  aria-label={`Open fullscreen image ${index + 1}`}
+                  className={`h-1.5 rounded-full transition-all duration-300 ${
+                    selectedImageIndex === index
+                      ? "w-6 bg-white"
+                      : "w-2 bg-white/35"
+                  }`}
+                />
+              ))}
             </div>
           )}
         </div>
