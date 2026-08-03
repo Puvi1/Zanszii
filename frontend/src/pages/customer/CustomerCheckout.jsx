@@ -506,7 +506,7 @@ export default function CustomerCheckout() {
               <CheckCircle size={18} />
               {message}
             </div>
-          )
+          )}
 
           <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm">
             <div className="flex items-center justify-between gap-3">
