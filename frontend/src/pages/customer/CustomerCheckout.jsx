@@ -803,20 +803,60 @@ export default function CustomerCheckout() {
               </>
             )}
 
-            {!appliedOffer &&
-              !offersLoading &&
-              availableOffers.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() =>
-                    applyAvailableOffer(availableOffers[0])
-                  }
-                  className="mt-3 inline-flex items-center gap-2 text-[11px] font-black text-[#F4B400]"
-                >
-                  <Gift size={14} />
-                  Apply {availableOffers[0].code}
-                </button>
-              )}
+            {!appliedOffer && (
+              <div className="mt-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="inline-flex items-center gap-2">
+                    <Gift size={14} className="text-[#F4B400]" />
+                    <p className="text-[11px] font-black text-blue-100">
+                      Available coupons
+                    </p>
+                  </div>
+
+                  {!offersLoading && availableOffers.length > 0 && (
+                    <span className="rounded-full bg-white/10 px-2 py-1 text-[9px] font-black text-blue-100">
+                      {availableOffers.length}
+                    </span>
+                  )}
+                </div>
+
+                {offersLoading ? (
+                  <div className="mt-3 h-16 animate-pulse rounded-xl bg-white/10" />
+                ) : availableOffers.length ? (
+                  <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+                    {availableOffers.map((offer) => (
+                      <button
+                        key={offer.offer_id || offer.code}
+                        type="button"
+                        onClick={() => applyAvailableOffer(offer)}
+                        disabled={couponApplying}
+                        className="min-w-[150px] rounded-xl border border-white/15 bg-white/10 p-3 text-left transition hover:bg-white/15 disabled:opacity-60"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="truncate text-xs font-black text-white">
+                              {offer.code}
+                            </p>
+
+                            <p className="mt-1 line-clamp-2 text-[10px] leading-4 text-blue-100">
+                              {offer.title}
+                            </p>
+                          </div>
+
+                          <span className="shrink-0 rounded-lg bg-[#F4B400] px-2 py-1 text-[9px] font-black text-[#062B5F]">
+                            Apply
+                          </span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-2 text-[11px] text-blue-200">
+                    No coupons available right now.
+                  </p>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="mt-5 space-y-3 text-sm">
