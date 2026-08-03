@@ -30,6 +30,7 @@ from auth_utils import (
 
 from routes.reviews import build_reviews_router
 from routes.notifications import build_notifications_router, create_notification
+from routes.offers import build_offers_router, validate_and_calculate_offer
 
 # ---------- Setup ----------
 MONGO_URL = os.environ["MONGO_URL"]
@@ -199,6 +200,7 @@ class OrderCreate(BaseModel):
     phone: str
     notes: Optional[str] = Field(default=None, max_length=1000)
     buy_now_item: Optional[CartItemIn] = None
+    coupon_code: Optional[str] = Field(default=None, max_length=40)
 
 class AddressIn(BaseModel):
     label: Literal["Home", "Office", "Other"] = "Home"
@@ -366,6 +368,16 @@ async def startup():
     )
     await db.notifications.create_index(
         [("user_id", 1), ("is_read", 1)]
+    )
+
+    # Offer and coupon indexes
+    await db.offers.create_index("offer_id", unique=True)
+    await db.offers.create_index("code", unique=True)
+    await db.offers.create_index(
+        [("active", 1), ("expires_at", 1)]
+    )
+    await db.offer_redemptions.create_index(
+        [("offer_id", 1), ("user_id", 1)]
     )
 
     admin_email = (
@@ -1165,6 +1177,27 @@ async def create_order(payload: OrderCreate, user=Depends(customer_user)):
                 detail=f"Insufficient stock for {item['name']}",
             )
 
+    coupon_result = None
+    delivery_charge = 0.0
+    discount = 0.0
+    order_total = float(order_subtotal)
+
+    if payload.coupon_code:
+        coupon_result = await validate_and_calculate_offer(
+            db,
+            code=payload.coupon_code,
+            user_id=user["user_id"],
+            subtotal=order_subtotal,
+            delivery_charge=delivery_charge,
+            items=order_items,
+        )
+
+        discount = float(coupon_result["discount"])
+        delivery_charge = float(
+            coupon_result["delivery_charge"]
+        )
+        order_total = float(coupon_result["total"])
+
     order_id = new_id("ord")
     order = {
         "order_id": order_id,
@@ -1174,8 +1207,24 @@ async def create_order(payload: OrderCreate, user=Depends(customer_user)):
         "customer_email": user["email"],
         "items": order_items,
         "subtotal": order_subtotal,
-        "delivery_charge": 0.0,
-        "total": order_subtotal,
+        "discount": round(discount, 2),
+        "delivery_charge": round(delivery_charge, 2),
+        "total": round(order_total, 2),
+        "coupon_code": (
+            coupon_result["code"]
+            if coupon_result
+            else None
+        ),
+        "offer_id": (
+            coupon_result["offer_id"]
+            if coupon_result
+            else None
+        ),
+        "savings": (
+            coupon_result["savings"]
+            if coupon_result
+            else 0.0
+        ),
         "payment_method": "cash_on_delivery",
         "payment_status": "pending",
         "delivery_address": payload.delivery_address,
@@ -1198,6 +1247,28 @@ async def create_order(payload: OrderCreate, user=Depends(customer_user)):
     }
 
     await db.orders.insert_one(order)
+
+    if coupon_result:
+        await db.offers.update_one(
+            {"offer_id": coupon_result["offer_id"]},
+            {
+                "$inc": {"usage_count": 1},
+                "$set": {"updated_at": now_iso()},
+            },
+        )
+
+        await db.offer_redemptions.insert_one(
+            {
+                "redemption_id": new_id("red"),
+                "offer_id": coupon_result["offer_id"],
+                "code": coupon_result["code"],
+                "user_id": user["user_id"],
+                "order_id": order_id,
+                "discount": coupon_result["discount"],
+                "savings": coupon_result["savings"],
+                "created_at": now_iso(),
+            }
+        )
 
     await create_notification(
         db,
@@ -1837,6 +1908,13 @@ async def admin_reports(user=Depends(admin_user)):
 api.include_router(build_reviews_router(db))
 api.include_router(
     build_notifications_router(
+        db,
+        new_id,
+        now_iso,
+    )
+)
+api.include_router(
+    build_offers_router(
         db,
         new_id,
         now_iso,
