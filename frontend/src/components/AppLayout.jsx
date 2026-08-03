@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import {
   BadgeIndianRupee,
+  BadgePercent,
   Bell,
   BarChart3,
   Boxes,
@@ -44,6 +45,7 @@ const adminLinks = [
   ["/admin/products", "Products", Package],
   ["/admin/categories", "Categories", Tags],
   ["/admin/vendor-applications", "Partner Applications", Store],
+  ["/admin/offers", "Coupons & Offers", BadgePercent],
   ["/admin/orders", "Orders", ClipboardList],
   ["/admin/customers", "Customers", Users],
   ["/admin/managers", "Managers", Truck],
