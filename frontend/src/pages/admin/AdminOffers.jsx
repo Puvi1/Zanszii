@@ -13,6 +13,10 @@ import {
   Star,
   Trash2,
   Truck,
+  TrendingUp,
+  IndianRupee,
+  Wallet,
+  AlertTriangle,
   X,
 } from "lucide-react";
 
@@ -104,6 +108,18 @@ const columns = [
 
 export default function AdminOffers() {
   const [offers, setOffers] = useState([]);
+  const [analytics, setAnalytics] = useState({
+    summary: {
+      orders: 0,
+      gross_sales: 0,
+      discount_given: 0,
+      net_revenue: 0,
+      product_cost: 0,
+      net_profit: 0,
+      profit_margin: 0,
+    },
+    offers: [],
+  });
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
 
@@ -121,12 +137,34 @@ export default function AdminOffers() {
     setError("");
 
     try {
-      const response = await api.get("/admin/offers");
+      const [offersResponse, analyticsResponse] =
+        await Promise.all([
+          api.get("/admin/offers"),
+          api.get("/admin/offers/analytics"),
+        ]);
+
       setOffers(
-        Array.isArray(response.data?.offers)
-          ? response.data.offers
+        Array.isArray(offersResponse.data?.offers)
+          ? offersResponse.data.offers
           : []
       );
+
+      setAnalytics({
+        summary: analyticsResponse.data?.summary || {
+          orders: 0,
+          gross_sales: 0,
+          discount_given: 0,
+          net_revenue: 0,
+          product_cost: 0,
+          net_profit: 0,
+          profit_margin: 0,
+        },
+        offers: Array.isArray(
+          analyticsResponse.data?.offers
+        )
+          ? analyticsResponse.data.offers
+          : [],
+      });
     } catch (requestError) {
       setError(
         formatApiError(
@@ -160,6 +198,17 @@ export default function AdminOffers() {
       return matchesQuery && matchesStatus;
     });
   }, [offers, query, statusFilter]);
+
+  const analyticsByOffer = useMemo(
+    () =>
+      Object.fromEntries(
+        (analytics.offers || []).map((item) => [
+          item.offer_id,
+          item,
+        ])
+      ),
+    [analytics.offers]
+  );
 
   const summary = useMemo(() => {
     const statuses = offers.map(offerStatus);
@@ -386,10 +435,32 @@ export default function AdminOffers() {
         }}
       >
         {[
-          ["Total Coupons", summary.total, Gift],
-          ["Active", summary.active, BadgePercent],
-          ["Expired", summary.expired, CalendarDays],
-          ["Total Uses", summary.uses, Star],
+          [
+            "Coupon Orders",
+            analytics.summary.orders || 0,
+            Gift,
+          ],
+          [
+            "Gross Sales",
+            `₹${Number(
+              analytics.summary.gross_sales || 0
+            ).toLocaleString("en-IN")}`,
+            TrendingUp,
+          ],
+          [
+            "Discount Given",
+            `₹${Number(
+              analytics.summary.discount_given || 0
+            ).toLocaleString("en-IN")}`,
+            BadgePercent,
+          ],
+          [
+            "Net Profit",
+            `₹${Number(
+              analytics.summary.net_profit || 0
+            ).toLocaleString("en-IN")}`,
+            Wallet,
+          ],
         ].map(([label, value, Icon]) => (
           <div
             key={label}
@@ -432,6 +503,70 @@ export default function AdminOffers() {
             </p>
           </div>
         ))}
+      </div>
+
+      <div
+        className="panel"
+        style={{
+          marginBottom: "18px",
+          padding: "16px",
+          display: "grid",
+          gridTemplateColumns:
+            "repeat(auto-fit, minmax(180px, 1fr))",
+          gap: "12px",
+        }}
+      >
+        <div>
+          <small style={{ color: "#64748b", fontWeight: 800 }}>
+            Net revenue
+          </small>
+          <p style={{ margin: "5px 0 0", fontSize: 20, fontWeight: 900 }}>
+            ₹
+            {Number(
+              analytics.summary.net_revenue || 0
+            ).toLocaleString("en-IN")}
+          </p>
+        </div>
+
+        <div>
+          <small style={{ color: "#64748b", fontWeight: 800 }}>
+            Product cost
+          </small>
+          <p style={{ margin: "5px 0 0", fontSize: 20, fontWeight: 900 }}>
+            ₹
+            {Number(
+              analytics.summary.product_cost || 0
+            ).toLocaleString("en-IN")}
+          </p>
+        </div>
+
+        <div>
+          <small style={{ color: "#64748b", fontWeight: 800 }}>
+            Profit margin
+          </small>
+          <p style={{ margin: "5px 0 0", fontSize: 20, fontWeight: 900 }}>
+            {Number(
+              analytics.summary.profit_margin || 0
+            ).toFixed(1)}
+            %
+          </p>
+        </div>
+
+        <div>
+          <small style={{ color: "#64748b", fontWeight: 800 }}>
+            Formula
+          </small>
+          <p
+            style={{
+              margin: "5px 0 0",
+              fontSize: 12,
+              lineHeight: 1.6,
+              color: "#475569",
+            }}
+          >
+            Net profit = customer-paid revenue − product costs
+          </p>
+        </div>
       </div>
 
       <div className="panel toolbar-panel">
@@ -510,9 +645,11 @@ export default function AdminOffers() {
               <tr>
                 <th>Coupon</th>
                 <th>Offer</th>
-                <th>Minimum order</th>
-                <th>Usage</th>
-                <th>Expiry</th>
+                <th>Orders</th>
+                <th>Gross sales</th>
+                <th>Discount</th>
+                <th>Net profit</th>
+                <th>Margin</th>
                 <th>Status</th>
                 <th className="actions-col">Actions</th>
               </tr>
@@ -521,7 +658,7 @@ export default function AdminOffers() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan="7" className="empty-cell">
+                  <td colSpan="9" className="empty-cell">
                     Loading coupons…
                   </td>
                 </tr>
@@ -560,20 +697,75 @@ export default function AdminOffers() {
                         )}
                       </td>
 
-                      <td>
-                        ₹
-                        {Number(
-                          offer.minimum_order_value || 0
-                        ).toLocaleString("en-IN")}
-                      </td>
+                      {(() => {
+                        const insight =
+                          analyticsByOffer[offer.offer_id] || {
+                            orders: 0,
+                            gross_sales: 0,
+                            discount_given: 0,
+                            net_profit: 0,
+                            profit_margin: 0,
+                            loss_making: false,
+                          };
 
-                      <td>
-                        {offer.usage_count || 0}
-                        {" / "}
-                        {offer.usage_limit || "∞"}
-                      </td>
+                        return (
+                          <>
+                            <td>{insight.orders}</td>
 
-                      <td>{formatDate(offer.expires_at)}</td>
+                            <td>
+                              ₹
+                              {Number(
+                                insight.gross_sales || 0
+                              ).toLocaleString("en-IN")}
+                            </td>
+
+                            <td>
+                              ₹
+                              {Number(
+                                insight.discount_given || 0
+                              ).toLocaleString("en-IN")}
+                            </td>
+
+                            <td>
+                              <strong
+                                style={{
+                                  color: insight.loss_making
+                                    ? "#e11d48"
+                                    : "#047857",
+                                }}
+                              >
+                                ₹
+                                {Number(
+                                  insight.net_profit || 0
+                                ).toLocaleString("en-IN")}
+                              </strong>
+
+                              {insight.loss_making && (
+                                <small
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 4,
+                                    marginTop: 4,
+                                    color: "#e11d48",
+                                    fontWeight: 800,
+                                  }}
+                                >
+                                  <AlertTriangle size={12} />
+                                  Loss making
+                                </small>
+                              )}
+                            </td>
+
+                            <td>
+                              {Number(
+                                insight.profit_margin || 0
+                              ).toFixed(1)}
+                              %
+                            </td>
+                          </>
+                        );
+                      })()}
 
                       <td>
                         <button
@@ -624,7 +816,7 @@ export default function AdminOffers() {
                 })
               ) : (
                 <tr>
-                  <td colSpan="7" className="empty-cell">
+                  <td colSpan="9" className="empty-cell">
                     No coupons found.
                   </td>
                 </tr>
