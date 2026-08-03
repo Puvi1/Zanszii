@@ -159,6 +159,20 @@ function CustomerLayout({ user, signOut }) {
                 {text}
               </NavLink>
             ))}
+
+            <NavLink
+              to="/become-partner"
+              className={({ isActive }) =>
+                `inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-bold transition ${
+                  isActive
+                    ? "bg-blue-50 text-[#0F4C9C]"
+                    : "text-slate-600 hover:bg-slate-50 hover:text-[#0F4C9C]"
+                }`
+              }
+            >
+              <Store size={17} />
+              Partner
+            </NavLink>
           </nav>
 
           <NavLink
@@ -221,6 +235,15 @@ function CustomerLayout({ user, signOut }) {
       <main className="mx-auto max-w-7xl px-3 py-4 sm:px-6 sm:py-6 lg:px-8 lg:py-8">
         <Outlet />
       </main>
+
+      <NavLink
+        to="/become-partner"
+        aria-label="Become a ZANSZI Partner"
+        className="fixed bottom-[86px] right-4 z-40 inline-flex items-center gap-2 rounded-full bg-[#0F4C9C] px-4 py-3 text-xs font-black text-white shadow-lg lg:hidden"
+      >
+        <Store size={17} />
+        Partner
+      </NavLink>
 
       <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-slate-200 bg-white/95 px-2 pb-[max(8px,env(safe-area-inset-bottom))] pt-2 shadow-[0_-10px_35px_rgba(15,23,42,0.08)] backdrop-blur-xl lg:hidden">
         <div className="mx-auto grid max-w-md grid-cols-5">
