@@ -159,6 +159,15 @@ class CategoryIn(BaseModel):
     active: bool = True
 
 
+class CategoryOrderItem(BaseModel):
+    category_id: str
+    display_order: int = Field(ge=0)
+
+
+class CategoryReorderIn(BaseModel):
+    items: List[CategoryOrderItem]
+
+
 class VendorApplicationIn(BaseModel):
     business_name: str = Field(min_length=2, max_length=120)
     owner_name: str = Field(min_length=2, max_length=100)
@@ -426,6 +435,7 @@ async def admin_user(user=Depends(current_user)):
 async def startup():
     await db.users.create_index("email", unique=True)
     await db.categories.create_index("name", unique=True)
+    await db.categories.create_index("display_order")
     await db.stores.create_index("store_id", unique=True)
     await db.stores.create_index("slug", unique=True)
     await db.stores.create_index([("active", 1), ("featured", 1)])
@@ -845,17 +855,29 @@ async def set_default_address(
 @api.get("/categories")
 async def list_categories(include_inactive: bool = False, user=Depends(customer_user)):
     query = {} if include_inactive and user["role"] == "admin" else {"active": True}
-    return [clean_doc(x) async for x in db.categories.find(query).sort("name", 1)]
+    return [
+        clean_doc(x)
+        async for x in db.categories.find(query).sort(
+            [("display_order", 1), ("name", 1)]
+        )
+    ]
 
 
 @api.post("/categories")
 async def create_category(payload: CategoryIn, user=Depends(admin_user)):
     if await db.categories.find_one({"name": {"$regex": f"^{payload.name.strip()}$", "$options": "i"}}):
         raise HTTPException(status_code=409, detail="Category already exists")
+    last_category = await db.categories.find_one(
+        {},
+        sort=[("display_order", -1)],
+    )
+    next_order = int(last_category.get("display_order", -1) or -1) + 1 if last_category else 0
+
     category = {
         "category_id": new_id("cat"),
         **payload.model_dump(),
         "name": payload.name.strip(),
+        "display_order": next_order,
         "created_at": now_iso(),
         "updated_at": now_iso(),
     }
@@ -872,6 +894,61 @@ async def update_category(category_id: str, payload: CategoryIn, user=Depends(ad
     updates["updated_at"] = now_iso()
     await db.categories.update_one({"category_id": category_id}, {"$set": updates})
     return clean_doc(await db.categories.find_one({"category_id": category_id}))
+
+
+@api.put("/categories/reorder")
+async def reorder_categories(
+    payload: CategoryReorderIn,
+    user=Depends(admin_user),
+):
+    existing_ids = {
+        item["category_id"]
+        async for item in db.categories.find(
+            {},
+            {"_id": 0, "category_id": 1},
+        )
+    }
+
+    payload_ids = [item.category_id for item in payload.items]
+
+    if len(payload_ids) != len(set(payload_ids)):
+        raise HTTPException(
+            status_code=422,
+            detail="Duplicate category IDs are not allowed",
+        )
+
+    invalid_ids = [
+        category_id
+        for category_id in payload_ids
+        if category_id not in existing_ids
+    ]
+
+    if invalid_ids:
+        raise HTTPException(
+            status_code=400,
+            detail="One or more categories are invalid",
+        )
+
+    for item in payload.items:
+        await db.categories.update_one(
+            {"category_id": item.category_id},
+            {
+                "$set": {
+                    "display_order": item.display_order,
+                    "updated_at": now_iso(),
+                }
+            },
+        )
+
+    return {
+        "message": "Category order updated successfully",
+        "categories": [
+            clean_doc(category)
+            async for category in db.categories.find({}).sort(
+                [("display_order", 1), ("name", 1)]
+            )
+        ],
+    }
 
 
 @api.delete("/categories/{category_id}")
