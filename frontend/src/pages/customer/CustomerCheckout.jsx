@@ -34,6 +34,9 @@ export default function CustomerCheckout() {
   const [addresses, setAddresses] = useState([]);
   const [selectedAddressId, setSelectedAddressId] = useState("");
   const [showAddressForm, setShowAddressForm] = useState(false);
+  const [showAddressPicker, setShowAddressPicker] = useState(false);
+  const [showAllItems, setShowAllItems] = useState(false);
+  const [showNotes, setShowNotes] = useState(false);
   const [editingAddressId, setEditingAddressId] = useState("");
   const [newAddress, setNewAddress] = useState(EMPTY_ADDRESS);
   const [loadingAddresses, setLoadingAddresses] = useState(true);
@@ -468,291 +471,250 @@ export default function CustomerCheckout() {
 
   return (
     <>
-    <div className="grid gap-6 pb-24 lg:grid-cols-[1.2fr_.8fr] lg:pb-0">
-      <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-        <p className="text-sm font-bold text-[#0F4C9C]">
-          {buyNowItem ? "Buy Now Checkout" : "Checkout"}
-        </p>
+      <div className="grid gap-5 pb-32 lg:grid-cols-[1.05fr_.95fr] lg:pb-0">
+        <section className="space-y-4">
+          <div className="rounded-[26px] border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-[#0F4C9C]">
+              {buyNowItem ? "Buy Now Checkout" : "Checkout"}
+            </p>
 
-        <h1 className="mt-1 text-3xl font-black text-slate-950">
-          Review and place your order
-        </h1>
+            <h1 className="mt-1 text-2xl font-black text-slate-950 sm:text-3xl">
+              Review and place your order
+            </h1>
 
-        {error && (
-          <div className="mt-4 rounded-2xl border border-red-100 bg-red-50 p-3 font-semibold text-red-700">
-            {error}
-          </div>
-        )}
+            {error && (
+              <div className="mt-4 rounded-2xl border border-red-100 bg-red-50 p-3 text-sm font-semibold text-red-700">
+                {error}
+              </div>
+            )}
 
-        <div className="mt-6">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="text-lg font-black text-slate-900">
-              Select saved address
-            </h2>
-
-            <button
-              type="button"
-              onClick={openNewAddress}
-              className="inline-flex items-center gap-2 rounded-xl bg-[#F4B400] px-3 py-2 text-xs font-black text-[#062B5F]"
-            >
-              <Plus size={16} />
-              Add Address
-            </button>
+            {message && (
+              <div className="mt-4 flex items-center gap-2 rounded-2xl border border-emerald-100 bg-emerald-50 p-3 text-sm font-bold text-emerald-700">
+                <CheckCircle size={18} />
+                {message}
+              </div>
+            )}
           </div>
 
-          {message && (
-            <div className="mt-3 flex items-center gap-2 rounded-2xl border border-emerald-100 bg-emerald-50 p-3 text-sm font-bold text-emerald-700">
-              <CheckCircle size={18} />
-              {message}
+          <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
+                  Delivery address
+                </p>
+
+                <h2 className="mt-1 text-lg font-black text-slate-900">
+                  Deliver to
+                </h2>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowAddressPicker(true)}
+                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-[#0F4C9C]"
+              >
+                Change
+              </button>
             </div>
-          )}
 
-          {loadingAddresses ? (
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              {Array.from({ length: 2 }).map((_, index) => (
-                <div
-                  key={index}
-                  className="h-36 animate-pulse rounded-2xl bg-slate-200"
-                />
-              ))}
-            </div>
-          ) : addresses.length ? (
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              {addresses.map((address) => {
-                const Icon = LABEL_ICONS[address.label] || MapPin;
-                const selected =
-                  selectedAddressId === address.address_id;
-
-                return (
-                  <div
-                    key={address.address_id}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => selectAddress(address)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" || event.key === " ") {
-                        selectAddress(address);
-                      }
-                    }}
-                    className={`cursor-pointer rounded-2xl border p-4 text-left transition ${
-                      selected
-                        ? "border-[#0F4C9C] bg-blue-50 ring-2 ring-blue-100"
-                        : "border-slate-200 bg-white"
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <span
-                        className={`grid h-10 w-10 place-items-center rounded-xl ${
-                          selected
-                            ? "bg-[#0F4C9C] text-white"
-                            : "bg-slate-100 text-[#0F4C9C]"
-                        }`}
-                      >
-                        <Icon size={20} />
-                      </span>
-
-                      <div className="flex items-center gap-2">
-                        {address.is_default && (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-700">
-                            <Star size={12} fill="currentColor" />
-                            Default
-                          </span>
-                        )}
-
-                        <span
-                          className={`grid h-5 w-5 place-items-center rounded-full border-2 ${
-                            selected
-                              ? "border-[#0F4C9C]"
-                              : "border-slate-300"
-                          }`}
-                        >
-                          {selected && (
-                            <span className="h-2.5 w-2.5 rounded-full bg-[#0F4C9C]" />
-                          )}
-                        </span>
-                      </div>
-                    </div>
-
-                    <h3 className="mt-3 font-black text-slate-900">
-                      {address.label || "Address"}
-                    </h3>
-
-                    <p className="mt-1 text-sm font-bold text-slate-800">
-                      {address.full_name}
-                    </p>
-
-                    <p className="mt-1 text-xs leading-5 text-slate-600">
-                      {address.address}
-                      {address.landmark
-                        ? `, Near ${address.landmark}`
-                        : ""}
-                      <br />
-                      {address.city}, {address.state} -{" "}
-                      {address.postal_code}
-                    </p>
-
-                    <div className="mt-3 rounded-xl bg-slate-50 p-3 text-xs text-slate-600">
-                      <p>
-                        <span className="font-black text-slate-800">Address:</span>{" "}
-                        {address.address}
-                      </p>
-
-                      {address.landmark && (
-                        <p className="mt-1">
-                          <span className="font-black text-slate-800">Landmark:</span>{" "}
-                          {address.landmark}
-                        </p>
-                      )}
-
-                      <p className="mt-1">
-                        <span className="font-black text-slate-800">Location:</span>{" "}
-                        {address.city}, {address.state} - {address.postal_code}
-                      </p>
-
-                      <p className="mt-1">
-                        <span className="font-black text-slate-800">Phone:</span>{" "}
-                        {address.phone}
-                      </p>
-                    </div>
-
-                    <div className="mt-3 flex gap-2">
-                      <button
-                        type="button"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          editAddress(address);
-                        }}
-                        className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-[#0F4C9C]"
-                      >
-                        <Edit3 size={15} />
-                        Edit
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          deleteAddress(address);
-                        }}
-                        className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-rose-100 bg-rose-50 px-3 py-2 text-xs font-black text-rose-600"
-                      >
-                        <Trash2 size={15} />
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={openNewAddress}
-              className="mt-4 w-full rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center"
-            >
-              <MapPin
-                size={28}
-                className="mx-auto text-[#0F4C9C]"
-              />
-              <p className="mt-2 font-black text-slate-900">
-                Add your delivery address
-              </p>
-              <p className="mt-1 text-sm text-slate-500">
-                Save it once and select it during checkout.
-              </p>
-            </button>
-          )}
-        </div>
-
-        <div className="mt-6 rounded-2xl border border-slate-200 bg-[#F8FAFC] p-4">
-          <div className="flex items-start gap-3">
-            <MapPin className="mt-0.5 shrink-0 text-[#0F4C9C]" size={20} />
-
-            <div className="min-w-0">
-              <p className="text-xs font-black uppercase tracking-[0.14em] text-[#0F4C9C]">
-                Delivering to
-              </p>
-
-              <p className="mt-1 text-sm font-black text-slate-900">
-                {selectedAddress?.full_name || user?.name || "Customer"}
-              </p>
-
-              <p className="mt-1 text-sm leading-6 text-slate-600">
-                {form.delivery_address}
-                <br />
-                {form.city}, {form.state} - {form.postal_code}
-                <br />
-                Phone: {form.phone}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-5">
-          <label>
-            <span className="text-sm font-bold text-slate-800">
-              Delivery instructions (optional)
-            </span>
-
-            <textarea
-              value={form.notes}
-              onChange={(event) => updateField("notes", event.target.value)}
-              className="mt-2 min-h-24 w-full rounded-2xl border border-slate-200 p-3 outline-none focus:border-[#0F4C9C]"
-              placeholder="Gate code, preferred time, landmark guidance, or other instructions"
-            />
-          </label>
-        </div>
-      </section>
-
-      <aside className="h-fit rounded-3xl bg-[#062B5F] p-6 text-white shadow-xl lg:sticky lg:top-6">
-        <div className="flex items-center justify-between gap-3">
-          <h2 className="text-xl font-black">Order summary</h2>
-          {buyNowItem && (
-            <span className="rounded-full bg-[#F4B400] px-3 py-1 text-xs font-black text-[#062B5F]">
-              Buy Now
-            </span>
-          )}
-        </div>
-
-        <div className="mt-5 space-y-4">
-          {checkoutItems.map((item) => (
-            <div
-              key={item.product_id}
-              className="flex items-start justify-between gap-4 text-sm text-blue-100"
-            >
-              <span className="min-w-0">
-                <span className="block font-semibold text-white">
-                  {item.name}
+            {loadingAddresses ? (
+              <div className="mt-4 h-24 animate-pulse rounded-2xl bg-slate-100" />
+            ) : selectedAddress ? (
+              <div className="mt-4 flex items-start gap-3 rounded-2xl bg-[#F7FAFF] p-4">
+                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#0F4C9C] text-white">
+                  {(() => {
+                    const Icon =
+                      LABEL_ICONS[selectedAddress.label] || MapPin;
+                    return <Icon size={19} />;
+                  })()}
                 </span>
-                <span>Quantity: {item.quantity}</span>
-              </span>
 
-              <b className="shrink-0 text-white">
-                ₹{Number(item.line_total || 0).toLocaleString("en-IN")}
-              </b>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="font-black text-slate-900">
+                      {selectedAddress.full_name}
+                    </p>
+
+                    <span className="rounded-full bg-white px-2 py-1 text-[10px] font-black text-[#0F4C9C]">
+                      {selectedAddress.label || "Address"}
+                    </span>
+
+                    {selectedAddress.is_default && (
+                      <span className="rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-700">
+                        Default
+                      </span>
+                    )}
+                  </div>
+
+                  <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-600">
+                    {selectedAddress.address}
+                    {selectedAddress.landmark
+                      ? `, Near ${selectedAddress.landmark}`
+                      : ""}
+                    , {selectedAddress.city},{" "}
+                    {selectedAddress.state} -{" "}
+                    {selectedAddress.postal_code}
+                  </p>
+
+                  <p className="mt-1 text-xs font-bold text-slate-500">
+                    {selectedAddress.phone}
+                  </p>
+
+                  <button
+                    type="button"
+                    onClick={() => editAddress(selectedAddress)}
+                    className="mt-3 inline-flex items-center gap-1.5 text-xs font-black text-[#0F4C9C]"
+                  >
+                    <Edit3 size={14} />
+                    Edit address
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={openNewAddress}
+                className="mt-4 w-full rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-5 text-center"
+              >
+                <MapPin
+                  size={24}
+                  className="mx-auto text-[#0F4C9C]"
+                />
+                <p className="mt-2 font-black text-slate-900">
+                  Add delivery address
+                </p>
+              </button>
+            )}
+          </section>
+
+          <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
+                  Order items
+                </p>
+
+                <h2 className="mt-1 text-lg font-black text-slate-900">
+                  {checkoutItems.length} item
+                  {checkoutItems.length === 1 ? "" : "s"}
+                </h2>
+              </div>
+
+              {checkoutItems.length > 3 && (
+                <button
+                  type="button"
+                  onClick={() => setShowAllItems((current) => !current)}
+                  className="text-xs font-black text-[#0F4C9C]"
+                >
+                  {showAllItems ? "Show less" : "View all"}
+                </button>
+              )}
             </div>
-          ))}
-        </div>
 
+            <div className="mt-4 space-y-3">
+              {(showAllItems
+                ? checkoutItems
+                : checkoutItems.slice(0, 3)
+              ).map((item) => (
+                <div
+                  key={item.product_id}
+                  className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2.5"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-black text-slate-900">
+                      {item.name}
+                    </p>
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      Qty {item.quantity}
+                    </p>
+                  </div>
 
-        <div className="mt-5 rounded-2xl bg-white/10 p-4">
-          <div className="flex items-center gap-2">
-            <BadgePercent size={19} className="text-[#F4B400]" />
-            <p className="font-black">Offers & Coupons</p>
+                  <p className="shrink-0 text-sm font-black text-[#062B5F]">
+                    ₹
+                    {Number(
+                      item.line_total || 0
+                    ).toLocaleString("en-IN")}
+                  </p>
+                </div>
+              ))}
+
+              {!showAllItems && checkoutItems.length > 3 && (
+                <button
+                  type="button"
+                  onClick={() => setShowAllItems(true)}
+                  className="w-full rounded-xl border border-dashed border-slate-300 px-3 py-2.5 text-xs font-black text-slate-500"
+                >
+                  +{checkoutItems.length - 3} more item
+                  {checkoutItems.length - 3 === 1 ? "" : "s"}
+                </button>
+              )}
+            </div>
+          </section>
+
+          <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm">
+            <button
+              type="button"
+              onClick={() => setShowNotes((current) => !current)}
+              className="flex w-full items-center justify-between gap-3 text-left"
+            >
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
+                  Optional
+                </p>
+
+                <h2 className="mt-1 text-lg font-black text-slate-900">
+                  Delivery instructions
+                </h2>
+              </div>
+
+              <span className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-black text-[#0F4C9C]">
+                {showNotes ? "Hide" : "Add note"}
+              </span>
+            </button>
+
+            {showNotes && (
+              <textarea
+                value={form.notes}
+                onChange={(event) =>
+                  updateField("notes", event.target.value)
+                }
+                className="mt-4 min-h-24 w-full rounded-2xl border border-slate-200 p-3 outline-none focus:border-[#0F4C9C]"
+                placeholder="Gate code, preferred time or landmark guidance"
+              />
+            )}
+          </section>
+        </section>
+
+        <aside className="h-fit rounded-[26px] bg-[#062B5F] p-5 text-white shadow-xl lg:sticky lg:top-6">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-xl font-black">Payment summary</h2>
+
+            {buyNowItem && (
+              <span className="rounded-full bg-[#F4B400] px-3 py-1 text-xs font-black text-[#062B5F]">
+                Buy Now
+              </span>
+            )}
           </div>
 
-          {appliedOffer ? (
-            <div className="mt-3 rounded-2xl border border-emerald-300/30 bg-emerald-400/10 p-3">
-              <div className="flex items-start justify-between gap-3">
+          <div className="mt-4 rounded-2xl bg-white/10 p-3">
+            <div className="flex items-center gap-2">
+              <BadgePercent
+                size={18}
+                className="text-[#F4B400]"
+              />
+              <p className="text-sm font-black">
+                Coupon
+              </p>
+            </div>
+
+            {appliedOffer ? (
+              <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-emerald-300/20 bg-emerald-400/10 p-3">
                 <div>
-                  <p className="text-xs font-bold uppercase tracking-[0.14em] text-emerald-200">
-                    Applied
-                  </p>
-                  <p className="mt-1 font-black text-white">
+                  <p className="text-xs font-black text-white">
                     {appliedOffer.code}
                   </p>
-                  <p className="mt-1 text-xs text-emerald-100">
-                    You saved ₹
+                  <p className="mt-0.5 text-[11px] text-emerald-100">
+                    Saved ₹
                     {Number(
                       appliedOffer.savings || 0
                     ).toLocaleString("en-IN")}
@@ -762,170 +724,272 @@ export default function CustomerCheckout() {
                 <button
                   type="button"
                   onClick={removeCoupon}
-                  className="rounded-xl border border-white/20 px-3 py-2 text-xs font-black text-white"
+                  className="text-xs font-black text-white"
                 >
                   Remove
                 </button>
               </div>
-            </div>
-          ) : (
-            <>
-              <div className="mt-3 flex gap-2">
-                <input
-                  value={couponCode}
-                  onChange={(event) =>
-                    setCouponCode(
-                      event.target.value.toUpperCase()
-                    )
-                  }
-                  placeholder="Enter coupon"
-                  className="min-w-0 flex-1 rounded-xl border border-white/20 bg-white/10 px-3 py-2.5 text-sm font-bold uppercase text-white placeholder:text-blue-200 outline-none"
-                />
+            ) : (
+              <>
+                <div className="mt-3 flex gap-2">
+                  <input
+                    value={couponCode}
+                    onChange={(event) =>
+                      setCouponCode(
+                        event.target.value.toUpperCase()
+                      )
+                    }
+                    placeholder="Enter coupon"
+                    className="min-w-0 flex-1 rounded-xl border border-white/20 bg-white/10 px-3 py-2.5 text-xs font-bold uppercase text-white placeholder:text-blue-200 outline-none"
+                  />
 
+                  <button
+                    type="button"
+                    onClick={applyCoupon}
+                    disabled={couponApplying}
+                    className="rounded-xl bg-[#F4B400] px-3 py-2.5 text-xs font-black text-[#062B5F] disabled:opacity-60"
+                  >
+                    {couponApplying ? "..." : "Apply"}
+                  </button>
+                </div>
+
+                {couponError && (
+                  <p className="mt-2 text-[11px] font-bold text-rose-200">
+                    {couponError}
+                  </p>
+                )}
+              </>
+            )}
+
+            {!appliedOffer &&
+              !offersLoading &&
+              availableOffers.length > 0 && (
                 <button
                   type="button"
-                  onClick={applyCoupon}
-                  disabled={couponApplying}
-                  className="rounded-xl bg-[#F4B400] px-4 py-2.5 text-xs font-black text-[#062B5F] disabled:opacity-60"
+                  onClick={() =>
+                    applyAvailableOffer(availableOffers[0])
+                  }
+                  className="mt-3 inline-flex items-center gap-2 text-[11px] font-black text-[#F4B400]"
                 >
-                  {couponApplying ? "Applying..." : "Apply"}
+                  <Gift size={14} />
+                  Apply {availableOffers[0].code}
                 </button>
-              </div>
-
-              {couponError && (
-                <p className="mt-2 text-xs font-bold text-rose-200">
-                  {couponError}
-                </p>
               )}
-            </>
-          )}
-
-          {!appliedOffer && (
-            <div className="mt-4">
-              <div className="flex items-center gap-2">
-                <Gift size={16} className="text-blue-200" />
-                <p className="text-xs font-black text-blue-100">
-                  Available offers
-                </p>
-              </div>
-
-              {offersLoading ? (
-                <div className="mt-3 h-16 animate-pulse rounded-xl bg-white/10" />
-              ) : availableOffers.length ? (
-                <div className="mt-3 flex gap-3 overflow-x-auto pb-1">
-                  {availableOffers.map((offer) => (
-                    <button
-                      key={offer.offer_id}
-                      type="button"
-                      onClick={() =>
-                        applyAvailableOffer(offer)
-                      }
-                      className="min-w-[210px] rounded-2xl border border-white/15 bg-white/10 p-3 text-left transition hover:bg-white/15"
-                    >
-                      <div className="flex items-start gap-2">
-                        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-[#F4B400] text-[#062B5F]">
-                          <Tags size={15} />
-                        </span>
-
-                        <div className="min-w-0">
-                          <p className="truncate text-xs font-black text-white">
-                            {offer.code}
-                          </p>
-                          <p className="mt-1 line-clamp-2 text-[11px] text-blue-100">
-                            {offer.title}
-                          </p>
-                          <p className="mt-2 text-[10px] font-bold text-[#F4B400]">
-                            Tap to apply
-                          </p>
-                        </div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <p className="mt-2 text-xs text-blue-200">
-                  No offers available right now.
-                </p>
-              )}
-            </div>
-          )}
-        </div>
-
-        <div className="mt-5 space-y-3 border-t border-white/20 pt-5 text-sm">
-          <div className="flex justify-between text-blue-100">
-            <span>Subtotal</span>
-            <span className="font-bold text-white">
-              ₹{Number(checkoutTotal || 0).toLocaleString("en-IN")}
-            </span>
           </div>
 
-          {appliedDiscount > 0 && (
-            <div className="flex justify-between text-emerald-200">
-              <span>Discount</span>
-              <span className="font-black">
-                -₹{appliedDiscount.toLocaleString("en-IN")}
+          <div className="mt-5 space-y-3 text-sm">
+            <div className="flex justify-between text-blue-100">
+              <span>Subtotal</span>
+              <span className="font-bold text-white">
+                ₹
+                {Number(
+                  checkoutSubtotal || 0
+                ).toLocaleString("en-IN")}
               </span>
             </div>
+
+            {appliedDiscount > 0 && (
+              <div className="flex justify-between text-emerald-200">
+                <span>Discount</span>
+                <span className="font-black">
+                  -₹
+                  {appliedDiscount.toLocaleString("en-IN")}
+                </span>
+              </div>
+            )}
+
+            <div className="flex justify-between text-blue-100">
+              <span>Delivery</span>
+              <span className="font-bold text-emerald-200">
+                {appliedDeliveryCharge > 0
+                  ? `₹${appliedDeliveryCharge.toLocaleString(
+                      "en-IN"
+                    )}`
+                  : "FREE"}
+              </span>
+            </div>
+          </div>
+
+          <div className="mt-5 flex items-end justify-between border-t border-white/20 pt-5">
+            <div>
+              <p className="text-xs text-blue-200">
+                Total payable
+              </p>
+              <p className="mt-1 text-2xl font-black">
+                ₹
+                {Number(
+                  checkoutTotal || checkoutSubtotal || 0
+                ).toLocaleString("en-IN")}
+              </p>
+            </div>
+
+            <div className="text-right">
+              <p className="text-xs font-black text-white">
+                Cash on Delivery
+              </p>
+              <p className="mt-1 text-[11px] text-blue-200">
+                Pay at doorstep
+              </p>
+            </div>
+          </div>
+
+          {totalSavings > 0 && (
+            <div className="mt-3 rounded-xl bg-emerald-400/10 px-3 py-2 text-center text-xs font-black text-emerald-100">
+              You saved ₹
+              {totalSavings.toLocaleString("en-IN")}
+            </div>
           )}
 
-          <div className="flex justify-between text-blue-100">
-            <span>Delivery</span>
-            <span className="font-bold text-emerald-200">
-              {appliedDeliveryCharge > 0
-                ? `₹${appliedDeliveryCharge.toLocaleString("en-IN")}`
-                : "FREE"}
-            </span>
-          </div>
-        </div>
+          <button
+            type="button"
+            onClick={submit}
+            disabled={
+              saving ||
+              loadingAddresses ||
+              !form.delivery_address ||
+              !form.city ||
+              !form.state ||
+              !form.postal_code ||
+              !form.phone
+            }
+            className="mt-5 hidden w-full rounded-2xl bg-[#F4B400] px-5 py-4 font-black text-[#062B5F] transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-60 lg:block"
+          >
+            {saving ? "Placing order..." : "Place order"}
+          </button>
+        </aside>
+      </div>
 
-        <div className="mt-5 flex justify-between border-t border-white/20 pt-5 text-2xl font-black">
-          <span>Total</span>
-          <span>
-            ₹{Number(checkoutSubtotal || 0).toLocaleString("en-IN")}
-          </span>
-        </div>
-
-        {totalSavings > 0 && (
-          <div className="mt-3 rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-4 py-3 text-center text-sm font-black text-emerald-100">
-            🎉 You saved ₹
-            {totalSavings.toLocaleString("en-IN")}
-          </div>
-        )}
-
-        <div className="mt-5 grid gap-3">
-          <div className="rounded-2xl bg-white/10 p-4">
-            <p className="font-bold">Cash on Delivery</p>
-            <p className="mt-1 text-sm text-blue-100">
-              Pay when your order is delivered.
+      <div className="fixed inset-x-0 bottom-0 z-50 border-t border-slate-200 bg-white/95 p-3 shadow-[0_-10px_30px_rgba(15,23,42,0.08)] backdrop-blur lg:hidden">
+        <div className="mx-auto flex max-w-xl items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">
+              Total
+            </p>
+            <p className="text-xl font-black text-[#062B5F]">
+              ₹
+              {Number(
+                checkoutTotal || checkoutSubtotal || 0
+              ).toLocaleString("en-IN")}
             </p>
           </div>
 
-          <div className="rounded-2xl bg-white/10 p-4">
-            <p className="font-bold">Free delivery</p>
-            <p className="mt-1 text-sm text-blue-100">
-              Your order qualifies for doorstep delivery.
-            </p>
+          <button
+            type="button"
+            onClick={submit}
+            disabled={
+              saving ||
+              loadingAddresses ||
+              !form.delivery_address ||
+              !form.city ||
+              !form.state ||
+              !form.postal_code ||
+              !form.phone
+            }
+            className="min-h-12 min-w-[150px] rounded-xl bg-[#F4B400] px-4 text-sm font-black text-[#062B5F] disabled:opacity-60"
+          >
+            {saving ? "Placing..." : "Place order"}
+          </button>
+        </div>
+      </div>
+
+      {showAddressPicker && (
+        <div className="fixed inset-0 z-[85] flex items-end justify-center bg-slate-950/50 backdrop-blur-sm sm:items-center sm:p-5">
+          <div className="max-h-[85vh] w-full max-w-xl overflow-y-auto rounded-t-[30px] bg-white p-5 shadow-2xl sm:rounded-[30px]">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-[#0F4C9C]">
+                  Delivery address
+                </p>
+
+                <h2 className="mt-1 text-2xl font-black text-slate-900">
+                  Select address
+                </h2>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowAddressPicker(false)}
+                className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 text-slate-500"
+              >
+                <X size={19} />
+              </button>
+            </div>
+
+            <div className="mt-5 space-y-3">
+              {addresses.map((address) => {
+                const Icon =
+                  LABEL_ICONS[address.label] || MapPin;
+                const selected =
+                  selectedAddressId === address.address_id;
+
+                return (
+                  <button
+                    type="button"
+                    key={address.address_id}
+                    onClick={() => {
+                      selectAddress(address);
+                      setShowAddressPicker(false);
+                    }}
+                    className={`w-full rounded-2xl border p-4 text-left transition ${
+                      selected
+                        ? "border-[#0F4C9C] bg-blue-50 ring-2 ring-blue-100"
+                        : "border-slate-200 bg-white"
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <span
+                        className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${
+                          selected
+                            ? "bg-[#0F4C9C] text-white"
+                            : "bg-slate-100 text-[#0F4C9C]"
+                        }`}
+                      >
+                        <Icon size={19} />
+                      </span>
+
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="font-black text-slate-900">
+                            {address.label}
+                          </p>
+
+                          {selected && (
+                            <CheckCircle
+                              size={18}
+                              className="text-[#0F4C9C]"
+                            />
+                          )}
+                        </div>
+
+                        <p className="mt-1 text-sm font-bold text-slate-800">
+                          {address.full_name}
+                        </p>
+
+                        <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">
+                          {address.address}, {address.city} -{" "}
+                          {address.postal_code}
+                        </p>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                setShowAddressPicker(false);
+                openNewAddress();
+              }}
+              className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#0F4C9C] px-4 py-3 font-black text-white"
+            >
+              <Plus size={17} />
+              Add new address
+            </button>
           </div>
         </div>
-
-        <button
-          type="button"
-          onClick={submit}
-          disabled={
-            saving ||
-            loadingAddresses ||
-            !form.delivery_address ||
-            !form.city ||
-            !form.state ||
-            !form.postal_code ||
-            !form.phone
-          }
-          className="mt-5 w-full rounded-2xl bg-[#F4B400] px-5 py-4 font-black text-[#062B5F] transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {saving ? "Placing order..." : "Place order"}
-        </button>
-      </aside>
-    </div>
+      )}
 
       {showAddressForm && (
         <div className="fixed inset-0 z-[90] flex items-end justify-center bg-slate-950/50 backdrop-blur-sm sm:items-center sm:p-5">
