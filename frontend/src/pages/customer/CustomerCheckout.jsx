@@ -68,6 +68,12 @@ export default function CustomerCheckout() {
           product_id: buyNowItem.product_id,
           name: buyNowItem.name,
           quantity: buyNowItem.quantity,
+          image_url:
+            buyNowItem.image_url ||
+            buyNowItem.image ||
+            (Array.isArray(buyNowItem.images)
+              ? buyNowItem.images[0]
+              : ""),
           line_total:
             Number(buyNowItem.price || 0) *
             Number(buyNowItem.quantity || 1),
@@ -471,30 +477,36 @@ export default function CustomerCheckout() {
 
   return (
     <>
-      <div className="grid gap-5 pb-32 lg:grid-cols-[1.05fr_.95fr] lg:pb-0">
+      <div className="grid gap-5 pb-48 lg:grid-cols-[1.05fr_.95fr] lg:pb-0">
         <section className="space-y-4">
-          <div className="rounded-[26px] border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-            <p className="text-xs font-black uppercase tracking-[0.18em] text-[#0F4C9C]">
-              {buyNowItem ? "Buy Now Checkout" : "Checkout"}
-            </p>
+          <div className="flex items-center justify-between gap-3 px-1">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#0F4C9C]">
+                {buyNowItem ? "Buy Now" : "Checkout"}
+              </p>
 
-            <h1 className="mt-1 text-2xl font-black text-slate-950 sm:text-3xl">
-              Review and place your order
-            </h1>
+              <h1 className="mt-0.5 text-xl font-black text-slate-950">
+                Complete your order
+              </h1>
+            </div>
 
-            {error && (
-              <div className="mt-4 rounded-2xl border border-red-100 bg-red-50 p-3 text-sm font-semibold text-red-700">
-                {error}
-              </div>
-            )}
-
-            {message && (
-              <div className="mt-4 flex items-center gap-2 rounded-2xl border border-emerald-100 bg-emerald-50 p-3 text-sm font-bold text-emerald-700">
-                <CheckCircle size={18} />
-                {message}
-              </div>
-            )}
+            <span className="rounded-full bg-blue-50 px-3 py-1.5 text-[10px] font-black text-[#0F4C9C]">
+              Secure checkout
+            </span>
           </div>
+
+          {error && (
+            <div className="rounded-2xl border border-red-100 bg-red-50 p-3 text-sm font-semibold text-red-700">
+              {error}
+            </div>
+          )}
+
+          {message && (
+            <div className="flex items-center gap-2 rounded-2xl border border-emerald-100 bg-emerald-50 p-3 text-sm font-bold text-emerald-700">
+              <CheckCircle size={18} />
+              {message}
+            </div>
+          )
 
           <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm">
             <div className="flex items-center justify-between gap-3">
@@ -615,28 +627,58 @@ export default function CustomerCheckout() {
               {(showAllItems
                 ? checkoutItems
                 : checkoutItems.slice(0, 3)
-              ).map((item) => (
-                <div
-                  key={item.product_id}
-                  className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2.5"
-                >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-black text-slate-900">
-                      {item.name}
-                    </p>
-                    <p className="mt-0.5 text-xs text-slate-500">
-                      Qty {item.quantity}
+              ).map((item) => {
+                const itemImage =
+                  item.image_url ||
+                  item.image ||
+                  (Array.isArray(item.images)
+                    ? item.images[0]
+                    : "");
+
+                return (
+                  <div
+                    key={item.product_id}
+                    className="flex items-center gap-3 rounded-2xl bg-slate-50 p-2.5"
+                  >
+                    <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-xl border border-slate-200 bg-white p-1">
+                      {itemImage ? (
+                        <img
+                          src={itemImage}
+                          alt={item.name}
+                          className="h-full w-full object-contain"
+                          loading="lazy"
+                          onError={(event) => {
+                            event.currentTarget.style.display =
+                              "none";
+                          }}
+                        />
+                      ) : (
+                        <span className="text-lg font-black text-[#0F4C9C]">
+                          {item.name?.charAt(0)?.toUpperCase() ||
+                            "Z"}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-black text-slate-900">
+                        {item.name}
+                      </p>
+
+                      <p className="mt-0.5 text-xs text-slate-500">
+                        Quantity: {item.quantity}
+                      </p>
+                    </div>
+
+                    <p className="shrink-0 text-sm font-black text-[#062B5F]">
+                      ₹
+                      {Number(
+                        item.line_total || 0
+                      ).toLocaleString("en-IN")}
                     </p>
                   </div>
-
-                  <p className="shrink-0 text-sm font-black text-[#062B5F]">
-                    ₹
-                    {Number(
-                      item.line_total || 0
-                    ).toLocaleString("en-IN")}
-                  </p>
-                </div>
-              ))}
+                );
+              })}
 
               {!showAllItems && checkoutItems.length > 3 && (
                 <button
@@ -859,7 +901,7 @@ export default function CustomerCheckout() {
         </aside>
       </div>
 
-      <div className="fixed inset-x-0 bottom-0 z-50 border-t border-slate-200 bg-white/95 p-3 shadow-[0_-10px_30px_rgba(15,23,42,0.08)] backdrop-blur lg:hidden">
+      <div className="fixed inset-x-0 bottom-[76px] z-[70] border-t border-slate-200 bg-white/95 p-3 shadow-[0_-10px_30px_rgba(15,23,42,0.08)] backdrop-blur lg:hidden">
         <div className="mx-auto flex max-w-xl items-center gap-3">
           <div className="min-w-0 flex-1">
             <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">
