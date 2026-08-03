@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import {
   BadgeIndianRupee,
-  BadgePercent,
   Bell,
   BarChart3,
   Boxes,
@@ -45,7 +44,6 @@ const adminLinks = [
   ["/admin/products", "Products", Package],
   ["/admin/categories", "Categories", Tags],
   ["/admin/vendor-applications", "Partner Applications", Store],
-  ["/admin/offers", "Coupons & Offers", BadgePercent],
   ["/admin/orders", "Orders", ClipboardList],
   ["/admin/customers", "Customers", Users],
   ["/admin/managers", "Managers", Truck],
@@ -311,6 +309,20 @@ export default function AppLayout() {
 
   return (
     <div className="app-shell">
+      <style>{`
+        .sidebar {
+          overflow-y: auto;
+          scrollbar-width: none;
+          -ms-overflow-style: none;
+        }
+
+        .sidebar::-webkit-scrollbar {
+          display: none;
+          width: 0;
+          height: 0;
+        }
+      `}</style>
+
       {open && <button type="button" className="sidebar-backdrop" aria-label="Close menu" onClick={() => setOpen(false)} />}
 
       <aside className={`sidebar ${open ? "open" : ""}`}>
