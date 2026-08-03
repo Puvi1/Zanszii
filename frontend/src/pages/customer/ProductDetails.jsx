@@ -240,18 +240,16 @@ export default function ProductDetails() {
     if (touchStartX === null) return;
 
     const endX = event.changedTouches?.[0]?.clientX;
-    if (typeof endX !== "number") {
-      setTouchStartX(null);
-      return;
-    }
 
-    const distance = touchStartX - endX;
+    if (typeof endX === "number") {
+      const distance = touchStartX - endX;
 
-    if (Math.abs(distance) > 45) {
-      if (distance > 0) {
-        showNextImage();
-      } else {
-        showPreviousImage();
+      if (Math.abs(distance) > 45) {
+        if (distance > 0) {
+          showNextImage();
+        } else {
+          showPreviousImage();
+        }
       }
     }
 
@@ -259,18 +257,14 @@ export default function ProductDetails() {
   };
 
   useEffect(() => {
-    const handleKeyDown = (event) => {
-      if (!lightboxOpen) return;
+    if (!lightboxOpen) return undefined;
 
+    const handleKeyDown = (event) => {
       if (event.key === "ArrowLeft") {
         showPreviousImage();
-      }
-
-      if (event.key === "ArrowRight") {
+      } else if (event.key === "ArrowRight") {
         showNextImage();
-      }
-
-      if (event.key === "Escape") {
+      } else if (event.key === "Escape") {
         setLightboxOpen(false);
       }
     };
@@ -665,6 +659,72 @@ export default function ProductDetails() {
             )}
 
             {images.length > 1 && (
+              <>
+                <button
+                  type="button"
+                  onClick={showPreviousImage}
+                  aria-label="Previous product image"
+                  className="absolute left-3 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full bg-white/95 text-slate-700 shadow-md backdrop-blur transition hover:scale-105"
+                >
+                  <CaretLeft size={19} weight="bold" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={showNextImage}
+                  aria-label="Next product image"
+                  className="absolute right-3 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full bg-white/95 text-slate-700 shadow-md backdrop-blur transition hover:scale-105"
+                >
+                  <CaretRight size={19} weight="bold" />
+                </button>
+
+                <span className="absolute bottom-3 left-3 rounded-full bg-slate-950/65 px-2.5 py-1 text-[10px] font-black text-white backdrop-blur">
+                  {selectedImageIndex + 1} / {images.length}
+                </span>
+              </>
+            )}
+
+            <button
+              type="button"
+              onClick={handleShare}
+              disabled={sharing}
+              aria-label="Share product"
+              className="absolute right-3 top-3 grid h-10 w-10 place-items-center rounded-full bg-white text-slate-700 shadow-md transition hover:scale-105 disabled:opacity-50"
+            >
+              <ShareNetwork size={19} weight="bold" />
+            </button>
+
+            <button
+              type="button"
+              onClick={toggleWishlist}
+              aria-label={
+                wishlisted
+                  ? "Remove product from wishlist"
+                  : "Add product to wishlist"
+              }
+              className={`absolute bottom-3 right-3 grid h-10 w-10 place-items-center rounded-full shadow-md transition hover:scale-105 ${
+                wishlisted
+                  ? "bg-rose-500 text-white"
+                  : "bg-white text-slate-700"
+              }`}
+            >
+              <Heart
+                size={20}
+                weight={wishlisted ? "fill" : "regular"}
+              />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setLightboxOpen(true)}
+              aria-label="View fullscreen"
+              className="absolute bottom-3 right-16 grid h-10 w-10 place-items-center rounded-full bg-white text-slate-700 shadow-md transition hover:scale-105"
+            >
+              <ArrowsOutSimple size={18} weight="bold" />
+            </button>
+          </div>
+
+          {images.length > 1 && (
             <div className="mt-3">
               <div className="flex gap-2 overflow-x-auto pb-1">
                 {images.map((image, index) => (
