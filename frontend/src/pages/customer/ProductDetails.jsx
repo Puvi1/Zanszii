@@ -660,7 +660,7 @@ export default function ProductDetails() {
               onClick={handleShare}
               disabled={sharing}
               aria-label="Share product"
-              className="absolute right-3 top-3 grid h-10 w-10 place-items-center rounded-full border border-white/70 bg-white/95 text-slate-700 shadow-[0_8px_24px_rgba(15,23,42,0.12)] backdrop-blur transition hover:scale-105 disabled:opacity-50"
+              className="absolute bottom-3 right-16 grid h-10 w-10 place-items-center rounded-full border border-white/70 bg-white/95 text-slate-700 shadow-[0_8px_24px_rgba(15,23,42,0.12)] backdrop-blur transition hover:scale-105 disabled:opacity-50"
             >
               <ShareNetwork size={19} weight="bold" />
             </button>
