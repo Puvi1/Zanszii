@@ -555,8 +555,9 @@ export default function ZANSZIHome() {
 
       <section aria-label="Product categories">
         <div className="flex gap-3 overflow-x-auto px-0.5 pb-2">
-          {categories.slice(0, 7).map((category) => {
-            const Icon = getCategoryIcon(category.name);
+          {categories.slice(0, 7).map((category, index) => {
+            const fallbackIcon =
+              categoryIcons[index % categoryIcons.length];
 
             const categoryImage =
               category.image_url ||
@@ -597,12 +598,16 @@ export default function ZANSZIHome() {
                         data-category-fallback
                         className="hidden h-full w-full place-items-center rounded-[15px] bg-[#F5F9FF] text-[#0F4C9C]"
                       >
-                        <Icon size={20} strokeWidth={2.1} />
+                        <span className="text-xl">
+                          {fallbackIcon}
+                        </span>
                       </span>
                     </>
                   ) : (
                     <span className="grid h-full w-full place-items-center rounded-[15px] bg-[#F5F9FF] text-[#0F4C9C]">
-                      <Icon size={20} strokeWidth={2.1} />
+                      <span className="text-xl">
+                        {fallbackIcon}
+                      </span>
                     </span>
                   )}
                 </span>
