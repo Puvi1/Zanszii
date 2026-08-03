@@ -2,21 +2,23 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   ArrowRight,
-  BadgePercent,
   ChevronLeft,
   ChevronRight,
   Clock3,
-  Flame,
+  Gift,
   Grid3X3,
   Heart,
-  Package,
+  Home,
+  Image as ImageIcon,
+  PackageSearch,
+  Printer,
   Search,
-  ShieldCheck,
-  ShoppingBag,
   ShoppingCart,
   Sparkles,
   Star,
-  Truck,
+  Store,
+  ToyBrick,
+  UtensilsCrossed,
   Zap,
 } from "lucide-react";
 
@@ -66,47 +68,45 @@ const banners = [
   },
 ];
 
-const categoryIcons = [
-  "🏠",
-  "🌶️",
-  "🖼️",
-  "🖨️",
-  "🧸",
-  "🎁",
-  "🏡",
-  "✨",
-];
-const featuredStores = [
-  {
-    name: "ZANSZI Home Essentials",
-    category: "Home Essentials",
-    location: "Chennai",
-    rating: "4.8",
-    icon: "🏠",
-  },
-  {
-    name: "Dream Frames",
-    category: "Photos & Frames",
-    location: "Chennai",
-    rating: "4.7",
-    icon: "🖼️",
-  },
-  {
-    name: "Amma Masala",
-    category: "Foods & Masala",
-    location: "Chennai",
-    rating: "4.9",
-    icon: "🌶️",
-  },
-  {
-    name: "Print Hub",
-    category: "Printing Services",
-    location: "Chennai",
-    rating: "4.6",
-    icon: "🖨️",
-  },
-];
+const CATEGORY_ICON_MAP = {
+  home: Home,
+  "home essentials": Home,
+  "home care": Home,
+  cleaning: PackageSearch,
+  "bathroom cleaner": PackageSearch,
+  foods: UtensilsCrossed,
+  food: UtensilsCrossed,
+  masala: UtensilsCrossed,
+  frames: ImageIcon,
+  "photos & frames": ImageIcon,
+  printing: Printer,
+  print: Printer,
+  toys: ToyBrick,
+  gifts: Gift,
+  store: Store,
+};
 
+function getCategoryIcon(categoryName = "") {
+  const normalized = String(categoryName).trim().toLowerCase();
+
+  if (CATEGORY_ICON_MAP[normalized]) {
+    return CATEGORY_ICON_MAP[normalized];
+  }
+
+  if (normalized.includes("home")) return Home;
+  if (normalized.includes("clean")) return PackageSearch;
+  if (normalized.includes("food") || normalized.includes("masala")) {
+    return UtensilsCrossed;
+  }
+  if (normalized.includes("frame") || normalized.includes("photo")) {
+    return ImageIcon;
+  }
+  if (normalized.includes("print")) return Printer;
+  if (normalized.includes("toy")) return ToyBrick;
+  if (normalized.includes("gift")) return Gift;
+
+  return Store;
+}
 
 function readWishlist() {
   try {
@@ -265,13 +265,16 @@ function ProductCard({
               event.stopPropagation();
               onAdd(product);
             }}
-            className="min-h-9 rounded-xl bg-[#0F4C9C] px-3 py-2 text-[11px] font-black text-white transition hover:bg-[#0B3D80] disabled:cursor-not-allowed disabled:bg-slate-300 sm:text-xs"
+            className="inline-flex min-h-9 items-center gap-1.5 rounded-xl bg-[#0F4C9C] px-3 py-2 text-[11px] font-black text-white transition hover:bg-[#0B3D80] disabled:cursor-not-allowed disabled:bg-slate-300 sm:text-xs"
           >
             {Number(product.stock) <= 0
               ? "Sold out"
               : adding
                 ? "Adding..."
-                : "Add 🛒"}
+                : <>
+                    Add
+                    <ShoppingCart size={14} />
+                  </>}
           </button>
         </div>
       </div>
@@ -408,11 +411,6 @@ export default function ZANSZIHome() {
     ).slice(0, 6);
   }, [products, featured]);
 
-  const recommended = useMemo(() => {
-    return products
-      .filter((product) => Number(product.stock) > 0)
-      .slice(0, 6);
-  }, [products]);
 
   const submitSearch = (event) => {
     event.preventDefault();
@@ -503,49 +501,31 @@ export default function ZANSZIHome() {
     "0"
   );
 
-  const firstName =
-    user?.name?.split(" ")?.[0] || "there";
-
-  const deliveryLocation =
-    user?.city ||
-    user?.address?.city ||
-    "Select delivery location";
-
   const activeSlide = banners[activeBanner];
 
   return (
-    <div className="space-y-5 pb-28 md:space-y-8 md:pb-8">
+    <div className="space-y-4 pb-28 md:space-y-7 md:pb-8">
+      <form
+        onSubmit={submitSearch}
+        className="flex h-10 items-center gap-2 rounded-[18px] border border-slate-200 bg-white px-3 shadow-[0_6px_18px_rgba(15,23,42,0.05)] sm:h-11"
+      >
+        <Search size={17} className="shrink-0 text-slate-400" />
 
-      <section className="rounded-[22px] border border-slate-200 bg-white p-2 shadow-[0_8px_28px_rgba(15,23,42,0.06)]">
-        <form
-          onSubmit={submitSearch}
-          className="flex h-12 items-center gap-2 rounded-[16px] bg-[#F7FAFF] px-2 sm:h-14"
+        <input
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Search products, stores or categories"
+          className="min-w-0 flex-1 bg-transparent text-[13px] font-semibold text-slate-900 outline-none placeholder:text-slate-400 sm:text-sm"
+        />
+
+        <button
+          type="submit"
+          aria-label="Search"
+          className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-[#062B5F] text-white shadow-sm transition hover:bg-[#0F4C9C]"
         >
-          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-slate-400">
-            <Search size={20} />
-          </span>
-
-          <input
-            value={search}
-            onChange={(event) =>
-              setSearch(event.target.value)
-            }
-            placeholder="Search products, stores or categories"
-            className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-slate-900 outline-none placeholder:text-slate-400"
-          />
-
-          <button
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#062B5F] text-white shadow-sm transition hover:bg-[#0F4C9C] sm:h-10 sm:w-auto sm:px-4"
-            type="submit"
-            aria-label="Search"
-          >
-            <Search size={17} className="sm:hidden" />
-            <span className="hidden text-sm font-black sm:inline">
-              Search
-            </span>
-          </button>
-        </form>
-      </section>
+          <Search size={14} />
+        </button>
+      </form>
 
       {message && (
         <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-bold text-[#0F4C9C]">
@@ -553,39 +533,43 @@ export default function ZANSZIHome() {
         </div>
       )}
 
-      <section>
-        <div className="flex gap-3 overflow-x-auto px-0.5 pb-2">
-          {categories.slice(0, 7).map((category, index) => (
-            <Link
-              key={category.category_id}
-              to={`/products?category=${category.category_id}`}
-              className="group flex min-w-[72px] flex-col items-center text-center"
-            >
-              <span className="grid h-14 w-14 place-items-center rounded-[20px] border border-slate-200 bg-white text-xl shadow-[0_8px_24px_rgba(15,23,42,0.07)] transition duration-200 group-hover:-translate-y-0.5 group-hover:border-blue-200 group-hover:shadow-md">
-                {categoryIcons[index % categoryIcons.length]}
-              </span>
+      <section aria-label="Product categories">
+        <div className="flex gap-2 overflow-x-auto px-0.5 pb-1">
+          {categories.slice(0, 7).map((category) => {
+            const Icon = getCategoryIcon(category.name);
 
-              <span className="mt-2 line-clamp-2 text-[11px] font-black leading-4 text-slate-800">
-                {category.name}
-              </span>
-            </Link>
-          ))}
+            return (
+              <Link
+                key={category.category_id}
+                to={`/products?category=${category.category_id}`}
+                className="group flex min-w-[56px] flex-col items-center text-center"
+              >
+                <span className="grid h-10 w-10 place-items-center rounded-[15px] border border-slate-200 bg-white text-[#0F4C9C] shadow-[0_4px_14px_rgba(15,23,42,0.05)] transition group-hover:-translate-y-0.5 group-hover:border-blue-200 group-hover:bg-blue-50">
+                  <Icon size={17} strokeWidth={2.1} />
+                </span>
+
+                <span className="mt-1.5 line-clamp-2 text-[9px] font-black leading-[12px] text-slate-700">
+                  {category.name}
+                </span>
+              </Link>
+            );
+          })}
 
           <Link
             to="/products"
-            className="group flex min-w-[72px] flex-col items-center text-center"
+            className="group flex min-w-[56px] flex-col items-center text-center"
           >
-            <span className="grid h-14 w-14 place-items-center rounded-[20px] border border-slate-200 bg-white text-slate-500 shadow-[0_8px_24px_rgba(15,23,42,0.07)] transition duration-200 group-hover:-translate-y-0.5 group-hover:border-blue-200 group-hover:text-[#0F4C9C] group-hover:shadow-md">
-              <Grid3X3 size={20} />
+            <span className="grid h-10 w-10 place-items-center rounded-[15px] border border-slate-200 bg-white text-slate-500 shadow-[0_4px_14px_rgba(15,23,42,0.05)] transition group-hover:-translate-y-0.5 group-hover:border-blue-200 group-hover:bg-blue-50 group-hover:text-[#0F4C9C]">
+              <Grid3X3 size={17} strokeWidth={2.1} />
             </span>
 
-            <span className="mt-2 text-[11px] font-black text-slate-800">
+            <span className="mt-1.5 text-[9px] font-black text-slate-700">
               More
             </span>
           </Link>
 
           {!loading && categories.length === 0 && (
-            <div className="w-full rounded-2xl border border-dashed border-slate-300 bg-white py-5 text-center text-sm font-bold text-slate-500">
+            <div className="w-full rounded-2xl border border-dashed border-slate-300 bg-white py-4 text-center text-sm font-bold text-slate-500">
               Categories will appear here after they are added by admin.
             </div>
           )}
@@ -593,50 +577,41 @@ export default function ZANSZIHome() {
       </section>
 
       <section
-        className={`relative overflow-hidden rounded-[24px] bg-gradient-to-br ${activeSlide.accent} px-5 py-5 text-white shadow-[0_16px_40px_rgba(15,76,156,0.18)] sm:px-7 sm:py-6`}
+        className={`relative overflow-hidden rounded-[22px] bg-gradient-to-r ${activeSlide.accent} px-4 py-4 text-white shadow-[0_12px_30px_rgba(15,76,156,0.16)] sm:px-6 sm:py-5`}
       >
-        <div className="absolute -right-16 -top-20 h-44 w-44 rounded-full bg-white/10 blur-2xl" />
-        <div className="absolute -bottom-20 left-1/3 h-40 w-40 rounded-full bg-white/10 blur-3xl" />
+        <div className="absolute -right-10 -top-12 h-28 w-28 rounded-full bg-white/10 blur-2xl" />
+        <div className="absolute -bottom-12 right-1/3 h-24 w-24 rounded-full bg-white/10 blur-2xl" />
 
-        <div className="relative grid min-h-[155px] grid-cols-[1fr_auto] items-center gap-4 sm:min-h-[165px]">
-          <div className="min-w-0">
-            <p className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-white/75">
-              <Sparkles size={13} />
-              {activeSlide.eyebrow}
-            </p>
+        <div className="relative min-h-[118px] pr-0 sm:min-h-[124px] sm:pr-28">
+          <p className="inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-[0.14em] text-white/70">
+            <Sparkles size={12} />
+            {activeSlide.eyebrow}
+          </p>
 
-            <h1 className="mt-2 max-w-xl text-[22px] font-black leading-[1.15] sm:text-3xl">
-              {activeSlide.title}
-            </h1>
+          <h1 className="mt-2 max-w-md text-[19px] font-black leading-[1.16] sm:text-2xl">
+            {activeSlide.title}
+          </h1>
 
-            <p className="mt-2 line-clamp-2 max-w-xl text-xs leading-5 text-white/80 sm:text-sm">
-              {activeSlide.description}
-            </p>
+          <p className="mt-1.5 line-clamp-2 max-w-md text-[10px] leading-4 text-white/78 sm:text-xs">
+            {activeSlide.description}
+          </p>
 
-            <div className="mt-4 flex items-center gap-3">
-              <Link
-                to={activeSlide.link}
-                className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-xs font-black text-[#062B5F] shadow-lg sm:text-sm"
-              >
-                {activeSlide.action}
-                <ArrowRight size={15} />
-              </Link>
-            </div>
-          </div>
+          <Link
+            to={activeSlide.link}
+            className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-white px-3.5 py-2 text-[10px] font-black text-[#062B5F] shadow-md"
+          >
+            {activeSlide.action}
+            <ArrowRight size={13} />
+          </Link>
 
-          <div className="hidden h-[120px] w-[120px] shrink-0 sm:grid sm:place-items-center">
-            <div className="relative h-full w-full">
-              <div className="absolute inset-2 rounded-[28px] border border-white/20 bg-white/10 backdrop-blur" />
-
-              <div className="absolute bottom-2 left-1/2 flex -translate-x-1/2 items-end gap-2">
-                <span className="h-14 w-7 rounded-t-xl rounded-b-md bg-white/85 shadow-lg" />
-                <span className="h-20 w-8 rounded-t-xl rounded-b-md bg-blue-200/90 shadow-lg" />
-                <span className="h-11 w-6 rounded-t-xl rounded-b-md bg-amber-100/90 shadow-lg" />
-              </div>
-
-              <span className="absolute left-3 top-3 text-2xl">
-                🏪
-              </span>
+          <div className="absolute right-1 top-1/2 hidden h-20 w-20 -translate-y-1/2 sm:grid sm:place-items-center">
+            <div className="relative h-full w-full rounded-[22px] border border-white/15 bg-white/10 backdrop-blur">
+              <Store
+                size={21}
+                className="absolute left-3 top-3 text-white/85"
+              />
+              <span className="absolute bottom-3 left-4 h-9 w-5 rounded-t-lg rounded-b-md bg-white/90 shadow" />
+              <span className="absolute bottom-3 left-10 h-13 w-6 rounded-t-lg rounded-b-md bg-blue-200/90 shadow" />
             </div>
           </div>
         </div>
@@ -645,21 +620,21 @@ export default function ZANSZIHome() {
           type="button"
           onClick={previousBanner}
           aria-label="Previous banner"
-          className="absolute left-2 top-1/2 hidden h-8 w-8 -translate-y-1/2 place-items-center rounded-full bg-black/15 text-white backdrop-blur transition hover:bg-black/25 md:grid"
+          className="absolute left-2 top-1/2 hidden h-7 w-7 -translate-y-1/2 place-items-center rounded-full bg-black/10 text-white backdrop-blur md:grid"
         >
-          <ChevronLeft size={18} />
+          <ChevronLeft size={15} />
         </button>
 
         <button
           type="button"
           onClick={nextBanner}
           aria-label="Next banner"
-          className="absolute right-2 top-1/2 hidden h-8 w-8 -translate-y-1/2 place-items-center rounded-full bg-black/15 text-white backdrop-blur transition hover:bg-black/25 md:grid"
+          className="absolute right-2 top-1/2 hidden h-7 w-7 -translate-y-1/2 place-items-center rounded-full bg-black/10 text-white backdrop-blur md:grid"
         >
-          <ChevronRight size={18} />
+          <ChevronRight size={15} />
         </button>
 
-        <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 gap-1.5">
+        <div className="absolute bottom-2 left-1/2 flex -translate-x-1/2 gap-1.5">
           {banners.map((banner, index) => (
             <button
               type="button"
@@ -668,61 +643,52 @@ export default function ZANSZIHome() {
               aria-label={`Open banner ${index + 1}`}
               className={`h-1.5 rounded-full transition-all ${
                 index === activeBanner
-                  ? "w-5 bg-white"
-                  : "w-1.5 bg-white/40"
+                  ? "w-4 bg-white"
+                  : "w-1.5 bg-white/35"
               }`}
             />
           ))}
         </div>
       </section>
 
-      <section className="rounded-[22px] border border-slate-200 bg-white p-3.5 shadow-[0_8px_28px_rgba(15,23,42,0.06)] sm:p-5">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+      <section className="rounded-[22px] border border-slate-200 bg-white p-3 shadow-[0_7px_22px_rgba(15,23,42,0.05)] sm:p-4">
+        <div className="mb-3 flex items-center justify-between gap-3">
           <div>
-            <p className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-amber-600">
-              <Zap size={15} fill="currentColor" />
-              Limited-time savings
+            <p className="inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-[0.15em] text-amber-600">
+              <Zap size={14} fill="currentColor" />
+              Flash savings
             </p>
 
-            <h2 className="text-xl font-black text-slate-900">
+            <h2 className="text-lg font-black text-slate-900">
               Flash deals
             </h2>
           </div>
 
-          <div className="flex items-center gap-2 rounded-xl bg-slate-100 px-3 py-2 text-sm font-black text-slate-700">
-            <Clock3 size={17} className="text-amber-600" />
+          <div className="flex items-center gap-1.5 rounded-xl bg-amber-50 px-2.5 py-2 text-xs font-black text-amber-700">
+            <Clock3 size={15} />
 
             <span>{hours}</span>
-            <span className="text-slate-400">:</span>
+            <span className="text-amber-300">:</span>
             <span>{minutes}</span>
-            <span className="text-slate-400">:</span>
+            <span className="text-amber-300">:</span>
             <span>{seconds}</span>
           </div>
         </div>
 
-        <div className="flex gap-4 overflow-x-auto pb-2">
+        <div className="flex gap-3 overflow-x-auto pb-1">
           {loading
-            ? Array.from({ length: 4 }).map(
-                (_, index) => (
-                  <ProductSkeleton
-                    key={index}
-                    compact
-                  />
-                )
-              )
+            ? Array.from({ length: 4 }).map((_, index) => (
+                <ProductSkeleton key={index} compact />
+              ))
             : flashDeals.map((product) => (
                 <ProductCard
                   key={product.product_id}
                   product={product}
                   compact
                   onAdd={add}
-                  adding={
-                    addingId === product.product_id
-                  }
+                  adding={addingId === product.product_id}
                   onOpen={openProduct}
-                  wished={wishlistIds.includes(
-                    product.product_id
-                  )}
+                  wished={wishlistIds.includes(product.product_id)}
                   onToggleWishlist={toggleWishlist}
                 />
               ))}
@@ -731,201 +697,33 @@ export default function ZANSZIHome() {
 
       <section>
         <div className="mb-3 flex items-end justify-between gap-4">
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#0F4C9C]">
-              Trusted stores
-            </p>
+          <h2 className="text-xl font-black text-slate-900 sm:text-2xl">
+            Best sellers
+          </h2>
 
-            <h2 className="mt-1 text-xl font-black text-slate-900 sm:text-2xl">
-              Featured businesses
-            </h2>
-          </div>
+          <Link
+            to="/products"
+            className="inline-flex items-center gap-1 text-xs font-black text-[#0F4C9C] sm:text-sm"
+          >
+            View all
+            <ChevronRight size={16} />
+          </Link>
         </div>
 
         <div className="flex gap-3 overflow-x-auto pb-2">
-          {featuredStores.map((store) => (
-            <article
-              key={store.name}
-              className="min-w-[210px] rounded-[22px] border border-slate-200 bg-white p-4 shadow-sm"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <span className="grid h-11 w-11 place-items-center rounded-2xl bg-[#F5F9FF] text-xl">
-                  {store.icon}
-                </span>
-
-                <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-1 text-[10px] font-black text-amber-700">
-                  <Star size={12} fill="currentColor" />
-                  {store.rating}
-                </span>
-              </div>
-
-              <h3 className="mt-4 font-black text-slate-900">
-                {store.name}
-              </h3>
-
-              <p className="mt-1 text-xs text-slate-500">
-                {store.category} · {store.location}
-              </p>
-
-              <button
-                type="button"
-                onClick={() => navigate("/products")}
-                className="mt-4 inline-flex items-center gap-1 text-xs font-black text-[#0F4C9C]"
-              >
-                View products
-                <ArrowRight size={14} />
-              </button>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section>
-        <div className="mb-4 flex items-end justify-between gap-4">
-          <div>
-            <p className="text-xs font-black uppercase tracking-[0.2em] text-[#0F4C9C]">
-              Picked for you
-            </p>
-
-            <h2 className="mt-1 text-2xl font-black text-slate-900">
-              Recommended products
-            </h2>
-          </div>
-
-          <Link
-            to="/products"
-            className="inline-flex items-center gap-1 text-sm font-black text-[#0F4C9C]"
-          >
-            Shop all
-            <ChevronRight size={17} />
-          </Link>
-        </div>
-
-        <div className="flex gap-4 overflow-x-auto pb-3 sm:grid sm:grid-cols-2 sm:overflow-visible lg:grid-cols-3 xl:grid-cols-4">
           {loading
-            ? Array.from({ length: 4 }).map(
-                (_, index) => (
-                  <ProductSkeleton key={index} />
-                )
-              )
-            : recommended
-                .slice(0, 4)
-                .map((product) => (
-                  <ProductCard
-                    key={product.product_id}
-                    product={product}
-                    onAdd={add}
-                    adding={
-                      addingId === product.product_id
-                    }
-                    onOpen={openProduct}
-                    wished={wishlistIds.includes(
-                      product.product_id
-                    )}
-                    onToggleWishlist={
-                      toggleWishlist
-                    }
-                  />
-                ))}
-        </div>
-      </section>
-
-      <section className="grid gap-4 md:grid-cols-3">
-        <Link
-          to="/products"
-          className="group overflow-hidden rounded-[28px] bg-[#062B5F] p-6 text-white shadow-lg md:col-span-2"
-        >
-          <Truck size={30} className="text-blue-200" />
-
-          <p className="mt-8 text-xs font-black uppercase tracking-[0.2em] text-blue-200">
-            Easy ordering
-          </p>
-
-          <h2 className="mt-2 text-2xl font-black sm:text-3xl">
-            Useful products from trusted local stores
-          </h2>
-
-          <span className="mt-5 inline-flex items-center gap-2 text-sm font-black">
-            Start shopping
-            <ArrowRight
-              size={17}
-              className="transition group-hover:translate-x-1"
-            />
-          </span>
-        </Link>
-
-        <Link
-          to="/products"
-          className="group rounded-[28px] border border-amber-200 bg-amber-50 p-6 shadow-sm"
-        >
-          <BadgePercent
-            size={30}
-            className="text-amber-600"
-          />
-
-          <p className="mt-8 text-xs font-black uppercase tracking-[0.2em] text-amber-700">
-            Today's offers
-          </p>
-
-          <h3 className="mt-2 text-xl font-black text-slate-900">
-            More value on everyday essentials
-          </h3>
-
-          <span className="mt-5 inline-flex items-center gap-2 text-sm font-black text-amber-700">
-            Explore deals
-            <ArrowRight
-              size={17}
-              className="transition group-hover:translate-x-1"
-            />
-          </span>
-        </Link>
-      </section>
-
-      <section>
-        <div className="mb-4 flex items-end justify-between gap-4">
-          <div>
-            <p className="inline-flex items-center gap-1.5 text-xs font-black uppercase tracking-[0.2em] text-[#0F4C9C]">
-              <Flame size={15} />
-              Customer favourites
-            </p>
-
-            <h2 className="mt-1 text-2xl font-black text-slate-900">
-              Best sellers
-            </h2>
-          </div>
-
-          <Link
-            to="/products"
-            className="inline-flex items-center gap-1 text-sm font-black text-[#0F4C9C]"
-          >
-            View all
-            <ChevronRight size={17} />
-          </Link>
-        </div>
-
-        <div className="flex gap-4 overflow-x-auto pb-3">
-          {loading
-            ? Array.from({ length: 4 }).map(
-                (_, index) => (
-                  <ProductSkeleton
-                    key={index}
-                    compact
-                  />
-                )
-              )
+            ? Array.from({ length: 4 }).map((_, index) => (
+                <ProductSkeleton key={index} compact />
+              ))
             : featured.map((product) => (
                 <ProductCard
                   key={product.product_id}
                   product={product}
                   compact
                   onAdd={add}
-                  adding={
-                    addingId === product.product_id
-                  }
+                  adding={addingId === product.product_id}
                   onOpen={openProduct}
-                  wished={wishlistIds.includes(
-                    product.product_id
-                  )}
+                  wished={wishlistIds.includes(product.product_id)}
                   onToggleWishlist={toggleWishlist}
                 />
               ))}
@@ -934,87 +732,36 @@ export default function ZANSZIHome() {
 
       {newArrivals.length > 0 && (
         <section>
-          <div className="mb-4 flex items-end justify-between gap-4">
-            <div>
-              <p className="text-xs font-black uppercase tracking-[0.2em] text-[#0F4C9C]">
-                Fresh in store
-              </p>
+          <div className="mb-3 flex items-end justify-between gap-4">
+            <h2 className="text-xl font-black text-slate-900 sm:text-2xl">
+              New arrivals
+            </h2>
 
-              <h2 className="mt-1 text-2xl font-black text-slate-900">
-                New arrivals
-              </h2>
-            </div>
+            <Link
+              to="/products"
+              className="inline-flex items-center gap-1 text-xs font-black text-[#0F4C9C] sm:text-sm"
+            >
+              View all
+              <ChevronRight size={16} />
+            </Link>
           </div>
 
-          <div className="flex gap-4 overflow-x-auto pb-3">
-            {newArrivals
-              .slice(0, 6)
-              .map((product) => (
-                <ProductCard
-                  key={product.product_id}
-                  product={product}
-                  compact
-                  onAdd={add}
-                  adding={
-                    addingId === product.product_id
-                  }
-                  onOpen={openProduct}
-                  wished={wishlistIds.includes(
-                    product.product_id
-                  )}
-                  onToggleWishlist={toggleWishlist}
-                />
-              ))}
+          <div className="flex gap-3 overflow-x-auto pb-2">
+            {newArrivals.slice(0, 6).map((product) => (
+              <ProductCard
+                key={product.product_id}
+                product={product}
+                compact
+                onAdd={add}
+                adding={addingId === product.product_id}
+                onOpen={openProduct}
+                wished={wishlistIds.includes(product.product_id)}
+                onToggleWishlist={toggleWishlist}
+              />
+            ))}
           </div>
         </section>
       )}
-
-      <section className="grid gap-3 sm:grid-cols-3">
-        <div className="rounded-2xl border border-slate-200 bg-white p-4">
-          <Truck
-            size={24}
-            className="text-[#0F4C9C]"
-          />
-
-          <p className="mt-3 text-sm font-black text-slate-900">
-            Doorstep delivery
-          </p>
-
-          <p className="mt-1 text-xs leading-5 text-slate-500">
-            Convenient doorstep delivery for everyday products.
-          </p>
-        </div>
-
-        <div className="rounded-2xl border border-slate-200 bg-white p-4">
-          <ShieldCheck
-            size={24}
-            className="text-[#0F4C9C]"
-          />
-
-          <p className="mt-3 text-sm font-black text-slate-900">
-            Quality assured
-          </p>
-
-          <p className="mt-1 text-xs leading-5 text-slate-500">
-            Carefully listed products from trusted sellers.
-          </p>
-        </div>
-
-        <div className="rounded-2xl border border-slate-200 bg-white p-4">
-          <ShoppingBag
-            size={24}
-            className="text-[#0F4C9C]"
-          />
-
-          <p className="mt-3 text-sm font-black text-slate-900">
-            Easy checkout
-          </p>
-
-          <p className="mt-1 text-xs leading-5 text-slate-500">
-            Search, add to cart and order in just a few steps.
-          </p>
-        </div>
-      </section>
 
       {Number(itemCount) > 0 && (
         <Link
