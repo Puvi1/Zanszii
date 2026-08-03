@@ -99,7 +99,13 @@ class UserPublic(BaseModel):
     user_id: str
     name: str
     email: EmailStr
-    role: Literal["customer", "manager", "delivery_partner", "admin"] = "customer"
+    role: Literal[
+        "customer",
+        "business_owner",
+        "manager",
+        "delivery_partner",
+        "admin",
+    ] = "customer"
     phone: Optional[str] = None
     avatar_url: Optional[str] = None
     address: Optional[str] = None
@@ -151,6 +157,49 @@ class CategoryIn(BaseModel):
     description: Optional[str] = Field(default=None, max_length=500)
     image_url: Optional[str] = None
     active: bool = True
+
+
+class VendorApplicationIn(BaseModel):
+    business_name: str = Field(min_length=2, max_length=120)
+    owner_name: str = Field(min_length=2, max_length=100)
+    phone: str
+    whatsapp: Optional[str] = None
+    email: EmailStr
+    business_type: str = Field(min_length=2, max_length=100)
+    description: Optional[str] = Field(default=None, max_length=2000)
+    logo_url: Optional[str] = None
+    banner_url: Optional[str] = None
+    address: str = Field(min_length=5, max_length=500)
+    city: str = Field(min_length=2, max_length=100)
+    state: str = Field(min_length=2, max_length=100)
+    postal_code: str = Field(min_length=4, max_length=12)
+    gst_number: Optional[str] = Field(default=None, max_length=30)
+    business_license_url: Optional[str] = None
+    pickup_address: Optional[str] = Field(default=None, max_length=500)
+
+    @field_validator("phone")
+    @classmethod
+    def validate_phone(cls, value):
+        return normalize_phone(value)
+
+
+class VendorApplicationReview(BaseModel):
+    status: Literal[
+        "pending",
+        "changes_requested",
+        "approved",
+        "rejected",
+    ]
+    admin_note: Optional[str] = Field(default=None, max_length=1000)
+
+
+class VendorStatusUpdate(BaseModel):
+    status: Literal[
+        "approved",
+        "suspended",
+        "deactivated",
+    ]
+    admin_note: Optional[str] = Field(default=None, max_length=1000)
 
 
 class StoreIn(BaseModel):
@@ -358,6 +407,11 @@ async def manager_user(user=Depends(current_user)):
     return user
 
 
+async def business_owner_user(user=Depends(current_user)):
+    require_role(user, ["business_owner", "admin"])
+    return user
+
+
 async def delivery_partner_user(user=Depends(current_user)):
     require_role(user, ["delivery_partner", "admin"])
     return user
@@ -375,6 +429,16 @@ async def startup():
     await db.stores.create_index("store_id", unique=True)
     await db.stores.create_index("slug", unique=True)
     await db.stores.create_index([("active", 1), ("featured", 1)])
+    await db.vendor_applications.create_index(
+        "application_id",
+        unique=True,
+    )
+    await db.vendor_applications.create_index(
+        [("user_id", 1), ("status", 1)]
+    )
+    await db.vendor_applications.create_index(
+        [("status", 1), ("created_at", -1)]
+    )
     await db.products.create_index(
         [("name", "text"), ("description", "text")]
     )
@@ -818,6 +882,338 @@ async def delete_category(category_id: str, user=Depends(admin_user)):
     if not result.deleted_count:
         raise HTTPException(status_code=404, detail="Category not found")
     return {"message": "Category deleted"}
+
+
+# ---------- Vendor applications ----------
+@api.get("/vendor-applications/me")
+async def my_vendor_application(user=Depends(current_user)):
+    application = await db.vendor_applications.find_one(
+        {"user_id": user["user_id"]},
+        sort=[("created_at", -1)],
+    )
+    return clean_doc(application)
+
+
+@api.post("/vendor-applications")
+async def create_vendor_application(
+    payload: VendorApplicationIn,
+    user=Depends(current_user),
+):
+    if user["role"] not in ["customer", "business_owner"]:
+        raise HTTPException(
+            status_code=403,
+            detail="This account cannot submit a vendor application",
+        )
+
+    existing = await db.vendor_applications.find_one({
+        "user_id": user["user_id"],
+        "status": {
+            "$in": [
+                "pending",
+                "changes_requested",
+                "approved",
+            ]
+        },
+    })
+
+    if existing:
+        raise HTTPException(
+            status_code=409,
+            detail="You already have an active vendor application",
+        )
+
+    application = {
+        "application_id": new_id("vap"),
+        "user_id": user["user_id"],
+        "business_name": payload.business_name.strip(),
+        "owner_name": payload.owner_name.strip(),
+        "phone": payload.phone,
+        "whatsapp": payload.whatsapp,
+        "email": str(payload.email).lower().strip(),
+        "business_type": payload.business_type.strip(),
+        "description": payload.description,
+        "logo_url": payload.logo_url,
+        "banner_url": payload.banner_url,
+        "address": payload.address.strip(),
+        "city": payload.city.strip(),
+        "state": payload.state.strip(),
+        "postal_code": payload.postal_code.strip(),
+        "gst_number": payload.gst_number,
+        "business_license_url": payload.business_license_url,
+        "pickup_address": payload.pickup_address,
+        "status": "pending",
+        "admin_note": None,
+        "reviewed_by": None,
+        "reviewed_at": None,
+        "store_id": None,
+        "created_at": now_iso(),
+        "updated_at": now_iso(),
+    }
+
+    await db.vendor_applications.insert_one(application)
+    return clean_doc(application)
+
+
+@api.patch("/vendor-applications/{application_id}")
+async def update_vendor_application(
+    application_id: str,
+    payload: VendorApplicationIn,
+    user=Depends(current_user),
+):
+    application = await db.vendor_applications.find_one({
+        "application_id": application_id,
+        "user_id": user["user_id"],
+    })
+
+    if not application:
+        raise HTTPException(
+            status_code=404,
+            detail="Vendor application not found",
+        )
+
+    if application.get("status") not in [
+        "pending",
+        "changes_requested",
+    ]:
+        raise HTTPException(
+            status_code=409,
+            detail="This application can no longer be edited",
+        )
+
+    updates = payload.model_dump()
+    updates["business_name"] = payload.business_name.strip()
+    updates["owner_name"] = payload.owner_name.strip()
+    updates["email"] = str(payload.email).lower().strip()
+    updates["business_type"] = payload.business_type.strip()
+    updates["address"] = payload.address.strip()
+    updates["city"] = payload.city.strip()
+    updates["state"] = payload.state.strip()
+    updates["postal_code"] = payload.postal_code.strip()
+    updates["status"] = "pending"
+    updates["admin_note"] = None
+    updates["updated_at"] = now_iso()
+
+    await db.vendor_applications.update_one(
+        {"application_id": application_id},
+        {"$set": updates},
+    )
+
+    return clean_doc(
+        await db.vendor_applications.find_one({
+            "application_id": application_id
+        })
+    )
+
+
+@api.get("/admin/vendor-applications")
+async def list_vendor_applications(
+    status: Optional[str] = None,
+    user=Depends(admin_user),
+):
+    query = {"status": status} if status else {}
+
+    return [
+        clean_doc(item)
+        async for item in db.vendor_applications.find(query).sort(
+            "created_at",
+            -1,
+        )
+    ]
+
+
+@api.get("/admin/vendor-applications/{application_id}")
+async def get_vendor_application(
+    application_id: str,
+    user=Depends(admin_user),
+):
+    application = await db.vendor_applications.find_one({
+        "application_id": application_id
+    })
+
+    if not application:
+        raise HTTPException(
+            status_code=404,
+            detail="Vendor application not found",
+        )
+
+    result = clean_doc(application)
+    result["account"] = clean_doc(
+        await db.users.find_one({
+            "user_id": application.get("user_id")
+        })
+    )
+    return result
+
+
+@api.patch("/admin/vendor-applications/{application_id}/review")
+async def review_vendor_application(
+    application_id: str,
+    payload: VendorApplicationReview,
+    user=Depends(admin_user),
+):
+    application = await db.vendor_applications.find_one({
+        "application_id": application_id
+    })
+
+    if not application:
+        raise HTTPException(
+            status_code=404,
+            detail="Vendor application not found",
+        )
+
+    if application.get("status") == "approved":
+        raise HTTPException(
+            status_code=409,
+            detail="This application is already approved",
+        )
+
+    update = {
+        "status": payload.status,
+        "admin_note": payload.admin_note,
+        "reviewed_by": user["user_id"],
+        "reviewed_at": now_iso(),
+        "updated_at": now_iso(),
+    }
+
+    if payload.status == "approved":
+        store_slug_base = "".join(
+            ch.lower() if ch.isalnum() else "-"
+            for ch in application["business_name"]
+        ).strip("-")
+        store_slug = store_slug_base or new_id("store")
+
+        suffix = 1
+        candidate = store_slug
+        while await db.stores.find_one({"slug": candidate}):
+            suffix += 1
+            candidate = f"{store_slug}-{suffix}"
+        store_slug = candidate
+
+        store = {
+            "store_id": new_id("str"),
+            "owner_user_id": application["user_id"],
+            "application_id": application_id,
+            "name": application["business_name"],
+            "slug": store_slug,
+            "description": application.get("description"),
+            "logo_url": application.get("logo_url"),
+            "banner_url": application.get("banner_url"),
+            "phone": application.get("phone"),
+            "whatsapp": application.get("whatsapp"),
+            "email": application.get("email"),
+            "address": application.get("address"),
+            "city": application.get("city"),
+            "state": application.get("state"),
+            "postal_code": application.get("postal_code"),
+            "business_type": application.get("business_type"),
+            "gst_number": application.get("gst_number"),
+            "pickup_address": application.get("pickup_address"),
+            "vendor_status": "approved",
+            "active": True,
+            "featured": False,
+            "created_at": now_iso(),
+            "updated_at": now_iso(),
+        }
+
+        await db.stores.insert_one(store)
+
+        await db.users.update_one(
+            {"user_id": application["user_id"]},
+            {
+                "$set": {
+                    "role": "business_owner",
+                    "store_id": store["store_id"],
+                    "updated_at": now_iso(),
+                }
+            },
+        )
+
+        update["store_id"] = store["store_id"]
+
+    await db.vendor_applications.update_one(
+        {"application_id": application_id},
+        {"$set": update},
+    )
+
+    return clean_doc(
+        await db.vendor_applications.find_one({
+            "application_id": application_id
+        })
+    )
+
+
+@api.get("/admin/vendors")
+async def list_vendors(user=Depends(admin_user)):
+    vendors = []
+
+    async for store in db.stores.find({}).sort("created_at", -1):
+        item = clean_doc(store)
+        item["owner"] = clean_doc(
+            await db.users.find_one({
+                "user_id": store.get("owner_user_id")
+            })
+        )
+        item["product_count"] = await db.products.count_documents({
+            "store_id": store["store_id"]
+        })
+        vendors.append(item)
+
+    return vendors
+
+
+@api.patch("/admin/vendors/{store_id}/status")
+async def update_vendor_status(
+    store_id: str,
+    payload: VendorStatusUpdate,
+    user=Depends(admin_user),
+):
+    store = await db.stores.find_one({"store_id": store_id})
+
+    if not store:
+        raise HTTPException(
+            status_code=404,
+            detail="Vendor store not found",
+        )
+
+    active = payload.status == "approved"
+
+    await db.stores.update_one(
+        {"store_id": store_id},
+        {
+            "$set": {
+                "vendor_status": payload.status,
+                "active": active,
+                "admin_note": payload.admin_note,
+                "updated_at": now_iso(),
+            }
+        },
+    )
+
+    if store.get("owner_user_id"):
+        await db.users.update_one(
+            {"user_id": store["owner_user_id"]},
+            {
+                "$set": {
+                    "active": payload.status != "deactivated",
+                    "updated_at": now_iso(),
+                }
+            },
+        )
+
+    if not active:
+        await db.products.update_many(
+            {"store_id": store_id},
+            {
+                "$set": {
+                    "active": False,
+                    "updated_at": now_iso(),
+                }
+            },
+        )
+
+    return clean_doc(
+        await db.stores.find_one({"store_id": store_id})
+    )
 
 
 # ---------- Stores ----------
