@@ -29,6 +29,7 @@ from auth_utils import (
 )
 
 from routes.reviews import build_reviews_router
+from routes.notifications import build_notifications_router, create_notification
 
 # ---------- Setup ----------
 MONGO_URL = os.environ["MONGO_URL"]
@@ -356,6 +357,15 @@ async def startup():
     await db.reviews.create_index(
         [("product_id", 1), ("user_id", 1)],
         unique=True,
+    )
+
+    # In-app notification indexes
+    await db.notifications.create_index("notification_id", unique=True)
+    await db.notifications.create_index(
+        [("user_id", 1), ("created_at", -1)]
+    )
+    await db.notifications.create_index(
+        [("user_id", 1), ("is_read", 1)]
     )
 
     admin_email = (
@@ -1050,6 +1060,57 @@ async def clear_cart(user=Depends(customer_user)):
     return {"message": "Cart cleared"}
 
 
+async def notify_order_status(order: dict, status: str):
+    status_messages = {
+        "confirmed": (
+            "Order confirmed",
+            f"Your order {order.get('order_number')} has been confirmed.",
+        ),
+        "processing": (
+            "Order is being prepared",
+            f"Your order {order.get('order_number')} is now being processed.",
+        ),
+        "assigned": (
+            "Delivery partner assigned",
+            f"A delivery partner has been assigned to order {order.get('order_number')}.",
+        ),
+        "out_for_delivery": (
+            "Order out for delivery",
+            f"Your order {order.get('order_number')} is on the way.",
+        ),
+        "delivered": (
+            "Order delivered",
+            f"Your order {order.get('order_number')} has been delivered.",
+        ),
+        "cancelled": (
+            "Order cancelled",
+            f"Your order {order.get('order_number')} has been cancelled.",
+        ),
+        "delivery_failed": (
+            "Delivery attempt unsuccessful",
+            f"Delivery could not be completed for order {order.get('order_number')}.",
+        ),
+    }
+
+    content = status_messages.get(status)
+    if not content or not order.get("user_id"):
+        return
+
+    title, message = content
+
+    await create_notification(
+        db,
+        notification_id=new_id("not"),
+        user_id=order["user_id"],
+        title=title,
+        message=message,
+        notification_type=f"order_{status}",
+        link=f"/orders/{order['order_id']}",
+        order_id=order["order_id"],
+        created_at=now_iso(),
+    )
+
+
 # ---------- Orders ----------
 @api.post("/orders")
 async def create_order(payload: OrderCreate, user=Depends(customer_user)):
@@ -1138,6 +1199,18 @@ async def create_order(payload: OrderCreate, user=Depends(customer_user)):
 
     await db.orders.insert_one(order)
 
+    await create_notification(
+        db,
+        notification_id=new_id("not"),
+        user_id=user["user_id"],
+        title="Order placed successfully",
+        message=f"Your order {order['order_number']} has been placed.",
+        notification_type="order_placed",
+        link=f"/orders/{order_id}",
+        order_id=order_id,
+        created_at=now_iso(),
+    )
+
     for item in order_items:
         await db.products.update_one(
             {"product_id": item["product_id"]},
@@ -1199,7 +1272,9 @@ async def update_order_status(order_id: str, payload: OrderStatusUpdate, user=De
 
     history = {"status": payload.status, "at": now_iso(), "by": user["user_id"], "note": payload.note}
     await db.orders.update_one({"order_id": order_id}, {"$set": update, "$push": {"status_history": history}})
-    return clean_doc(await db.orders.find_one({"order_id": order_id}))
+    updated_order = await db.orders.find_one({"order_id": order_id})
+    await notify_order_status(updated_order, payload.status)
+    return clean_doc(updated_order)
 
 
 @api.patch("/admin/orders/{order_id}/assign")
@@ -1508,7 +1583,12 @@ async def assign_delivery_partner(
                 {"$set": {"availability_status": "available", "updated_at": now_iso()}},
             )
 
-    return clean_doc(await db.orders.find_one({"order_id": order_id}))
+    updated_order = await db.orders.find_one({"order_id": order_id})
+
+    if payload.delivery_partner_id:
+        await notify_order_status(updated_order, "assigned")
+
+    return clean_doc(updated_order)
 
 
 @api.get("/delivery-partner/deliveries")
@@ -1603,7 +1683,9 @@ async def update_delivery_status(
                 {"$set": {"availability_status": "available", "updated_at": now_iso()}},
             )
 
-    return clean_doc(await db.orders.find_one({"order_id": order_id}))
+    updated_order = await db.orders.find_one({"order_id": order_id})
+    await notify_order_status(updated_order, payload.status)
+    return clean_doc(updated_order)
 
 
 # ---------- Dashboards and reports ----------
@@ -1753,6 +1835,13 @@ async def admin_reports(user=Depends(admin_user)):
 
 # ---------- App wiring ----------
 api.include_router(build_reviews_router(db))
+api.include_router(
+    build_notifications_router(
+        db,
+        new_id,
+        now_iso,
+    )
+)
 app.include_router(api)
 
 _raw_origins = os.environ.get("CORS_ORIGINS", "*").strip()
