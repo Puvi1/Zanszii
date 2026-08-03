@@ -1,18 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  BadgePercent,
-  CalendarDays,
-  Copy,
+  ArrowDown,
+  ArrowUp,
   Download,
   FileSpreadsheet,
-  Gift,
+  GripVertical,
   Pencil,
   Plus,
   RefreshCw,
   Search,
-  Star,
   Trash2,
-  Truck,
   X,
 } from "lucide-react";
 
@@ -22,97 +19,39 @@ import {
   exportRowsToPdf,
 } from "../../utils/exportData";
 
-const EMPTY_FORM = {
-  code: "",
-  title: "",
+const blank = {
+  name: "",
   description: "",
-  offer_type: "percentage",
-  discount_value: "",
-  minimum_order_value: "0",
-  maximum_discount: "",
-  starts_at: "",
-  expires_at: "",
-  usage_limit: "",
-  per_user_limit: "1",
-  first_order_only: false,
+  image_url: "",
   active: true,
-  featured: false,
 };
 
-function formatDate(value) {
-  if (!value) return "No expiry";
-
-  return new Date(value).toLocaleDateString("en-IN", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
-}
-
-function toLocalInput(value) {
-  if (!value) return "";
-
-  const date = new Date(value);
-  const offset = date.getTimezoneOffset();
-  const local = new Date(date.getTime() - offset * 60000);
-
-  return local.toISOString().slice(0, 16);
-}
-
-function offerLabel(offer) {
-  if (offer.offer_type === "percentage") {
-    return `${Number(offer.discount_value || 0)}% off`;
-  }
-
-  if (offer.offer_type === "flat") {
-    return `₹${Number(offer.discount_value || 0).toLocaleString("en-IN")} off`;
-  }
-
-  return "Free delivery";
-}
-
-function offerStatus(offer) {
-  const now = Date.now();
-
-  if (!offer.active) return "Inactive";
-  if (offer.starts_at && new Date(offer.starts_at).getTime() > now) {
-    return "Scheduled";
-  }
-  if (offer.expires_at && new Date(offer.expires_at).getTime() < now) {
-    return "Expired";
-  }
-
-  return "Active";
-}
-
 const columns = [
-  { label: "Code", value: (item) => item.code },
-  { label: "Title", value: (item) => item.title },
-  { label: "Offer", value: offerLabel },
+  { label: "Order", value: (item) => item.display_order ?? 0 },
+  { label: "Category", value: (item) => item.name },
   {
-    label: "Minimum Order",
-    value: (item) => item.minimum_order_value || 0,
+    label: "Description",
+    value: (item) => item.description || "",
   },
   {
-    label: "Usage",
+    label: "Status",
     value: (item) =>
-      `${item.usage_count || 0}/${item.usage_limit || "Unlimited"}`,
+      item.active ? "Active" : "Inactive",
   },
-  { label: "Expiry", value: (item) => item.expires_at || "" },
-  { label: "Status", value: offerStatus },
 ];
 
-export default function AdminOffers() {
-  const [offers, setOffers] = useState([]);
+export default function AdminCategories() {
+  const [items, setItems] = useState([]);
   const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
 
-  const [modalOpen, setModalOpen] = useState(false);
+  const [modal, setModal] = useState(false);
   const [editing, setEditing] = useState(null);
-  const [form, setForm] = useState(EMPTY_FORM);
+  const [form, setForm] = useState(blank);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [ordering, setOrdering] = useState(false);
+
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
@@ -121,19 +60,24 @@ export default function AdminOffers() {
     setError("");
 
     try {
-      const response = await api.get("/admin/offers");
-      setOffers(
-        Array.isArray(response.data?.offers)
-          ? response.data.offers
-          : []
+      const response = await api.get(
+        "/categories?include_inactive=true"
       );
-    } catch (requestError) {
-      setError(
-        formatApiError(
-          requestError,
-          "Unable to load coupons."
+
+      const list = Array.isArray(response.data)
+        ? response.data
+        : [];
+
+      setItems(
+        [...list].sort(
+          (a, b) =>
+            Number(a.display_order ?? 9999) -
+              Number(b.display_order ?? 9999) ||
+            a.name.localeCompare(b.name)
         )
       );
+    } catch (requestError) {
+      setError(formatApiError(requestError));
     } finally {
       setLoading(false);
     }
@@ -146,101 +90,32 @@ export default function AdminOffers() {
   const filtered = useMemo(() => {
     const normalized = query.trim().toLowerCase();
 
-    return offers.filter((offer) => {
-      const matchesQuery =
-        !normalized ||
-        `${offer.code} ${offer.title} ${offer.description || ""}`
-          .toLowerCase()
-          .includes(normalized);
-
-      const matchesStatus =
-        statusFilter === "all" ||
-        offerStatus(offer).toLowerCase() === statusFilter;
-
-      return matchesQuery && matchesStatus;
-    });
-  }, [offers, query, statusFilter]);
-
-  const summary = useMemo(() => {
-    const statuses = offers.map(offerStatus);
-
-    return {
-      total: offers.length,
-      active: statuses.filter((value) => value === "Active").length,
-      expired: statuses.filter((value) => value === "Expired").length,
-      uses: offers.reduce(
-        (sum, offer) => sum + Number(offer.usage_count || 0),
-        0
-      ),
-    };
-  }, [offers]);
+    return items.filter((item) =>
+      `${item.name} ${item.description || ""}`
+        .toLowerCase()
+        .includes(normalized)
+    );
+  }, [items, query]);
 
   const openCreate = () => {
     setEditing(null);
-    setForm(EMPTY_FORM);
+    setForm(blank);
     setError("");
     setMessage("");
-    setModalOpen(true);
+    setModal(true);
   };
 
-  const openEdit = (offer) => {
-    setEditing(offer);
+  const openEdit = (item) => {
+    setEditing(item);
     setForm({
-      code: offer.code || "",
-      title: offer.title || "",
-      description: offer.description || "",
-      offer_type: offer.offer_type || "percentage",
-      discount_value: String(offer.discount_value ?? ""),
-      minimum_order_value: String(
-        offer.minimum_order_value ?? 0
-      ),
-      maximum_discount:
-        offer.maximum_discount == null
-          ? ""
-          : String(offer.maximum_discount),
-      starts_at: toLocalInput(offer.starts_at),
-      expires_at: toLocalInput(offer.expires_at),
-      usage_limit:
-        offer.usage_limit == null
-          ? ""
-          : String(offer.usage_limit),
-      per_user_limit: String(offer.per_user_limit || 1),
-      first_order_only: Boolean(offer.first_order_only),
-      active: offer.active !== false,
-      featured: Boolean(offer.featured),
+      name: item.name,
+      description: item.description || "",
+      image_url: item.image_url || "",
+      active: item.active !== false,
     });
     setError("");
     setMessage("");
-    setModalOpen(true);
-  };
-
-  const duplicateOffer = (offer) => {
-    setEditing(null);
-    setForm({
-      code: `${offer.code}COPY`,
-      title: `${offer.title} Copy`,
-      description: offer.description || "",
-      offer_type: offer.offer_type || "percentage",
-      discount_value: String(offer.discount_value ?? ""),
-      minimum_order_value: String(
-        offer.minimum_order_value ?? 0
-      ),
-      maximum_discount:
-        offer.maximum_discount == null
-          ? ""
-          : String(offer.maximum_discount),
-      starts_at: "",
-      expires_at: "",
-      usage_limit:
-        offer.usage_limit == null
-          ? ""
-          : String(offer.usage_limit),
-      per_user_limit: String(offer.per_user_limit || 1),
-      first_order_only: Boolean(offer.first_order_only),
-      active: false,
-      featured: false,
-    });
-    setModalOpen(true);
+    setModal(true);
   };
 
   const save = async (event) => {
@@ -249,113 +124,118 @@ export default function AdminOffers() {
     setError("");
     setMessage("");
 
-    const payload = {
-      code: form.code.trim().toUpperCase(),
-      title: form.title.trim(),
-      description: form.description.trim() || null,
-      offer_type: form.offer_type,
-      discount_value:
-        form.offer_type === "free_delivery"
-          ? 0
-          : Number(form.discount_value || 0),
-      minimum_order_value: Number(
-        form.minimum_order_value || 0
-      ),
-      maximum_discount:
-        form.offer_type === "percentage" &&
-        form.maximum_discount !== ""
-          ? Number(form.maximum_discount)
-          : null,
-      starts_at: form.starts_at
-        ? new Date(form.starts_at).toISOString()
-        : null,
-      expires_at: form.expires_at
-        ? new Date(form.expires_at).toISOString()
-        : null,
-      usage_limit:
-        form.usage_limit === ""
-          ? null
-          : Number(form.usage_limit),
-      per_user_limit: Number(form.per_user_limit || 1),
-      first_order_only: form.first_order_only,
-      category_ids: [],
-      product_ids: [],
-      active: form.active,
-      featured: form.featured,
-    };
-
     try {
       if (editing) {
         await api.patch(
-          `/admin/offers/${editing.offer_id}`,
-          payload
+          `/categories/${editing.category_id}`,
+          form
         );
       } else {
-        await api.post("/admin/offers", payload);
+        await api.post("/categories", form);
       }
 
-      setModalOpen(false);
+      setModal(false);
       setMessage(
         editing
-          ? "Coupon updated successfully."
-          : "Coupon created successfully."
+          ? "Category updated successfully."
+          : "Category created successfully."
       );
       await load();
     } catch (requestError) {
-      setError(
-        formatApiError(
-          requestError,
-          "Unable to save this coupon."
-        )
-      );
+      setError(formatApiError(requestError));
     } finally {
       setSaving(false);
     }
   };
 
-  const remove = async (offer) => {
-    if (!window.confirm(`Delete coupon “${offer.code}”?`)) {
+  const remove = async (item) => {
+    if (!window.confirm(`Delete “${item.name}”?`)) {
       return;
     }
 
     try {
-      await api.delete(`/admin/offers/${offer.offer_id}`);
-      setMessage("Coupon deleted successfully.");
+      await api.delete(
+        `/categories/${item.category_id}`
+      );
+      setMessage("Category deleted successfully.");
       await load();
     } catch (requestError) {
-      setError(
-        formatApiError(
-          requestError,
-          "Unable to delete this coupon."
-        )
-      );
+      setError(formatApiError(requestError));
     }
   };
 
-  const toggleActive = async (offer) => {
+  const saveOrder = async (nextItems) => {
+    setOrdering(true);
+    setError("");
+    setMessage("");
+
+    const ordered = nextItems.map((item, index) => ({
+      ...item,
+      display_order: index,
+    }));
+
+    setItems(ordered);
+
     try {
-      await api.patch(`/admin/offers/${offer.offer_id}`, {
-        active: !offer.active,
+      await api.put("/categories/reorder", {
+        items: ordered.map((item, index) => ({
+          category_id: item.category_id,
+          display_order: index,
+        })),
       });
-      await load();
+
+      setMessage("Category order updated successfully.");
     } catch (requestError) {
       setError(
         formatApiError(
           requestError,
-          "Unable to update coupon status."
+          "Unable to update category order."
         )
       );
+      await load();
+    } finally {
+      setOrdering(false);
     }
+  };
+
+  const move = async (categoryId, direction) => {
+    if (query.trim()) {
+      setError(
+        "Clear the search before rearranging categories."
+      );
+      return;
+    }
+
+    const currentIndex = items.findIndex(
+      (item) => item.category_id === categoryId
+    );
+    const targetIndex = currentIndex + direction;
+
+    if (
+      currentIndex < 0 ||
+      targetIndex < 0 ||
+      targetIndex >= items.length
+    ) {
+      return;
+    }
+
+    const nextItems = [...items];
+    [nextItems[currentIndex], nextItems[targetIndex]] = [
+      nextItems[targetIndex],
+      nextItems[currentIndex],
+    ];
+
+    await saveOrder(nextItems);
   };
 
   return (
     <div className="admin-page">
       <div className="page-heading-row">
         <div>
-          <span className="eyebrow">Promotions</span>
-          <h1>Coupons & Offers</h1>
+          <span className="eyebrow">Catalogue setup</span>
+          <h1>Categories</h1>
           <p>
-            Create discounts, control usage and highlight offers.
+            Create categories and control their customer-facing order.
           </p>
         </div>
 
@@ -364,7 +244,7 @@ export default function AdminOffers() {
           onClick={openCreate}
         >
           <Plus size={18} />
-          Create coupon
+          Add category
         </button>
       </div>
 
@@ -376,89 +256,16 @@ export default function AdminOffers() {
         <div className="alert alert-success">{message}</div>
       )}
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns:
-            "repeat(auto-fit, minmax(160px, 1fr))",
-          gap: "14px",
-          marginBottom: "18px",
-        }}
-      >
-        {[
-          ["Total Coupons", summary.total, Gift],
-          ["Active", summary.active, BadgePercent],
-          ["Expired", summary.expired, CalendarDays],
-          ["Total Uses", summary.uses, Star],
-        ].map(([label, value, Icon]) => (
-          <div
-            key={label}
-            className="panel"
-            style={{ padding: "16px" }}
-          >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-              }}
-            >
-              <span
-                style={{
-                  width: 40,
-                  height: 40,
-                  display: "grid",
-                  placeItems: "center",
-                  borderRadius: 14,
-                  background: "#eff6ff",
-                  color: "#0F4C9C",
-                }}
-              >
-                <Icon size={19} />
-              </span>
-
-              <strong style={{ fontSize: 24 }}>{value}</strong>
-            </div>
-
-            <p
-              style={{
-                margin: "10px 0 0",
-                fontSize: 12,
-                fontWeight: 800,
-                color: "#64748b",
-              }}
-            >
-              {label}
-            </p>
-          </div>
-        ))}
-      </div>
-
       <div className="panel toolbar-panel">
-        <div className="filter-group">
-          <div className="search-field">
-            <Search size={18} />
-            <input
-              value={query}
-              onChange={(event) =>
-                setQuery(event.target.value)
-              }
-              placeholder="Search code or title…"
-            />
-          </div>
-
-          <select
-            value={statusFilter}
+        <div className="search-field">
+          <Search size={18} />
+          <input
+            value={query}
             onChange={(event) =>
-              setStatusFilter(event.target.value)
+              setQuery(event.target.value)
             }
-          >
-            <option value="all">All statuses</option>
-            <option value="active">Active</option>
-            <option value="scheduled">Scheduled</option>
-            <option value="expired">Expired</option>
-            <option value="inactive">Inactive</option>
-          </select>
+            placeholder="Search categories…"
+          />
         </div>
 
         <div className="toolbar-actions">
@@ -468,9 +275,8 @@ export default function AdminOffers() {
               exportRowsToPdf({
                 rows: filtered,
                 columns,
-                fileName: "zanszii-coupons",
-                title: "ZANSZI Coupons & Offers",
-                landscape: true,
+                fileName: "zanszii-categories",
+                title: "ZANSZI Categories",
               })
             }
           >
@@ -484,8 +290,8 @@ export default function AdminOffers() {
               exportRowsToExcel({
                 rows: filtered,
                 columns,
-                fileName: "zanszii-coupons",
-                sheetName: "Coupons",
+                fileName: "zanszii-categories",
+                sheetName: "Categories",
               })
             }
           >
@@ -496,7 +302,7 @@ export default function AdminOffers() {
           <button
             className="icon-btn bordered"
             onClick={load}
-            aria-label="Refresh coupons"
+            aria-label="Refresh categories"
           >
             <RefreshCw size={18} />
           </button>
@@ -504,15 +310,30 @@ export default function AdminOffers() {
       </div>
 
       <div className="panel">
+        <div
+          style={{
+            padding: "14px 16px",
+            borderBottom: "1px solid #e2e8f0",
+            display: "flex",
+            alignItems: "center",
+            gap: "10px",
+            color: "#64748b",
+            fontSize: "12px",
+            fontWeight: 800,
+          }}
+        >
+          <GripVertical size={17} />
+          Use the arrow buttons to change homepage and shop order.
+          {ordering && <span> Saving…</span>}
+        </div>
+
         <div className="table-wrap">
           <table className="data-table">
             <thead>
               <tr>
-                <th>Coupon</th>
-                <th>Offer</th>
-                <th>Minimum order</th>
-                <th>Usage</th>
-                <th>Expiry</th>
+                <th>Order</th>
+                <th>Category</th>
+                <th>Description</th>
                 <th>Status</th>
                 <th className="actions-col">Actions</th>
               </tr>
@@ -521,99 +342,119 @@ export default function AdminOffers() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan="7" className="empty-cell">
-                    Loading coupons…
+                  <td colSpan="5" className="empty-cell">
+                    Loading…
                   </td>
                 </tr>
               ) : filtered.length ? (
-                filtered.map((offer) => {
-                  const status = offerStatus(offer);
+                filtered.map((item) => {
+                  const itemIndex = items.findIndex(
+                    (category) =>
+                      category.category_id ===
+                      item.category_id
+                  );
 
                   return (
-                    <tr key={offer.offer_id}>
+                    <tr key={item.category_id}>
                       <td>
-                        <div>
-                          <strong>{offer.code}</strong>
-                          <small
-                            style={{
-                              display: "block",
-                              marginTop: 4,
-                            }}
-                          >
-                            {offer.title}
-                          </small>
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "8px",
+                          }}
+                        >
+                          <strong>{itemIndex + 1}</strong>
+
+                          <div className="row-actions">
+                            <button
+                              type="button"
+                              disabled={
+                                ordering ||
+                                itemIndex === 0 ||
+                                Boolean(query.trim())
+                              }
+                              onClick={() =>
+                                move(item.category_id, -1)
+                              }
+                              aria-label={`Move ${item.name} up`}
+                            >
+                              <ArrowUp size={16} />
+                            </button>
+
+                            <button
+                              type="button"
+                              disabled={
+                                ordering ||
+                                itemIndex === items.length - 1 ||
+                                Boolean(query.trim())
+                              }
+                              onClick={() =>
+                                move(item.category_id, 1)
+                              }
+                              aria-label={`Move ${item.name} down`}
+                            >
+                              <ArrowDown size={16} />
+                            </button>
+                          </div>
                         </div>
                       </td>
 
                       <td>
-                        <strong>{offerLabel(offer)}</strong>
-                        {offer.featured && (
-                          <small
-                            style={{
-                              display: "block",
-                              marginTop: 4,
-                              color: "#d97706",
-                            }}
-                          >
-                            Featured
-                          </small>
-                        )}
+                        <div className="product-cell">
+                          <div className="product-thumb">
+                            {item.image_url ? (
+                              <img
+                                src={item.image_url}
+                                alt={item.name}
+                                onError={(event) => {
+                                  event.currentTarget.style.display =
+                                    "none";
+                                }}
+                              />
+                            ) : (
+                              <span>
+                                {item.name
+                                  ?.charAt(0)
+                                  ?.toUpperCase()}
+                              </span>
+                            )}
+                          </div>
+
+                          <strong>{item.name}</strong>
+                        </div>
+                      </td>
+
+                      <td className="muted-cell">
+                        {item.description ||
+                          "No description"}
                       </td>
 
                       <td>
-                        ₹
-                        {Number(
-                          offer.minimum_order_value || 0
-                        ).toLocaleString("en-IN")}
-                      </td>
-
-                      <td>
-                        {offer.usage_count || 0}
-                        {" / "}
-                        {offer.usage_limit || "∞"}
-                      </td>
-
-                      <td>{formatDate(offer.expires_at)}</td>
-
-                      <td>
-                        <button
-                          type="button"
-                          onClick={() => toggleActive(offer)}
+                        <span
                           className={`status-chip ${
-                            status === "Active"
+                            item.active
                               ? "status-active"
                               : "status-inactive"
                           }`}
                         >
-                          {status}
-                        </button>
+                          {item.active
+                            ? "Active"
+                            : "Inactive"}
+                        </span>
                       </td>
 
                       <td>
                         <div className="row-actions">
                           <button
-                            type="button"
-                            onClick={() => openEdit(offer)}
-                            aria-label={`Edit ${offer.code}`}
+                            onClick={() => openEdit(item)}
                           >
                             <Pencil size={17} />
                           </button>
 
                           <button
-                            type="button"
-                            onClick={() =>
-                              duplicateOffer(offer)
-                            }
-                            aria-label={`Duplicate ${offer.code}`}
-                          >
-                            <Copy size={17} />
-                          </button>
-
-                          <button
-                            type="button"
                             className="danger"
-                            onClick={() => remove(offer)}
-                            aria-label={`Delete ${offer.code}`}
+                            onClick={() => remove(item)}
                           >
                             <Trash2 size={17} />
                           </button>
@@ -624,8 +465,8 @@ export default function AdminOffers() {
                 })
               ) : (
                 <tr>
-                  <td colSpan="7" className="empty-cell">
-                    No coupons found.
+                  <td colSpan="5" className="empty-cell">
+                    No categories found.
                   </td>
                 </tr>
               )}
@@ -634,22 +475,24 @@ export default function AdminOffers() {
         </div>
       </div>
 
-      {modalOpen && (
+      {modal && (
         <div className="modal-backdrop">
-          <div className="modal-card modal-wide">
+          <div className="modal-card">
             <div className="modal-header">
               <div>
                 <h2>
-                  {editing ? "Edit coupon" : "Create coupon"}
+                  {editing
+                    ? "Edit category"
+                    : "New category"}
                 </h2>
                 <p>
-                  Configure discount rules and availability.
+                  Use a short and clear category name.
                 </p>
               </div>
 
               <button
                 className="icon-btn"
-                onClick={() => setModalOpen(false)}
+                onClick={() => setModal(false)}
               >
                 <X />
               </button>
@@ -657,220 +500,49 @@ export default function AdminOffers() {
 
             <form
               onSubmit={save}
-              className="modal-form form-grid"
+              className="modal-form"
             >
               <label>
-                Coupon code
+                Name
                 <input
                   required
-                  minLength={3}
-                  value={form.code}
+                  value={form.name}
                   onChange={(event) =>
                     setForm({
                       ...form,
-                      code: event.target.value.toUpperCase(),
+                      name: event.target.value,
                     })
                   }
                 />
               </label>
 
               <label>
-                Title
-                <input
-                  required
-                  value={form.title}
-                  onChange={(event) =>
-                    setForm({
-                      ...form,
-                      title: event.target.value,
-                    })
-                  }
-                />
-              </label>
-
-              <label>
-                Offer type
-                <select
-                  value={form.offer_type}
-                  onChange={(event) =>
-                    setForm({
-                      ...form,
-                      offer_type: event.target.value,
-                    })
-                  }
-                >
-                  <option value="percentage">
-                    Percentage discount
-                  </option>
-                  <option value="flat">Flat discount</option>
-                  <option value="free_delivery">
-                    Free delivery
-                  </option>
-                </select>
-              </label>
-
-              <label>
-                Discount value
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  disabled={
-                    form.offer_type === "free_delivery"
-                  }
-                  required={
-                    form.offer_type !== "free_delivery"
-                  }
-                  value={form.discount_value}
-                  onChange={(event) =>
-                    setForm({
-                      ...form,
-                      discount_value: event.target.value,
-                    })
-                  }
-                />
-              </label>
-
-              <label>
-                Minimum order value
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={form.minimum_order_value}
-                  onChange={(event) =>
-                    setForm({
-                      ...form,
-                      minimum_order_value:
-                        event.target.value,
-                    })
-                  }
-                />
-              </label>
-
-              <label>
-                Maximum discount
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  disabled={
-                    form.offer_type !== "percentage"
-                  }
-                  value={form.maximum_discount}
-                  onChange={(event) =>
-                    setForm({
-                      ...form,
-                      maximum_discount:
-                        event.target.value,
-                    })
-                  }
-                  placeholder="Optional"
-                />
-              </label>
-
-              <label>
-                Start date
-                <input
-                  type="datetime-local"
-                  value={form.starts_at}
-                  onChange={(event) =>
-                    setForm({
-                      ...form,
-                      starts_at: event.target.value,
-                    })
-                  }
-                />
-              </label>
-
-              <label>
-                Expiry date
-                <input
-                  type="datetime-local"
-                  value={form.expires_at}
-                  onChange={(event) =>
-                    setForm({
-                      ...form,
-                      expires_at: event.target.value,
-                    })
-                  }
-                />
-              </label>
-
-              <label>
-                Total usage limit
-                <input
-                  type="number"
-                  min="1"
-                  value={form.usage_limit}
-                  onChange={(event) =>
-                    setForm({
-                      ...form,
-                      usage_limit: event.target.value,
-                    })
-                  }
-                  placeholder="Unlimited"
-                />
-              </label>
-
-              <label>
-                Per-customer limit
-                <input
-                  type="number"
-                  min="1"
-                  max="100"
-                  value={form.per_user_limit}
-                  onChange={(event) =>
-                    setForm({
-                      ...form,
-                      per_user_limit:
-                        event.target.value,
-                    })
-                  }
-                />
-              </label>
-
-              <label className="span-2">
                 Description
                 <textarea
-                  rows="3"
+                  rows="4"
                   value={form.description}
                   onChange={(event) =>
                     setForm({
                       ...form,
-                      description: event.target.value,
+                      description:
+                        event.target.value,
                     })
                   }
                 />
               </label>
 
-              <label className="switch-row">
+              <label>
+                Image URL
                 <input
-                  type="checkbox"
-                  checked={form.first_order_only}
+                  value={form.image_url}
                   onChange={(event) =>
                     setForm({
                       ...form,
-                      first_order_only:
-                        event.target.checked,
+                      image_url: event.target.value,
                     })
                   }
+                  placeholder="https://…"
                 />
-                <span>First order only</span>
-              </label>
-
-              <label className="switch-row">
-                <input
-                  type="checkbox"
-                  checked={form.featured}
-                  onChange={(event) =>
-                    setForm({
-                      ...form,
-                      featured: event.target.checked,
-                    })
-                  }
-                />
-                <span>Featured offer</span>
               </label>
 
               <label className="switch-row">
@@ -884,14 +556,14 @@ export default function AdminOffers() {
                     })
                   }
                 />
-                <span>Active and usable</span>
+                <span>Active and visible</span>
               </label>
 
-              <div className="modal-actions span-2">
+              <div className="modal-actions">
                 <button
                   type="button"
                   className="btn btn-ghost"
-                  onClick={() => setModalOpen(false)}
+                  onClick={() => setModal(false)}
                 >
                   Cancel
                 </button>
@@ -900,11 +572,7 @@ export default function AdminOffers() {
                   className="btn btn-primary"
                   disabled={saving}
                 >
-                  {saving
-                    ? "Saving…"
-                    : editing
-                      ? "Update coupon"
-                      : "Create coupon"}
+                  {saving ? "Saving…" : "Save category"}
                 </button>
               </div>
             </form>
