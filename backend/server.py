@@ -2361,6 +2361,228 @@ def allocate_order_discount_and_costs(
     return normalized_items
 
 
+def normalize_product_name(value: Optional[str]) -> str:
+    return " ".join(str(value or "").strip().lower().split())
+
+
+async def enrich_order_financials(
+    order: dict,
+    *,
+    persist: bool = False,
+) -> dict:
+    """
+    Recalculate order/product cost, profit and loss using:
+    1. the historical cost snapshot stored on the order item;
+    2. the current product cost fields from Cost Management as fallback;
+    3. product-name matching for older orders whose product_id no longer matches.
+
+    This fixes older orders that previously showed customer-paid revenue
+    as full profit because total_cost was missing or zero.
+    """
+    result = dict(order)
+    original_items = [dict(item) for item in result.get("items", [])]
+
+    products = [
+        clean_doc(product)
+        async for product in db.products.find({})
+    ]
+
+    by_id = {
+        product.get("product_id"): product
+        for product in products
+        if product.get("product_id")
+    }
+    by_name = {
+        normalize_product_name(product.get("name")): product
+        for product in products
+        if normalize_product_name(product.get("name"))
+    }
+
+    product_map = {}
+    for item in original_items:
+        product = by_id.get(item.get("product_id"))
+
+        if not product:
+            product = by_name.get(
+                normalize_product_name(
+                    item.get("name")
+                    or item.get("product_name")
+                )
+            )
+
+        product_map[item.get("product_id")] = product or {}
+
+    discount = round(float(result.get("discount", 0) or 0), 2)
+    recalculated_items = allocate_order_discount_and_costs(
+        original_items,
+        discount,
+        product_map,
+    )
+
+    # Preserve a valid historical snapshot. Use current Cost Management
+    # only where the old order has no usable cost data.
+    final_items = []
+
+    for old_item, calculated_item in zip(
+        original_items,
+        recalculated_items,
+    ):
+        old_total_cost = float(
+            old_item.get("total_cost", 0) or 0
+        )
+        old_unit_cost = float(
+            old_item.get("unit_cost", 0) or 0
+        )
+        old_snapshot = old_item.get("cost_snapshot") or {}
+
+        has_valid_snapshot = (
+            old_total_cost > 0
+            or old_unit_cost > 0
+            or any(
+                float(old_snapshot.get(field, 0) or 0) > 0
+                for field in (
+                    "wholesale_price",
+                    "packaging_cost",
+                    "delivery_cost",
+                    "other_cost",
+                )
+            )
+        )
+
+        if has_valid_snapshot:
+            item = dict(calculated_item)
+            item["unit_cost"] = old_unit_cost or round(
+                sum(
+                    float(old_snapshot.get(field, 0) or 0)
+                    for field in (
+                        "wholesale_price",
+                        "packaging_cost",
+                        "delivery_cost",
+                        "other_cost",
+                    )
+                ),
+                2,
+            )
+            item["total_cost"] = old_total_cost or round(
+                item["unit_cost"]
+                * int(item.get("quantity", 0) or 0),
+                2,
+            )
+            item["cost_snapshot"] = old_snapshot
+
+            item["net_profit"] = round(
+                float(item.get("net_revenue", 0) or 0)
+                - float(item["total_cost"]),
+                2,
+            )
+            item["profit"] = round(
+                max(item["net_profit"], 0),
+                2,
+            )
+            item["loss"] = round(
+                abs(item["net_profit"])
+                if item["net_profit"] < 0
+                else 0,
+                2,
+            )
+            item["profit_margin"] = round(
+                (
+                    item["net_profit"]
+                    / float(item.get("net_revenue", 0) or 0)
+                    * 100
+                )
+                if float(item.get("net_revenue", 0) or 0) > 0
+                else 0,
+                2,
+            )
+        else:
+            item = calculated_item
+
+        final_items.append(item)
+
+    subtotal = round(
+        float(
+            result.get(
+                "subtotal",
+                sum(
+                    float(item.get("line_total", 0) or 0)
+                    for item in final_items
+                ),
+            )
+            or 0
+        ),
+        2,
+    )
+    delivery_charge = round(
+        float(result.get("delivery_charge", 0) or 0),
+        2,
+    )
+    total = round(
+        float(
+            result.get(
+                "total",
+                subtotal + delivery_charge - discount,
+            )
+            or 0
+        ),
+        2,
+    )
+    product_cost = round(
+        sum(
+            float(item.get("total_cost", 0) or 0)
+            for item in final_items
+        ),
+        2,
+    )
+    net_profit = round(total - product_cost, 2)
+    loss = round(
+        abs(net_profit) if net_profit < 0 else 0,
+        2,
+    )
+    profit_margin = round(
+        (net_profit / total * 100)
+        if total > 0
+        else 0,
+        2,
+    )
+
+    result.update({
+        "items": final_items,
+        "subtotal": subtotal,
+        "discount": discount,
+        "delivery_charge": delivery_charge,
+        "total": total,
+        "product_cost": product_cost,
+        "net_profit": net_profit,
+        "loss": loss,
+        "profit_margin": profit_margin,
+    })
+
+    if persist and result.get("order_id"):
+        await db.orders.update_one(
+            {"order_id": result["order_id"]},
+            {
+                "$set": {
+                    "items": final_items,
+                    "subtotal": subtotal,
+                    "discount": discount,
+                    "delivery_charge": delivery_charge,
+                    "total": total,
+                    "product_cost": product_cost,
+                    "net_profit": net_profit,
+                    "loss": loss,
+                    "profit_margin": profit_margin,
+                    "financials_recalculated_at": now_iso(),
+                    "updated_at": now_iso(),
+                }
+            },
+        )
+
+    return result
+
+
+
+
 # ---------- Orders ----------
 @api.post("/orders")
 async def create_order(payload: OrderCreate, user=Depends(customer_user)):
@@ -2579,25 +2801,100 @@ async def create_order(payload: OrderCreate, user=Depends(customer_user)):
 
 @api.get("/orders/my")
 async def my_orders(user=Depends(customer_user)):
-    return [clean_doc(x) async for x in db.orders.find({"user_id": user["user_id"]}).sort("created_at", -1)]
+    orders = []
+
+    async for order in db.orders.find({
+        "user_id": user["user_id"]
+    }).sort("created_at", -1):
+        orders.append(
+            clean_doc(
+                await enrich_order_financials(order)
+            )
+        )
+
+    return orders
 
 
 @api.get("/orders/{order_id}")
-async def get_order(order_id: str, user=Depends(current_user)):
-    order = await db.orders.find_one({"order_id": order_id})
+async def get_order(
+    order_id: str,
+    user=Depends(current_user),
+):
+    order = await db.orders.find_one({
+        "order_id": order_id
+    })
+
     if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
-    if user["role"] == "customer" and order["user_id"] != user["user_id"]:
-        raise HTTPException(status_code=403, detail="Forbidden")
-    if user["role"] == "manager" and order.get("manager_id") not in (None, user["user_id"]):
-        raise HTTPException(status_code=403, detail="Forbidden")
-    return clean_doc(order)
+        raise HTTPException(
+            status_code=404,
+            detail="Order not found",
+        )
+
+    if (
+        user["role"] == "customer"
+        and order["user_id"] != user["user_id"]
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="Forbidden",
+        )
+
+    if (
+        user["role"] == "manager"
+        and order.get("manager_id")
+        not in (None, user["user_id"])
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="Forbidden",
+        )
+
+    return clean_doc(
+        await enrich_order_financials(order)
+    )
 
 
 @api.get("/admin/orders")
-async def admin_orders(status: Optional[str] = None, user=Depends(admin_user)):
+async def admin_orders(
+    status: Optional[str] = None,
+    user=Depends(admin_user),
+):
     query = {"status": status} if status else {}
-    return [clean_doc(x) async for x in db.orders.find(query).sort("created_at", -1)]
+    orders = []
+
+    async for order in db.orders.find(query).sort(
+        "created_at",
+        -1,
+    ):
+        orders.append(
+            clean_doc(
+                await enrich_order_financials(order)
+            )
+        )
+
+    return orders
+
+
+@api.post("/admin/orders/recalculate-financials")
+async def recalculate_all_order_financials(
+    user=Depends(admin_user),
+):
+    updated = 0
+
+    async for order in db.orders.find({}):
+        await enrich_order_financials(
+            order,
+            persist=True,
+        )
+        updated += 1
+
+    return {
+        "message": (
+            "Order cost, profit and loss recalculated "
+            "successfully"
+        ),
+        "updated_orders": updated,
+    }
 
 
 @api.patch("/orders/{order_id}/status")
@@ -3071,7 +3368,8 @@ async def admin_reports(user=Depends(admin_user)):
     total_revenue = total_cost = 0.0
     total_units = 0
 
-    for order in delivered_orders:
+    for raw_order in delivered_orders:
+        order = await enrich_order_financials(raw_order)
         order_total = float(order.get("total", 0) or 0)
         total_revenue += order_total
         raw_date = order.get("delivered_at") or order.get("created_at")
@@ -3104,10 +3402,39 @@ async def admin_reports(user=Depends(admin_user)):
             product_id = item.get("product_id")
             product = product_map.get(product_id, {})
             quantity = int(item.get("quantity", 0) or 0)
-            selling_price = float(item.get("price", 0) or 0)
-            revenue = float(item.get("line_total", selling_price * quantity) or 0)
-            unit_cost = sum(float(product.get(k, 0) or 0) for k in ("wholesale_price", "packaging_cost", "delivery_cost", "other_cost"))
-            cost = unit_cost * quantity
+            selling_price = float(
+                item.get("price", 0) or 0
+            )
+            revenue = float(
+                item.get(
+                    "net_revenue",
+                    item.get(
+                        "line_total",
+                        selling_price * quantity,
+                    ),
+                )
+                or 0
+            )
+            unit_cost = float(
+                item.get("unit_cost", 0) or 0
+            )
+            if unit_cost <= 0:
+                unit_cost = sum(
+                    float(product.get(k, 0) or 0)
+                    for k in (
+                        "wholesale_price",
+                        "packaging_cost",
+                        "delivery_cost",
+                        "other_cost",
+                    )
+                )
+            cost = float(
+                item.get(
+                    "total_cost",
+                    unit_cost * quantity,
+                )
+                or 0
+            )
             profit = revenue - cost
             total_cost += cost; total_units += quantity
             category_id = product.get("category_id")
