@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   ArrowRight,
@@ -11,6 +11,10 @@ import {
   Heart,
   Package,
   Search,
+  X,
+  History,
+  Store,
+  Tag,
   ShieldCheck,
   ShoppingBag,
   ShoppingCart,
@@ -28,6 +32,7 @@ const FALLBACK =
   "https://placehold.co/900x700/F1F6FC/0F4C9C?text=ZANSZI";
 
 const WISHLIST_STORAGE_KEY = "zanszii_wishlist";
+const RECENT_SEARCHES_STORAGE_KEY = "zanszii_recent_searches";
 
 const money = (value) =>
   new Intl.NumberFormat("en-IN", {
@@ -118,6 +123,35 @@ function readWishlist() {
   } catch {
     return [];
   }
+}
+
+function readRecentSearches() {
+  try {
+    const saved = JSON.parse(
+      localStorage.getItem(RECENT_SEARCHES_STORAGE_KEY) || "[]"
+    );
+    return Array.isArray(saved) ? saved.slice(0, 8) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveRecentSearch(query) {
+  const clean = String(query || "").trim();
+  if (!clean) return readRecentSearches();
+
+  const next = [
+    clean,
+    ...readRecentSearches().filter(
+      (item) => item.toLowerCase() !== clean.toLowerCase()
+    ),
+  ].slice(0, 8);
+
+  localStorage.setItem(
+    RECENT_SEARCHES_STORAGE_KEY,
+    JSON.stringify(next)
+  );
+  return next;
 }
 
 function ProductCard({
@@ -314,6 +348,11 @@ export default function ZANSZIHome() {
   const [timeLeft, setTimeLeft] = useState(2 * 60 * 60 + 45 * 60 + 18);
   const [wishlistIds, setWishlistIds] =
     useState(readWishlist);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [activeSuggestion, setActiveSuggestion] = useState(-1);
+  const [recentSearches, setRecentSearches] =
+    useState(readRecentSearches);
+  const searchWrapRef = useRef(null);
 
   useEffect(() => {
     Promise.all([
@@ -366,6 +405,22 @@ export default function ZANSZIHome() {
     return () => window.clearInterval(timer);
   }, []);
 
+  useEffect(() => {
+    const handlePointerDown = (event) => {
+      if (
+        searchWrapRef.current &&
+        !searchWrapRef.current.contains(event.target)
+      ) {
+        setSearchOpen(false);
+        setActiveSuggestion(-1);
+      }
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    return () =>
+      document.removeEventListener("mousedown", handlePointerDown);
+  }, []);
+
   const featured = useMemo(() => {
     const preferred = products.filter(
       (product) =>
@@ -414,15 +469,202 @@ export default function ZANSZIHome() {
       .slice(0, 6);
   }, [products]);
 
+  const trendingSearches = useMemo(() => {
+    const names = products
+      .filter((product) => Number(product.stock) > 0)
+      .slice(0, 6)
+      .map((product) => product.name)
+      .filter(Boolean);
+
+    return names.length
+      ? names
+      : ["Floor Cleaner", "Toilet Cleaner", "Dish Wash", "Gifts"];
+  }, [products]);
+
+  const searchSuggestions = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return [];
+
+    const productMatches = products
+      .filter((product) =>
+        [
+          product.name,
+          product.description,
+          product.category?.name,
+          product.category_name,
+          product.store?.name,
+          product.business_name,
+          product.seller_name,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase()
+          .includes(query)
+      )
+      .slice(0, 5)
+      .map((product) => ({
+        type: "product",
+        id: product.product_id,
+        label: product.name,
+        subtitle:
+          product.category?.name ||
+          product.category_name ||
+          product.store?.name ||
+          "Product",
+        image:
+          product.image_url ||
+          product.images?.[0] ||
+          FALLBACK,
+        price: product.price,
+        stock: product.stock,
+        raw: product,
+      }));
+
+    const categoryMatches = categories
+      .filter((category) =>
+        String(category.name || "")
+          .toLowerCase()
+          .includes(query)
+      )
+      .slice(0, 3)
+      .map((category) => ({
+        type: "category",
+        id: category.category_id,
+        label: category.name,
+        subtitle: "Category",
+        image:
+          category.image_url ||
+          category.image ||
+          category.thumbnail_url ||
+          "",
+        raw: category,
+      }));
+
+    const stores = new Map();
+    products.forEach((product) => {
+      const storeName =
+        product.store?.name ||
+        product.business_name ||
+        product.seller_name;
+      const storeId =
+        product.store?.store_id ||
+        product.store_id ||
+        storeName;
+
+      if (
+        storeName &&
+        String(storeName).toLowerCase().includes(query) &&
+        !stores.has(storeId)
+      ) {
+        stores.set(storeId, {
+          type: "store",
+          id: storeId,
+          label: storeName,
+          subtitle: "Store",
+          raw: product.store || {
+            store_id: product.store_id,
+            name: storeName,
+          },
+        });
+      }
+    });
+
+    return [
+      ...productMatches,
+      ...categoryMatches,
+      ...Array.from(stores.values()).slice(0, 2),
+    ];
+  }, [products, categories, search]);
+
+  const runSearch = (query) => {
+    const clean = String(query || "").trim();
+
+    if (!clean) {
+      navigate("/products");
+      setSearchOpen(false);
+      return;
+    }
+
+    setRecentSearches(saveRecentSearch(clean));
+    setSearch(clean);
+    setSearchOpen(false);
+    setActiveSuggestion(-1);
+    navigate(`/products?search=${encodeURIComponent(clean)}`);
+  };
+
+  const openSuggestion = (suggestion) => {
+    if (!suggestion) return;
+
+    setRecentSearches(saveRecentSearch(suggestion.label));
+    setSearchOpen(false);
+    setActiveSuggestion(-1);
+
+    if (suggestion.type === "product") {
+      navigate(`/products/${suggestion.id}`);
+      return;
+    }
+
+    if (suggestion.type === "category") {
+      navigate(`/products?category=${suggestion.id}`);
+      return;
+    }
+
+    if (suggestion.raw?.slug) {
+      navigate(`/stores/${suggestion.raw.slug}`);
+    } else if (suggestion.raw?.store_id) {
+      navigate(`/stores/${suggestion.raw.store_id}`);
+    } else {
+      navigate(
+        `/products?search=${encodeURIComponent(suggestion.label)}`
+      );
+    }
+  };
+
+  const handleSearchKeyDown = (event) => {
+    if (!searchOpen) return;
+
+    const total =
+      searchSuggestions.length + (search.trim() ? 1 : 0);
+
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setActiveSuggestion((current) =>
+        total ? (current + 1) % total : -1
+      );
+    }
+
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setActiveSuggestion((current) =>
+        total ? (current - 1 + total) % total : -1
+      );
+    }
+
+    if (event.key === "Escape") {
+      setSearchOpen(false);
+      setActiveSuggestion(-1);
+    }
+
+    if (event.key === "Enter") {
+      if (
+        activeSuggestion >= 0 &&
+        activeSuggestion < searchSuggestions.length
+      ) {
+        event.preventDefault();
+        openSuggestion(searchSuggestions[activeSuggestion]);
+      } else if (
+        activeSuggestion === searchSuggestions.length &&
+        search.trim()
+      ) {
+        event.preventDefault();
+        runSearch(search);
+      }
+    }
+  };
+
   const submitSearch = (event) => {
     event.preventDefault();
-    const query = search.trim();
-
-    navigate(
-      query
-        ? `/products?search=${encodeURIComponent(query)}`
-        : "/products"
-    );
+    runSearch(search);
   };
 
   const openProduct = (product) => {
@@ -516,7 +758,10 @@ export default function ZANSZIHome() {
   return (
     <div className="space-y-5 pb-28 md:space-y-8 md:pb-8">
 
-      <section className="rounded-[22px] border border-slate-200 bg-white p-2 shadow-[0_8px_28px_rgba(15,23,42,0.06)]">
+      <section
+        ref={searchWrapRef}
+        className="relative z-30 rounded-[22px] border border-slate-200 bg-white p-2 shadow-[0_8px_28px_rgba(15,23,42,0.06)]"
+      >
         <form
           onSubmit={submitSearch}
           className="flex h-12 items-center gap-2 rounded-[16px] bg-[#F7FAFF] px-2 sm:h-14"
@@ -527,12 +772,34 @@ export default function ZANSZIHome() {
 
           <input
             value={search}
-            onChange={(event) =>
-              setSearch(event.target.value)
-            }
+            onFocus={() => {
+              setSearchOpen(true);
+              setActiveSuggestion(-1);
+            }}
+            onChange={(event) => {
+              setSearch(event.target.value);
+              setSearchOpen(true);
+              setActiveSuggestion(-1);
+            }}
+            onKeyDown={handleSearchKeyDown}
             placeholder="Search products, stores or categories"
             className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-slate-900 outline-none placeholder:text-slate-400"
           />
+
+          {search && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearch("");
+                setSearchOpen(true);
+                setActiveSuggestion(-1);
+              }}
+              className="grid h-8 w-8 place-items-center rounded-xl text-slate-400 hover:bg-white hover:text-slate-700"
+              aria-label="Clear search"
+            >
+              <X size={17} />
+            </button>
+          )}
 
           <button
             className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#062B5F] text-white shadow-sm transition hover:bg-[#0F4C9C] sm:h-10 sm:w-auto sm:px-4"
@@ -545,6 +812,214 @@ export default function ZANSZIHome() {
             </span>
           </button>
         </form>
+
+        {searchOpen && (
+          <div className="absolute left-0 right-0 top-[calc(100%+8px)] overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-[0_24px_60px_rgba(15,23,42,0.16)]">
+            {search.trim() ? (
+              searchSuggestions.length > 0 ? (
+                <div className="max-h-[420px] overflow-y-auto p-2">
+                  {searchSuggestions.map((suggestion, index) => (
+                    <button
+                      type="button"
+                      key={`${suggestion.type}-${suggestion.id}`}
+                      onMouseEnter={() =>
+                        setActiveSuggestion(index)
+                      }
+                      onClick={() =>
+                        openSuggestion(suggestion)
+                      }
+                      className={`flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition ${
+                        activeSuggestion === index
+                          ? "bg-[#F1F6FC]"
+                          : "hover:bg-slate-50"
+                      }`}
+                    >
+                      <span className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-2xl bg-[#F5F9FF] text-[#0F4C9C]">
+                        {suggestion.type === "product" ? (
+                          <img
+                            src={suggestion.image}
+                            alt={suggestion.label}
+                            className="h-full w-full object-contain p-1.5"
+                            onError={(event) => {
+                              event.currentTarget.src = FALLBACK;
+                            }}
+                          />
+                        ) : suggestion.type === "category" ? (
+                          suggestion.image ? (
+                            <img
+                              src={suggestion.image}
+                              alt={suggestion.label}
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            <Tag size={19} />
+                          )
+                        ) : (
+                          <Store size={19} />
+                        )}
+                      </span>
+
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-black text-slate-900">
+                          {suggestion.label}
+                        </span>
+                        <span className="mt-1 block truncate text-xs text-slate-500">
+                          {suggestion.subtitle}
+                        </span>
+                      </span>
+
+                      {suggestion.type === "product" && (
+                        <span className="text-right">
+                          <span className="block text-sm font-black text-[#062B5F]">
+                            {money(suggestion.price)}
+                          </span>
+                          <span
+                            className={`mt-1 block text-[10px] font-bold ${
+                              Number(suggestion.stock) > 0
+                                ? "text-emerald-600"
+                                : "text-rose-500"
+                            }`}
+                          >
+                            {Number(suggestion.stock) > 0
+                              ? "In stock"
+                              : "Sold out"}
+                          </span>
+                        </span>
+                      )}
+
+                      <ChevronRight
+                        size={16}
+                        className="shrink-0 text-slate-300"
+                      />
+                    </button>
+                  ))}
+
+                  <button
+                    type="button"
+                    onMouseEnter={() =>
+                      setActiveSuggestion(searchSuggestions.length)
+                    }
+                    onClick={() => runSearch(search)}
+                    className={`mt-1 flex w-full items-center justify-between rounded-2xl px-3 py-3 text-left transition ${
+                      activeSuggestion === searchSuggestions.length
+                        ? "bg-[#062B5F] text-white"
+                        : "bg-[#F7FAFF] text-[#0F4C9C]"
+                    }`}
+                  >
+                    <span className="flex min-w-0 items-center gap-3">
+                      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white/70 text-[#0F4C9C]">
+                        <Search size={17} />
+                      </span>
+                      <span className="truncate text-sm font-black">
+                        View all results for “{search.trim()}”
+                      </span>
+                    </span>
+                    <ArrowRight size={16} className="shrink-0" />
+                  </button>
+                </div>
+              ) : (
+                <div className="p-5">
+                  <div className="rounded-[20px] bg-[#F7FAFF] p-5 text-center">
+                    <Search
+                      size={28}
+                      className="mx-auto text-slate-300"
+                    />
+                    <p className="mt-3 text-sm font-black text-slate-800">
+                      No direct matches found
+                    </p>
+                    <p className="mt-1 text-xs leading-5 text-slate-500">
+                      Search all products for “{search.trim()}”.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => runSearch(search)}
+                      className="mt-4 inline-flex items-center gap-2 rounded-xl bg-[#062B5F] px-4 py-2.5 text-xs font-black text-white"
+                    >
+                      Search all products
+                      <ArrowRight size={15} />
+                    </button>
+                  </div>
+                </div>
+              )
+            ) : (
+              <div className="p-4">
+                {recentSearches.length > 0 && (
+                  <div>
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
+                        <History size={14} />
+                        Recent searches
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          localStorage.removeItem(
+                            RECENT_SEARCHES_STORAGE_KEY
+                          );
+                          setRecentSearches([]);
+                        }}
+                        className="text-[10px] font-black text-[#0F4C9C]"
+                      >
+                        Clear
+                      </button>
+                    </div>
+
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {recentSearches.map((item) => (
+                        <button
+                          type="button"
+                          key={item}
+                          onClick={() => runSearch(item)}
+                          className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700"
+                        >
+                          <History size={13} className="text-slate-400" />
+                          {item}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div
+                  className={
+                    recentSearches.length
+                      ? "mt-5 border-t border-slate-100 pt-4"
+                      : ""
+                  }
+                >
+                  <p className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
+                    <Flame size={14} />
+                    Trending searches
+                  </p>
+
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    {trendingSearches.slice(0, 6).map((item, index) => (
+                      <button
+                        type="button"
+                        key={item}
+                        onClick={() => runSearch(item)}
+                        className="flex items-center justify-between rounded-2xl bg-[#F7FAFF] px-3 py-3 text-left transition hover:bg-[#EFF5FC]"
+                      >
+                        <span className="flex min-w-0 items-center gap-3">
+                          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-white text-xs font-black text-amber-600 shadow-sm">
+                            {index + 1}
+                          </span>
+                          <span className="truncate text-sm font-black text-slate-800">
+                            {item}
+                          </span>
+                        </span>
+                        <ArrowRight
+                          size={15}
+                          className="shrink-0 text-slate-300"
+                        />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </section>
 
       {message && (
