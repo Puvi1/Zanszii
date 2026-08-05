@@ -28,6 +28,7 @@ const FALLBACK =
   "https://placehold.co/900x900/F5F9FF/0F4C9C?text=ZANSZII";
 
 const WISHLIST_STORAGE_KEY = "zanszii_wishlist";
+const RECENTLY_VIEWED_STORAGE_KEY = "zanszii_recently_viewed";
 
 const EMPTY_REVIEW = {
   rating: 5,
@@ -78,6 +79,208 @@ function readWishlist() {
   }
 }
 
+
+function readRecentlyViewed() {
+  try {
+    const saved = JSON.parse(
+      localStorage.getItem(
+        RECENTLY_VIEWED_STORAGE_KEY
+      ) || "[]"
+    );
+
+    return Array.isArray(saved)
+      ? saved.slice(0, 15)
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveRecentlyViewed(product) {
+  if (!product?.product_id) {
+    return readRecentlyViewed();
+  }
+
+  const compactProduct = {
+    product_id: product.product_id,
+    name: product.name,
+    price: product.price,
+    mrp: product.mrp,
+    original_price: product.original_price,
+    image_url: product.image_url,
+    images: product.images,
+    category_id: product.category_id,
+    category: product.category,
+    category_name: product.category_name,
+    store_id: product.store_id,
+    store: product.store,
+    business_name: product.business_name,
+    seller_name: product.seller_name,
+    stock: product.stock,
+    unit: product.unit,
+    featured: product.featured,
+  };
+
+  const next = [
+    compactProduct,
+    ...readRecentlyViewed().filter(
+      (item) =>
+        item.product_id !== product.product_id
+    ),
+  ].slice(0, 15);
+
+  localStorage.setItem(
+    RECENTLY_VIEWED_STORAGE_KEY,
+    JSON.stringify(next)
+  );
+
+  return next;
+}
+
+function RecommendationCard({
+  item,
+  adding,
+  wished,
+  onToggleWishlist,
+  onAdd,
+}) {
+  const originalPrice = Number(
+    item.mrp ||
+      item.original_price ||
+      item.price ||
+      0
+  );
+  const price = Number(item.price || 0);
+
+  const discount =
+    originalPrice > price
+      ? Math.round(
+          ((originalPrice - price) /
+            originalPrice) *
+            100
+        )
+      : 0;
+
+  const image = productImages(item)[0];
+
+  return (
+    <article className="group min-w-[164px] max-w-[164px] snap-start overflow-hidden rounded-[20px] border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md sm:min-w-[184px] sm:max-w-[184px]">
+      <div className="relative aspect-square overflow-hidden bg-[#F7FAFF] p-3">
+        <Link
+          to={`/products/${item.product_id}`}
+          className="block h-full w-full"
+        >
+          <img
+            src={image}
+            alt={item.name}
+            className="h-full w-full object-contain transition duration-300 group-hover:scale-105"
+            loading="lazy"
+            onError={(event) => {
+              event.currentTarget.src = FALLBACK;
+            }}
+          />
+        </Link>
+
+        {discount > 0 && (
+          <span className="absolute left-2 top-2 rounded-full bg-emerald-500 px-2 py-1 text-[9px] font-black text-white">
+            {discount}% OFF
+          </span>
+        )}
+
+        <button
+          type="button"
+          onClick={() =>
+            onToggleWishlist(item)
+          }
+          className={`absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full shadow ${
+            wished
+              ? "bg-rose-500 text-white"
+              : "bg-white text-slate-600"
+          }`}
+          aria-label={
+            wished
+              ? "Remove from wishlist"
+              : "Add to wishlist"
+          }
+        >
+          <Heart
+            size={16}
+            weight={wished ? "fill" : "regular"}
+          />
+        </button>
+      </div>
+
+      <div className="p-3">
+        <p className="line-clamp-1 text-[9px] font-black uppercase tracking-[0.13em] text-[#0F4C9C]">
+          {item.category?.name ||
+            item.category_name ||
+            "ZANSZI"}
+        </p>
+
+        <Link
+          to={`/products/${item.product_id}`}
+          className="mt-1 block"
+        >
+          <h3 className="line-clamp-2 min-h-[36px] text-[13px] font-black leading-[18px] text-slate-900">
+            {item.name}
+          </h3>
+        </Link>
+
+        <div className="mt-3 flex items-center justify-between gap-2">
+          <div>
+            <p className="text-base font-black text-[#062B5F]">
+              {money(price)}
+            </p>
+
+            {originalPrice > price && (
+              <p className="text-[10px] text-slate-400 line-through">
+                {money(originalPrice)}
+              </p>
+            )}
+          </div>
+
+          <button
+            type="button"
+            disabled={
+              Number(item.stock) <= 0 || adding
+            }
+            onClick={() => onAdd(item)}
+            className="grid h-9 w-9 place-items-center rounded-xl bg-[#0F4C9C] text-white disabled:bg-slate-300"
+            aria-label="Add to cart"
+          >
+            {adding ? (
+              <span className="text-[9px] font-black">
+                ...
+              </span>
+            ) : (
+              <Plus size={16} weight="bold" />
+            )}
+          </button>
+        </div>
+
+        <div className="mt-2 flex items-center justify-between text-[10px] font-bold">
+          <span className="inline-flex items-center gap-1 text-amber-600">
+            <Star size={12} weight="fill" />
+            Popular
+          </span>
+
+          <span
+            className={
+              Number(item.stock) > 0
+                ? "text-emerald-600"
+                : "text-rose-500"
+            }
+          >
+            {Number(item.stock) > 0
+              ? "In stock"
+              : "Sold out"}
+          </span>
+        </div>
+      </div>
+    </article>
+  );
+}
+
 export default function ProductDetails() {
   const { productId } = useParams();
   const navigate = useNavigate();
@@ -88,6 +291,13 @@ export default function ProductDetails() {
 
   const [product, setProduct] = useState(null);
   const [related, setRelated] = useState([]);
+  const [allProducts, setAllProducts] = useState([]);
+  const [recentlyViewed, setRecentlyViewed] =
+    useState(readRecentlyViewed);
+  const [recommendationAddingId, setRecommendationAddingId] =
+    useState("");
+  const [addingBundle, setAddingBundle] = useState(false);
+  const [wishlistVersion, setWishlistVersion] = useState(0);
   const [selectedImage, setSelectedImage] = useState(FALLBACK);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -168,6 +378,11 @@ export default function ProductDetails() {
           ? productsResponse.data
           : [];
 
+        setAllProducts(allProducts);
+        setRecentlyViewed(
+          saveRecentlyViewed(data)
+        );
+
         const matchingProducts = allProducts
           .filter(
             (item) =>
@@ -209,6 +424,11 @@ export default function ProductDetails() {
   const images = useMemo(
     () => productImages(product),
     [product]
+  );
+
+  useMemo(
+    () => wishlistVersion,
+    [wishlistVersion]
   );
 
   const showImageAt = (index) => {
@@ -548,6 +768,228 @@ export default function ProductDetails() {
           "Unable to update helpful vote."
         )
       );
+    }
+  };
+
+  const moreFromStore = useMemo(() => {
+    if (!product) return [];
+
+    const currentStoreId =
+      product.store?.store_id ||
+      product.store_id;
+
+    const currentStoreName =
+      product.store?.name ||
+      product.business_name ||
+      product.seller_name;
+
+    return allProducts
+      .filter((item) => {
+        if (item.product_id === product.product_id) {
+          return false;
+        }
+
+        const itemStoreId =
+          item.store?.store_id ||
+          item.store_id;
+
+        const itemStoreName =
+          item.store?.name ||
+          item.business_name ||
+          item.seller_name;
+
+        return currentStoreId
+          ? itemStoreId === currentStoreId
+          : Boolean(
+              currentStoreName &&
+                itemStoreName ===
+                  currentStoreName
+            );
+      })
+      .slice(0, 8);
+  }, [allProducts, product]);
+
+  const customersAlsoBought = useMemo(() => {
+    if (!product) return [];
+
+    const basePrice = Number(
+      product.price || 0
+    );
+
+    return allProducts
+      .filter((item) => {
+        if (
+          item.product_id === product.product_id ||
+          Number(item.stock) <= 0
+        ) {
+          return false;
+        }
+
+        const sameCategory =
+          product.category_id &&
+          item.category_id ===
+            product.category_id;
+
+        const itemPrice = Number(
+          item.price || 0
+        );
+
+        const similarPrice =
+          basePrice > 0 &&
+          itemPrice >= basePrice * 0.55 &&
+          itemPrice <= basePrice * 1.6;
+
+        return sameCategory || similarPrice;
+      })
+      .sort((a, b) => {
+        const aCategory =
+          a.category_id === product.category_id
+            ? 1
+            : 0;
+        const bCategory =
+          b.category_id === product.category_id
+            ? 1
+            : 0;
+
+        return bCategory - aCategory;
+      })
+      .slice(0, 8);
+  }, [allProducts, product]);
+
+  const recentlyViewedProducts = useMemo(
+    () =>
+      recentlyViewed
+        .filter(
+          (item) =>
+            item.product_id !== product?.product_id
+        )
+        .slice(0, 10),
+    [recentlyViewed, product]
+  );
+
+  const bundleItems = useMemo(() => {
+    if (!product) return [];
+
+    const candidates = [
+      product,
+      ...customersAlsoBought,
+    ];
+
+    const unique = [];
+    const seen = new Set();
+
+    for (const item of candidates) {
+      if (
+        item?.product_id &&
+        !seen.has(item.product_id) &&
+        Number(item.stock) > 0
+      ) {
+        seen.add(item.product_id);
+        unique.push(item);
+      }
+
+      if (unique.length === 3) break;
+    }
+
+    return unique;
+  }, [product, customersAlsoBought]);
+
+  const bundleTotal = useMemo(
+    () =>
+      bundleItems.reduce(
+        (sum, item) =>
+          sum + Number(item.price || 0),
+        0
+      ),
+    [bundleItems]
+  );
+
+  const toggleRecommendationWishlist = (
+    item
+  ) => {
+    if (!item?.product_id) return;
+
+    const current = readWishlist();
+    const exists = current.includes(
+      item.product_id
+    );
+
+    const next = exists
+      ? current.filter(
+          (id) => id !== item.product_id
+        )
+      : [...current, item.product_id];
+
+    localStorage.setItem(
+      WISHLIST_STORAGE_KEY,
+      JSON.stringify(next)
+    );
+
+    setWishlistVersion(
+      (currentVersion) =>
+        currentVersion + 1
+    );
+
+    setMessage(
+      exists
+        ? `${item.name} removed from wishlist.`
+        : `${item.name} added to wishlist.`
+    );
+  };
+
+  const addRecommendation = async (item) => {
+    if (
+      !item ||
+      Number(item.stock) <= 0 ||
+      recommendationAddingId
+    ) {
+      return;
+    }
+
+    setRecommendationAddingId(
+      item.product_id
+    );
+
+    try {
+      await addItem(item, 1);
+      setMessage(
+        `${item.name} added to your cart.`
+      );
+    } catch (requestError) {
+      setMessage(
+        requestError.message ||
+          "Unable to add this product."
+      );
+    } finally {
+      setRecommendationAddingId("");
+    }
+  };
+
+  const addBundleToCart = async () => {
+    if (
+      !bundleItems.length ||
+      addingBundle
+    ) {
+      return;
+    }
+
+    setAddingBundle(true);
+
+    try {
+      for (const item of bundleItems) {
+        await addItem(item, 1);
+      }
+
+      setMessage(
+        `${bundleItems.length} products added to your cart.`
+      );
+    } catch (requestError) {
+      setMessage(
+        requestError.message ||
+          "Unable to add the bundle."
+      );
+    } finally {
+      setAddingBundle(false);
     }
   };
 
@@ -1193,16 +1635,97 @@ export default function ProductDetails() {
         </div>
       </section>
 
-      {related.length > 0 && (
+      {bundleItems.length >= 2 && (
+        <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#0F4C9C]">
+                Frequently bought together
+              </p>
+
+              <h2 className="mt-1 text-xl font-black text-slate-950 sm:text-2xl">
+                Complete the set
+              </h2>
+            </div>
+
+            <div className="sm:text-right">
+              <p className="text-xs font-bold text-slate-400">
+                Bundle total
+              </p>
+
+              <p className="text-2xl font-black text-[#062B5F]">
+                {money(bundleTotal)}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-5 grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
+            <div className="flex items-center gap-2 overflow-x-auto pb-2">
+              {bundleItems.map((item, index) => (
+                <div
+                  key={item.product_id}
+                  className="flex shrink-0 items-center gap-2"
+                >
+                  <Link
+                    to={`/products/${item.product_id}`}
+                    className="w-[120px] rounded-2xl border border-slate-200 bg-[#F7FAFF] p-3"
+                  >
+                    <img
+                      src={productImages(item)[0]}
+                      alt={item.name}
+                      className="aspect-square w-full object-contain"
+                      onError={(event) => {
+                        event.currentTarget.src = FALLBACK;
+                      }}
+                    />
+
+                    <p className="mt-2 line-clamp-2 text-xs font-black text-slate-900">
+                      {item.name}
+                    </p>
+
+                    <p className="mt-1 text-sm font-black text-[#062B5F]">
+                      {money(item.price)}
+                    </p>
+                  </Link>
+
+                  {index <
+                    bundleItems.length - 1 && (
+                    <span className="grid h-8 w-8 place-items-center rounded-full bg-blue-50 text-[#0F4C9C]">
+                      <Plus size={16} weight="bold" />
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <button
+              type="button"
+              onClick={addBundleToCart}
+              disabled={addingBundle}
+              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-[#0F4C9C] px-5 py-3 text-sm font-black text-white shadow-lg disabled:bg-slate-300"
+            >
+              <ShoppingCart
+                size={19}
+                weight="fill"
+              />
+              {addingBundle
+                ? "Adding bundle..."
+                : `Add all ${bundleItems.length}`}
+            </button>
+          </div>
+        </section>
+      )}
+
+      {customersAlsoBought.length > 0 && (
         <section>
           <div className="mb-3 flex items-end justify-between gap-4">
             <div>
               <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#0F4C9C]">
-                You may also like
+                Customers also bought
               </p>
 
               <h2 className="mt-1 text-xl font-black text-slate-950 sm:text-2xl">
-                Related products
+                Popular with similar shoppers
               </h2>
             </div>
 
@@ -1214,54 +1737,144 @@ export default function ProductDetails() {
             </Link>
           </div>
 
-          <div className="flex gap-3 overflow-x-auto pb-2">
-            {related.map((item) => (
-              <Link
+          <div className="flex snap-x gap-3 overflow-x-auto pb-3">
+            {customersAlsoBought.map((item) => (
+              <RecommendationCard
                 key={item.product_id}
-                to={`/products/${item.product_id}`}
-                className="group min-w-[158px] max-w-[158px] overflow-hidden rounded-[20px] border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md sm:min-w-[180px] sm:max-w-[180px]"
-              >
-                <div className="relative aspect-square overflow-hidden bg-[#F7FAFF] p-3">
-                  <img
-                    src={productImages(item)[0]}
-                    alt={item.name}
-                    className="h-full w-full object-contain transition duration-300 group-hover:scale-105"
-                    loading="lazy"
-                    onError={(event) => {
-                      event.currentTarget.src = FALLBACK;
-                    }}
-                  />
+                item={item}
+                adding={
+                  recommendationAddingId ===
+                  item.product_id
+                }
+                wished={readWishlist().includes(
+                  item.product_id
+                )}
+                onToggleWishlist={
+                  toggleRecommendationWishlist
+                }
+                onAdd={addRecommendation}
+              />
+            ))}
+          </div>
+        </section>
+      )}
 
-                  {item.featured && (
-                    <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-white/95 px-2 py-1 text-[9px] font-black text-[#0F4C9C] shadow-sm">
-                      <Star size={11} weight="fill" />
-                      Popular
-                    </span>
-                  )}
-                </div>
+      {related.length > 0 && (
+        <section>
+          <div className="mb-3 flex items-end justify-between gap-4">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#0F4C9C]">
+                You may also like
+              </p>
 
-                <div className="p-3">
-                  <p className="line-clamp-1 text-[9px] font-black uppercase tracking-[0.13em] text-[#0F4C9C]">
-                    {item.category?.name ||
-                      item.category_name ||
-                      "ZANSZI"}
-                  </p>
+              <h2 className="mt-1 text-xl font-black text-slate-950 sm:text-2xl">
+                Similar products
+              </h2>
+            </div>
+          </div>
 
-                  <h3 className="mt-1 line-clamp-2 min-h-[36px] text-[13px] font-black leading-[18px] text-slate-900">
-                    {item.name}
-                  </h3>
+          <div className="flex snap-x gap-3 overflow-x-auto pb-3">
+            {related.map((item) => (
+              <RecommendationCard
+                key={item.product_id}
+                item={item}
+                adding={
+                  recommendationAddingId ===
+                  item.product_id
+                }
+                wished={readWishlist().includes(
+                  item.product_id
+                )}
+                onToggleWishlist={
+                  toggleRecommendationWishlist
+                }
+                onAdd={addRecommendation}
+              />
+            ))}
+          </div>
+        </section>
+      )}
 
-                  <div className="mt-3 flex items-center justify-between gap-2">
-                    <p className="text-base font-black text-[#062B5F]">
-                      {money(item.price)}
-                    </p>
+      {moreFromStore.length > 0 && (
+        <section>
+          <div className="mb-3 flex items-end justify-between gap-4">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#0F4C9C]">
+                More from this store
+              </p>
 
-                    <span className="grid h-8 w-8 place-items-center rounded-xl bg-[#0F4C9C] text-white">
-                      <ArrowRight size={14} weight="bold" />
-                    </span>
-                  </div>
-                </div>
-              </Link>
+              <h2 className="mt-1 text-xl font-black text-slate-950 sm:text-2xl">
+                Explore the seller collection
+              </h2>
+            </div>
+          </div>
+
+          <div className="flex snap-x gap-3 overflow-x-auto pb-3">
+            {moreFromStore.map((item) => (
+              <RecommendationCard
+                key={item.product_id}
+                item={item}
+                adding={
+                  recommendationAddingId ===
+                  item.product_id
+                }
+                wished={readWishlist().includes(
+                  item.product_id
+                )}
+                onToggleWishlist={
+                  toggleRecommendationWishlist
+                }
+                onAdd={addRecommendation}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {recentlyViewedProducts.length > 0 && (
+        <section className="rounded-[28px] border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+          <div className="mb-3 flex items-end justify-between gap-4">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#0F4C9C]">
+                Recently viewed
+              </p>
+
+              <h2 className="mt-1 text-xl font-black text-slate-950 sm:text-2xl">
+                Continue shopping
+              </h2>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                localStorage.removeItem(
+                  RECENTLY_VIEWED_STORAGE_KEY
+                );
+                setRecentlyViewed([]);
+              }}
+              className="text-xs font-black text-rose-500"
+            >
+              Clear history
+            </button>
+          </div>
+
+          <div className="flex snap-x gap-3 overflow-x-auto pb-2">
+            {recentlyViewedProducts.map((item) => (
+              <RecommendationCard
+                key={item.product_id}
+                item={item}
+                adding={
+                  recommendationAddingId ===
+                  item.product_id
+                }
+                wished={readWishlist().includes(
+                  item.product_id
+                )}
+                onToggleWishlist={
+                  toggleRecommendationWishlist
+                }
+                onAdd={addRecommendation}
+              />
             ))}
           </div>
         </section>
