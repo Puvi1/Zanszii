@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   BadgePercent,
-  CalendarBlank,
+  CalendarDays,
   Check,
   Copy,
   Gift,
@@ -215,7 +215,7 @@ export default function CustomerOffers() {
                   </p>
 
                   <p className="flex items-center gap-2">
-                    <CalendarBlank size={15} className="text-[#0F4C9C]" />
+                    <CalendarDays size={15} className="text-[#0F4C9C]" />
                     Expires {formatDate(offer.expires_at)}
                   </p>
 
@@ -260,4 +260,3 @@ export default function CustomerOffers() {
     </div>
   );
 }
-
