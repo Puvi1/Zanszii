@@ -7,7 +7,7 @@ import {
 } from "react-router-dom";
 import {
   ArrowRight,
-  CalendarDays,
+  CalendarBlank,
   Check,
   CheckCircle,
   ClipboardText,
@@ -479,7 +479,7 @@ export default function OrderSuccess() {
 
             <div className="mt-6 rounded-2xl bg-[#F7FAFF] p-4">
               <div className="flex items-start gap-3">
-                <CalendarDays
+                <CalendarBlank
                   size={20}
                   className="mt-0.5 shrink-0 text-[#0F4C9C]"
                 />
@@ -590,7 +590,7 @@ export default function OrderSuccess() {
               />
 
               <DetailCard
-                icon={CalendarDays}
+                icon={CalendarBlank}
                 title="Order placed"
                 value={formatDate(
                   order.created_at
