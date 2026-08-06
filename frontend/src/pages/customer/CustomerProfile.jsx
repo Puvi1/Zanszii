@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   Bell,
-  CalendarBlank,
+  CalendarDays,
   ChevronRight,
   ClipboardList,
   Gift,
@@ -542,7 +542,7 @@ export default function CustomerProfile() {
 
               <div className="mt-2 flex flex-wrap items-center gap-2 text-xs font-bold text-blue-100">
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5">
-                  <CalendarBlank size={14} />
+                  <CalendarDays size={14} />
                   Member since {memberSince}
                 </span>
 
