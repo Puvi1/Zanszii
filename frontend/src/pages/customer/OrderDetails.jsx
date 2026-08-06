@@ -17,6 +17,12 @@ import {
   ShoppingCart,
   Truck,
   User,
+  WhatsappLogo,
+  EnvelopeSimple,
+  Key,
+  NavigationArrow,
+  Star,
+  WarningCircle,
 } from "@phosphor-icons/react";
 
 import { api, formatApiError } from "../../lib/api";
@@ -85,6 +91,38 @@ function getProgress(status) {
 
   const index = STEPS.indexOf(status);
   return index < 0 ? 1 : index + 1;
+}
+
+
+function progressPercent(status) {
+  const map = {
+    placed: 15,
+    confirmed: 30,
+    processing: 55,
+    assigned: 72,
+    out_for_delivery: 88,
+    delivered: 100,
+    cancelled: 0,
+    delivery_failed: 0,
+  };
+
+  return map[status] ?? 15;
+}
+
+function estimatedWindow(status) {
+  if (status === "delivered") return "Delivered";
+  if (status === "out_for_delivery") {
+    return "Today · 8:00 AM – 9:00 PM";
+  }
+  if (status === "assigned") {
+    return "Today or tomorrow";
+  }
+  if (status === "cancelled") return "Cancelled";
+  if (status === "delivery_failed") {
+    return "Delivery failed";
+  }
+
+  return "Within 2–3 working days";
 }
 
 function Timeline({ order }) {
@@ -476,6 +514,37 @@ export default function OrderDetails() {
     return "Estimated delivery will appear after confirmation";
   })();
 
+  const progress = progressPercent(
+    order?.status || "placed"
+  );
+
+  const orderSavings = Number(
+    order?.savings ??
+      order?.discount ??
+      0
+  );
+
+  const supportPhone =
+    order?.support_phone ||
+    order?.delivery_partner_phone ||
+    "";
+
+  const supportEmail =
+    order?.support_email ||
+    "support@zanszii.com";
+
+  const whatsappNumber = String(
+    supportPhone || ""
+  ).replace(/\D/g, "");
+
+  const deliveryOtp =
+    order?.delivery_otp ||
+    order?.otp ||
+    null;
+
+  const canRate =
+    order?.status === "delivered";
+
   const printInvoice = () => {
     if (!order) return;
 
@@ -613,22 +682,111 @@ export default function OrderDetails() {
         </div>
       )}
 
-      <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-        <div className="mb-5 flex items-center justify-between gap-3">
+      <section className="rounded-[30px] border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <div className="grid gap-5 xl:grid-cols-[1.15fr_.85fr]">
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.18em] text-[#0F4C9C]">
-              Live progress
-            </p>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-[#0F4C9C]">
+                  Live delivery progress
+                </p>
+                <h2 className="mt-1 text-2xl font-black text-slate-900">
+                  {LABELS[status] || "Placed"}
+                </h2>
+                <p className="mt-2 text-sm text-slate-500">
+                  Estimated arrival:{" "}
+                  <span className="font-black text-slate-800">
+                    {estimatedWindow(status)}
+                  </span>
+                </p>
+              </div>
 
-            <h2 className="mt-1 text-2xl font-black text-slate-900">
-              Order tracking
-            </h2>
+              <span className="grid h-12 w-12 place-items-center rounded-2xl bg-blue-50 text-[#0F4C9C]">
+                <Truck size={25} weight="duotone" />
+              </span>
+            </div>
+
+            <div className="mt-5 rounded-[22px] bg-[#F7FAFF] p-4">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">
+                  Progress
+                </span>
+                <span className="text-lg font-black text-[#062B5F]">
+                  {progress}%
+                </span>
+              </div>
+
+              <div className="mt-3 h-3 overflow-hidden rounded-full bg-slate-200">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-[#0F4C9C] to-[#34A853] transition-all duration-700"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+
+              <div className="mt-3 flex items-center justify-between text-[11px] font-bold text-slate-500">
+                <span>Order placed</span>
+                <span>Delivered</span>
+              </div>
+            </div>
+
+            <div className="mt-6">
+              <Timeline order={order} />
+            </div>
           </div>
 
-          <Truck size={28} className="text-[#0F4C9C]" />
-        </div>
+          <div className="space-y-4">
+            <div className="overflow-hidden rounded-[24px] border border-slate-200 bg-gradient-to-br from-[#EEF5FF] to-white p-4">
+              <div className="flex items-center gap-3">
+                <span className="grid h-11 w-11 place-items-center rounded-2xl bg-white text-[#0F4C9C] shadow-sm">
+                  <NavigationArrow size={22} weight="duotone" />
+                </span>
 
-        <Timeline order={order} />
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#0F4C9C]">
+                    Delivery map
+                  </p>
+                  <h3 className="mt-1 text-lg font-black text-slate-900">
+                    Live location ready
+                  </h3>
+                </div>
+              </div>
+
+              <div className="mt-4 grid h-44 place-items-center rounded-2xl border border-dashed border-blue-200 bg-white/70 text-center">
+                <div>
+                  <MapPin size={30} className="mx-auto text-[#0F4C9C]" />
+                  <p className="mt-2 text-sm font-black text-slate-800">
+                    Map tracking placeholder
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Google Maps can be connected later
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {deliveryOtp && (
+              <div className="rounded-[22px] border border-amber-200 bg-amber-50 p-4">
+                <div className="flex items-center gap-3">
+                  <span className="grid h-10 w-10 place-items-center rounded-xl bg-white text-amber-700">
+                    <Key size={20} />
+                  </span>
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-[0.14em] text-amber-700">
+                      Delivery OTP
+                    </p>
+                    <p className="mt-1 text-2xl font-black tracking-[0.2em] text-slate-950">
+                      {deliveryOtp}
+                    </p>
+                  </div>
+                </div>
+
+                <p className="mt-3 text-xs font-bold text-amber-800">
+                  Share this OTP only after receiving your order.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
       </section>
 
       <div className="grid gap-6 lg:grid-cols-[1.3fr_.7fr]">
@@ -801,6 +959,13 @@ export default function OrderDetails() {
                 <span>Total</span>
                 <span className="text-[#062B5F]">{money(total)}</span>
               </div>
+
+              {orderSavings > 0 && (
+                <div className="flex justify-between rounded-xl bg-emerald-50 px-3 py-2.5 text-emerald-700">
+                  <span className="font-black">You saved</span>
+                  <strong>{money(orderSavings)}</strong>
+                </div>
+              )}
             </div>
 
             <div className="mt-4 rounded-2xl bg-[#F5F9FF] p-3">
@@ -818,53 +983,65 @@ export default function OrderDetails() {
 
           {order.delivery_partner_name && (
             <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="flex items-center gap-3">
-                <span className="grid h-11 w-11 place-items-center rounded-2xl bg-purple-50 text-purple-700">
-                  <Truck size={22} />
+              <div className="flex items-start gap-3">
+                <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-purple-50 text-purple-700">
+                  <User size={23} />
                 </span>
 
-                <div>
+                <div className="min-w-0 flex-1">
                   <p className="text-xs font-black uppercase tracking-[0.14em] text-purple-700">
                     Delivery partner
                   </p>
-                  <h2 className="mt-1 text-lg font-black text-slate-900">
+                  <h2 className="mt-1 truncate text-lg font-black text-slate-900">
                     {order.delivery_partner_name}
                   </h2>
+                  <div className="mt-2 inline-flex items-center gap-1 text-amber-500">
+                    {Array.from({ length: 5 }).map((_, index) => (
+                      <Star key={index} size={14} weight="fill" />
+                    ))}
+                  </div>
                 </div>
               </div>
 
-              <div className="mt-4 grid gap-3">
+              {(order.delivery_partner_vehicle_type ||
+                order.delivery_partner_vehicle_number) && (
+                <div className="mt-4 rounded-2xl bg-slate-50 p-3 text-sm text-slate-600">
+                  {order.delivery_partner_vehicle_type && (
+                    <p>
+                      <span className="font-black text-slate-800">Vehicle:</span>{" "}
+                      {order.delivery_partner_vehicle_type}
+                    </p>
+                  )}
+                  {order.delivery_partner_vehicle_number && (
+                    <p className="mt-1">
+                      <span className="font-black text-slate-800">Number:</span>{" "}
+                      {order.delivery_partner_vehicle_number}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              <div className="mt-4 grid gap-2 sm:grid-cols-2">
                 {order.delivery_partner_phone && (
                   <a
                     href={`tel:${order.delivery_partner_phone}`}
                     className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#0F4C9C] px-4 py-3 text-sm font-black text-white"
                   >
                     <Phone size={17} />
-                    Call delivery partner
+                    Call
                   </a>
                 )}
 
-                {(order.delivery_partner_vehicle_type ||
-                  order.delivery_partner_vehicle_number) && (
-                  <div className="rounded-2xl bg-slate-50 p-3 text-sm text-slate-600">
-                    {order.delivery_partner_vehicle_type && (
-                      <p>
-                        <span className="font-black text-slate-800">
-                          Vehicle:
-                        </span>{" "}
-                        {order.delivery_partner_vehicle_type}
-                      </p>
-                    )}
-
-                    {order.delivery_partner_vehicle_number && (
-                      <p className="mt-1">
-                        <span className="font-black text-slate-800">
-                          Number:
-                        </span>{" "}
-                        {order.delivery_partner_vehicle_number}
-                      </p>
-                    )}
-                  </div>
+                {whatsappNumber && (
+                  <a
+                    href={`https://wa.me/${whatsappNumber}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-3 text-sm font-black text-white"
+                  >
+                    <WhatsappLogo size={17} weight="fill" />
+                    WhatsApp
+                  </a>
                 )}
               </div>
             </section>
@@ -902,18 +1079,125 @@ export default function OrderDetails() {
         </button>
       </section>
 
-      <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="flex items-center gap-3">
-          <ShieldCheck size={24} className="text-[#0F4C9C]" />
+      <section className="grid gap-4 lg:grid-cols-[1.1fr_.9fr]">
+        <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center gap-3">
+            <ShieldCheck size={24} className="text-[#0F4C9C]" />
+            <div>
+              <h2 className="font-black text-slate-900">
+                Need help with this order?
+              </h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Keep your order number ready when contacting support.
+              </p>
+            </div>
+          </div>
 
-          <div>
-            <h2 className="font-black text-slate-900">Need help?</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Keep your order number ready when contacting support.
-            </p>
+          <div className="mt-5 grid gap-2 sm:grid-cols-2">
+            {supportPhone && (
+              <a
+                href={`tel:${supportPhone}`}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#0F4C9C] px-4 py-3 text-sm font-black text-white"
+              >
+                <Phone size={17} />
+                Call support
+              </a>
+            )}
+
+            {whatsappNumber && (
+              <a
+                href={`https://wa.me/${whatsappNumber}`}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-3 text-sm font-black text-white"
+              >
+                <WhatsappLogo size={17} weight="fill" />
+                WhatsApp
+              </a>
+            )}
+
+            <a
+              href={`mailto:${supportEmail}?subject=Support for ${
+                order.order_number || order.order_id
+              }`}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700"
+            >
+              <EnvelopeSimple size={17} />
+              Email support
+            </a>
+
+            <button
+              type="button"
+              onClick={() => navigate("/support")}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700"
+            >
+              <WarningCircle size={17} />
+              Help centre
+            </button>
+          </div>
+        </div>
+
+        <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+          <p className="text-xs font-black uppercase tracking-[0.14em] text-[#0F4C9C]">
+            Delivery tips
+          </p>
+
+          <div className="mt-4 space-y-3">
+            {[
+              "Keep your phone reachable.",
+              order.payment_method === "cash_on_delivery"
+                ? "Keep the exact cash amount ready."
+                : "Your payment has already been recorded.",
+              "Ensure someone is available to receive the order.",
+            ].map((tip) => (
+              <div
+                key={tip}
+                className="flex items-start gap-3 rounded-2xl bg-slate-50 p-3"
+              >
+                <CheckCircle
+                  size={18}
+                  weight="fill"
+                  className="mt-0.5 shrink-0 text-emerald-500"
+                />
+                <p className="text-sm font-semibold text-slate-600">
+                  {tip}
+                </p>
+              </div>
+            ))}
           </div>
         </div>
       </section>
+
+      {canRate && (
+        <section className="rounded-[28px] border border-amber-200 bg-gradient-to-r from-amber-50 to-white p-5 shadow-sm">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-amber-700">
+                Delivered successfully
+              </p>
+              <h2 className="mt-1 text-2xl font-black text-slate-950">
+                Rate your order experience
+              </h2>
+              <div className="mt-3 flex gap-1 text-amber-500">
+                {Array.from({ length: 5 }).map((_, index) => (
+                  <Star key={index} size={22} weight="fill" />
+                ))}
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() =>
+                items[0]?.product_id &&
+                navigate(`/products/${items[0].product_id}#product-reviews`)
+              }
+              className="rounded-2xl bg-[#F4B400] px-5 py-3 text-sm font-black text-[#062B5F]"
+            >
+              Write a review
+            </button>
+          </div>
+        </section>
+      )}
 
       {related.length > 0 && (
         <section>
