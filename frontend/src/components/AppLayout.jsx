@@ -5,6 +5,8 @@ import {
   BadgePercent,
   Bell,
   BarChart3,
+  CheckCheck,
+  ChevronRight,
   Boxes,
   ClipboardList,
   Heart,
@@ -57,7 +59,32 @@ const adminLinks = [
 
 function CustomerLayout({ user, signOut }) {
   const { itemCount } = useCart();
+
+  const [notificationOpen, setNotificationOpen] = useState(false);
+  const [notifications, setNotifications] = useState([]);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [notificationLoading, setNotificationLoading] = useState(false);
+
+  const loadNotifications = async () => {
+    setNotificationLoading(true);
+
+    try {
+      const response = await api.get("/notifications");
+      const list = Array.isArray(response.data?.notifications)
+        ? response.data.notifications
+        : [];
+
+      setNotifications(list.slice(0, 4));
+      setUnreadNotifications(
+        Number(response.data?.unread_count || 0)
+      );
+    } catch {
+      setNotifications([]);
+      setUnreadNotifications(0);
+    } finally {
+      setNotificationLoading(false);
+    }
+  };
 
   useEffect(() => {
     let active = true;
@@ -90,6 +117,30 @@ function CustomerLayout({ user, signOut }) {
       window.clearInterval(interval);
     };
   }, []);
+
+  const openNotificationPopup = async () => {
+    setNotificationOpen(true);
+    await loadNotifications();
+  };
+
+  const markAllRead = async () => {
+    if (!unreadNotifications) return;
+
+    try {
+      await api.patch("/notifications/read-all");
+
+      setNotifications((current) =>
+        current.map((item) => ({
+          ...item,
+          is_read: true,
+        }))
+      );
+
+      setUnreadNotifications(0);
+    } catch {
+      // Keep popup usable even if this action fails.
+    }
+  };
 
   const wishlistCount = (() => {
     try {
@@ -161,24 +212,11 @@ function CustomerLayout({ user, signOut }) {
                 {text}
               </NavLink>
             ))}
-
-            <NavLink
-              to="/become-partner"
-              className={({ isActive }) =>
-                `inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-bold transition ${
-                  isActive
-                    ? "bg-blue-50 text-[#0F4C9C]"
-                    : "text-slate-600 hover:bg-slate-50 hover:text-[#0F4C9C]"
-                }`
-              }
-            >
-              <Store size={17} />
-              Partner
-            </NavLink>
           </nav>
 
-          <NavLink
-            to="/notifications"
+          <button
+            type="button"
+            onClick={openNotificationPopup}
             aria-label="Open notifications"
             className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:bg-slate-50 sm:h-11 sm:w-11 sm:rounded-2xl"
           >
@@ -191,7 +229,7 @@ function CustomerLayout({ user, signOut }) {
                   : unreadNotifications}
               </span>
             )}
-          </NavLink>
+          </button>
 
           <NavLink
             to="/cart"
@@ -238,15 +276,6 @@ function CustomerLayout({ user, signOut }) {
         <Outlet />
       </main>
 
-      <NavLink
-        to="/become-partner"
-        aria-label="Become a ZANSZI Partner"
-        className="fixed bottom-[86px] right-4 z-40 inline-flex items-center gap-2 rounded-full bg-[#0F4C9C] px-4 py-3 text-xs font-black text-white shadow-lg lg:hidden"
-      >
-        <Store size={17} />
-        Partner
-      </NavLink>
-
       <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-slate-200 bg-white/95 px-2 pb-[max(8px,env(safe-area-inset-bottom))] pt-2 shadow-[0_-10px_35px_rgba(15,23,42,0.08)] backdrop-blur-xl lg:hidden">
         <div className="mx-auto grid max-w-md grid-cols-5">
           {customerLinks.map(([to, text, Icon]) => (
@@ -269,12 +298,6 @@ function CustomerLayout({ user, signOut }) {
                   >
                     <Icon size={20} strokeWidth={isActive ? 2.8 : 2} />
 
-                    {to === "/cart" && itemCount > 0 && (
-                      <span className="absolute -right-1 -top-1 min-w-[17px] rounded-full bg-[#F4B400] px-1 text-center text-[9px] font-black text-[#062B5F]">
-                        {itemCount > 99 ? "99+" : itemCount}
-                      </span>
-                    )}
-
                     {to === "/wishlist" && wishlistCount > 0 && (
                       <span className="absolute -right-1 -top-1 min-w-[17px] rounded-full bg-rose-500 px-1 text-center text-[9px] font-black text-white">
                         {wishlistCount > 99 ? "99+" : wishlistCount}
@@ -289,6 +312,124 @@ function CustomerLayout({ user, signOut }) {
           ))}
         </div>
       </nav>
+
+      {notificationOpen && (
+        <div
+          className="fixed inset-0 z-[90] flex items-end justify-center bg-slate-950/35 backdrop-blur-[2px] sm:items-start sm:justify-end sm:p-5"
+          onClick={() => setNotificationOpen(false)}
+        >
+          <section
+            className="max-h-[78vh] w-full overflow-hidden rounded-t-[28px] border border-slate-200 bg-white shadow-2xl sm:mt-14 sm:max-w-md sm:rounded-[24px]"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#0F4C9C]">
+                  Notifications
+                </p>
+                <h2 className="mt-1 text-xl font-black text-slate-950">
+                  Latest updates
+                </h2>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setNotificationOpen(false)}
+                className="grid h-10 w-10 place-items-center rounded-xl bg-slate-100 text-slate-500"
+                aria-label="Close notifications"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {unreadNotifications > 0 && (
+              <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3">
+                <span className="text-xs font-bold text-slate-500">
+                  {unreadNotifications} unread
+                </span>
+
+                <button
+                  type="button"
+                  onClick={markAllRead}
+                  className="inline-flex items-center gap-1.5 text-xs font-black text-[#0F4C9C]"
+                >
+                  <CheckCheck size={15} />
+                  Mark all read
+                </button>
+              </div>
+            )}
+
+            <div className="max-h-[52vh] overflow-y-auto p-3">
+              {notificationLoading ? (
+                <div className="space-y-3">
+                  {[1, 2, 3].map((item) => (
+                    <div
+                      key={item}
+                      className="h-20 animate-pulse rounded-2xl bg-slate-100"
+                    />
+                  ))}
+                </div>
+              ) : notifications.length ? (
+                <div className="space-y-2">
+                  {notifications.map((notification) => (
+                    <button
+                      type="button"
+                      key={notification.notification_id}
+                      onClick={() => {
+                        setNotificationOpen(false);
+                        if (notification.link) {
+                          window.location.href = notification.link;
+                        }
+                      }}
+                      className={`flex w-full items-start gap-3 rounded-2xl border p-3 text-left ${
+                        notification.is_read
+                          ? "border-slate-100 bg-white"
+                          : "border-blue-100 bg-blue-50/60"
+                      }`}
+                    >
+                      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white text-[#0F4C9C] shadow-sm">
+                        <Bell size={17} />
+                      </span>
+
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-black text-slate-900">
+                          {notification.title}
+                        </span>
+                        <span className="mt-1 line-clamp-2 block text-xs leading-5 text-slate-500">
+                          {notification.message}
+                        </span>
+                      </span>
+
+                      {!notification.is_read && (
+                        <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-rose-500" />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="px-5 py-12 text-center">
+                  <Bell size={30} className="mx-auto text-slate-300" />
+                  <p className="mt-3 font-black text-slate-900">
+                    You’re all caught up
+                  </p>
+                  <p className="mt-1 text-sm text-slate-500">
+                    New order and offer updates will appear here.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <NavLink
+              to="/notifications"
+              onClick={() => setNotificationOpen(false)}
+              className="flex items-center justify-between border-t border-slate-100 px-5 py-4 text-sm font-black text-[#0F4C9C]"
+            >
+              View all notifications
+              <ChevronRight size={18} />
+            </NavLink>
+          </section>
+        </div>
+      )}
     </div>
   );
 }
