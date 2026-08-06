@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   BadgePercent,
-  CalendarBlank,
+  CalendarDays,
   Copy,
   Download,
   FileSpreadsheet,
@@ -388,7 +388,7 @@ export default function AdminOffers() {
         {[
           ["Total Coupons", summary.total, Gift],
           ["Active", summary.active, BadgePercent],
-          ["Expired", summary.expired, CalendarBlank],
+          ["Expired", summary.expired, CalendarDays],
           ["Total Uses", summary.uses, Star],
         ].map(([label, value, Icon]) => (
           <div
