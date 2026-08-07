@@ -276,25 +276,25 @@ function CustomerLayout({ user, signOut }) {
         <Outlet />
       </main>
 
-      <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-slate-200 bg-white/95 px-2 pb-[max(8px,env(safe-area-inset-bottom))] pt-2 shadow-[0_-10px_35px_rgba(15,23,42,0.08)] backdrop-blur-xl lg:hidden">
-        <div className="mx-auto grid max-w-md grid-cols-5">
+      <nav className="fixed inset-x-0 bottom-0 z-50 px-3 pb-[max(10px,env(safe-area-inset-bottom))] pt-2 lg:hidden">
+        <div className="mx-auto grid max-w-md grid-cols-5 rounded-[24px] border border-slate-200/80 bg-white/95 px-1.5 py-1.5 shadow-[0_-8px_30px_rgba(15,23,42,0.10)] backdrop-blur-xl">
           {customerLinks.map(([to, text, Icon]) => (
             <NavLink
               key={to}
               to={to}
               end={to === "/"}
               className={({ isActive }) =>
-                `relative flex flex-col items-center gap-1 rounded-2xl px-1 py-2 text-[10px] font-black transition ${
-                  isActive ? "text-[#0F4C9C]" : "text-slate-400"
+                `relative flex flex-col items-center gap-1 rounded-2xl px-1 py-1.5 text-[9px] font-black transition ${
+                  isActive
+                    ? "bg-[#F1F6FC] text-[#0F4C9C]"
+                    : "text-slate-400"
                 }`
               }
             >
               {({ isActive }) => (
                 <>
                   <span
-                    className={`relative flex h-8 w-10 items-center justify-center rounded-xl ${
-                      isActive ? "bg-blue-50" : ""
-                    }`}
+                    className="relative flex h-8 w-10 items-center justify-center rounded-xl"
                   >
                     <Icon size={20} strokeWidth={isActive ? 2.8 : 2} />
 
