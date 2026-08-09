@@ -510,5 +510,4 @@ export default function MyOrders() {
       )}
     </div>
   );
-  );
 }
