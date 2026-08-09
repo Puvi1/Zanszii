@@ -498,12 +498,12 @@ export default function OrderDetails() {
   const status = order.status || "placed";
 
   return (
-    <div className="mx-auto max-w-5xl space-y-4 pb-24">
+    <div className="mx-auto max-w-5xl space-y-3 pb-24 sm:space-y-4">
       <div className="flex items-center justify-between gap-3">
         <button
           type="button"
           onClick={() => navigate("/orders")}
-          className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 shadow-sm"
+          className="inline-flex items-center gap-2 rounded-xl border border-slate-200/80 bg-white px-3 py-2 text-xs font-black text-slate-700 shadow-[0_6px_18px_rgba(15,23,42,0.05)] transition hover:border-blue-200 hover:text-[#0F4C9C]"
         >
           <ArrowLeft size={16} weight="bold" />
           My Orders
@@ -518,50 +518,34 @@ export default function OrderDetails() {
         </span>
       </div>
 
-      <section className="relative overflow-hidden rounded-[24px] border border-slate-200/90 bg-white shadow-[0_10px_30px_rgba(15,23,42,0.06)]">
-        <div className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-[#0F4C9C] via-[#4F8FE8] to-[#F4B400]" />
-
+      <section className="overflow-hidden rounded-[22px] border border-slate-200/80 bg-white shadow-[0_10px_30px_rgba(15,23,42,0.05)]">
         <div className="p-4 sm:p-5">
-          <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <p className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-400">
-                  Order
-                </p>
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[9px] font-black uppercase tracking-[0.16em] text-[#0F4C9C]">
+                Order details
+              </p>
 
-                <span
-                  className={`rounded-full px-2.5 py-1 text-[9px] font-black ring-1 ${
-                    STATUS_STYLES[status] || STATUS_STYLES.placed
-                  }`}
-                >
-                  {LABELS[status] || "Placed"}
-                </span>
-              </div>
-
-              <div className="mt-2 flex items-center gap-2">
-                <h1 className="truncate text-lg font-black tracking-[-0.01em] text-slate-950 sm:text-xl">
+              <div className="mt-1 flex items-center gap-2">
+                <h1 className="truncate text-lg font-black text-slate-950 sm:text-xl">
                   {order.order_number || order.order_id}
                 </h1>
 
                 <button
                   type="button"
                   onClick={copyOrderNumber}
-                  className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-[10px] font-black text-[#0F4C9C] shadow-sm transition hover:bg-slate-50"
+                  className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-slate-200 bg-slate-50 text-[#0F4C9C]"
                   aria-label="Copy order number"
                 >
-                  <Copy size={13} />
-                  {copied ? "Copied" : "Copy"}
+                  <Copy size={14} />
                 </button>
               </div>
 
-              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-medium text-slate-500">
+              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500">
                 <span className="inline-flex items-center gap-1.5">
                   <CalendarBlank size={14} />
                   {formatDate(order.created_at)}
                 </span>
-
-                <span className="h-1 w-1 rounded-full bg-slate-300" />
-
                 <span className="inline-flex items-center gap-1.5">
                   <Package size={14} />
                   {items.length} {items.length === 1 ? "item" : "items"}
@@ -571,7 +555,7 @@ export default function OrderDetails() {
 
             <div className="shrink-0 text-right">
               <p className="text-[9px] font-black uppercase tracking-[0.14em] text-slate-400">
-                Total paid
+                Total
               </p>
               <p className="mt-1 text-xl font-black text-[#062B5F]">
                 {money(total)}
@@ -579,23 +563,23 @@ export default function OrderDetails() {
             </div>
           </div>
 
-          <div className="mt-4 rounded-[18px] border border-slate-100 bg-gradient-to-r from-[#F8FBFF] to-white p-3.5">
+          <div className="mt-4 border-t border-slate-100 pt-4">
             <div className="flex items-center gap-3">
               <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-blue-50 text-[#0F4C9C]">
-                <Truck size={18} weight="duotone" />
+                <Truck size={18} />
               </span>
 
               <div className="min-w-0 flex-1">
                 <p className="text-[9px] font-black uppercase tracking-[0.14em] text-slate-400">
                   Estimated delivery
                 </p>
-                <p className="mt-1 text-sm font-black text-slate-900">
+                <p className="mt-0.5 truncate text-sm font-black text-slate-900">
                   {estimatedDeliveryText}
                 </p>
               </div>
             </div>
 
-            <div className="mt-3 border-t border-slate-100 pt-3">
+            <div className="mt-4 rounded-2xl bg-slate-50/80 px-2 py-3">
               <Timeline order={order} />
             </div>
           </div>
@@ -616,7 +600,7 @@ export default function OrderDetails() {
 
       <section className="grid gap-4 lg:grid-cols-[1.1fr_.9fr]">
         <div className="space-y-4">
-          <section className="rounded-[22px] border border-slate-200 bg-white p-4 shadow-sm">
+          <section className="rounded-[20px] border border-slate-200/80 bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.045)]">
             <div className="mb-3 flex items-center justify-between">
               <h2 className="text-base font-black text-slate-950">
                 Products
@@ -688,7 +672,7 @@ export default function OrderDetails() {
             </div>
           </section>
 
-          <section className="rounded-[22px] border border-slate-200 bg-white p-4 shadow-sm">
+          <section className="rounded-[20px] border border-slate-200/80 bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.045)]">
             <div className="flex items-center gap-3">
               <span className="grid h-9 w-9 place-items-center rounded-xl bg-blue-50 text-[#0F4C9C]">
                 <MapPin size={18} />
@@ -719,7 +703,7 @@ export default function OrderDetails() {
         </div>
 
         <aside className="space-y-4">
-          <section className="rounded-[22px] border border-slate-200 bg-white p-4 shadow-sm">
+          <section className="rounded-[20px] border border-slate-200/80 bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.045)]">
             <div className="flex items-center justify-between">
               <h2 className="text-base font-black text-slate-950">
                 Order summary
@@ -768,7 +752,7 @@ export default function OrderDetails() {
           </section>
 
           {order.delivery_partner_name && (
-            <section className="rounded-[22px] border border-slate-200 bg-white p-4 shadow-sm">
+            <section className="rounded-[20px] border border-slate-200/80 bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.045)]">
               <div className="flex items-center gap-3">
                 <span className="grid h-9 w-9 place-items-center rounded-xl bg-purple-50 text-purple-700">
                   <Truck size={18} />
@@ -800,7 +784,7 @@ export default function OrderDetails() {
               type="button"
               onClick={reorder}
               disabled={reordering}
-              className="flex w-full items-center justify-between rounded-xl px-3 py-3 text-left transition hover:bg-slate-50 disabled:opacity-50"
+              className="flex w-full items-center justify-between px-4 py-3 text-left transition hover:bg-slate-50 disabled:opacity-50"
             >
               <span className="inline-flex items-center gap-3">
                 <span className="grid h-8 w-8 place-items-center rounded-lg bg-blue-50 text-[#0F4C9C]">
@@ -821,7 +805,7 @@ export default function OrderDetails() {
             <button
               type="button"
               onClick={printInvoice}
-              className="flex w-full items-center justify-between border-t border-slate-100 px-3 py-3 text-left transition hover:bg-slate-50"
+              className="flex w-full items-center justify-between border-t border-slate-100 px-4 py-3 text-left transition hover:bg-slate-50"
             >
               <span className="inline-flex items-center gap-3">
                 <span className="grid h-8 w-8 place-items-center rounded-lg bg-slate-100 text-slate-700">
@@ -842,7 +826,7 @@ export default function OrderDetails() {
             <button
               type="button"
               onClick={() => navigate("/support")}
-              className="flex w-full items-center justify-between border-t border-slate-100 px-3 py-3 text-left transition hover:bg-slate-50"
+              className="flex w-full items-center justify-between border-t border-slate-100 px-4 py-3 text-left transition hover:bg-slate-50"
             >
               <span className="inline-flex items-center gap-3">
                 <span className="grid h-8 w-8 place-items-center rounded-lg bg-amber-50 text-amber-700">
@@ -861,7 +845,7 @@ export default function OrderDetails() {
             </button>
           </section>
 
-          <section className="rounded-[22px] border border-emerald-100 bg-emerald-50/70 p-4">
+          <section className="rounded-[18px] border border-emerald-100/80 bg-emerald-50/60 px-4 py-3">
             <p className="text-[9px] font-black uppercase tracking-[0.14em] text-emerald-700">
               Delivery tips
             </p>
@@ -875,35 +859,34 @@ export default function OrderDetails() {
         </aside>
       </section>
       {related.length > 0 && (
-        <section>
-          <div className="mb-4 flex items-end justify-between">
+        <section className="pt-1">
+          <div className="mb-3 flex items-center justify-between gap-3">
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.18em] text-[#0F4C9C]">
+              <p className="text-[9px] font-black uppercase tracking-[0.16em] text-[#0F4C9C]">
                 You may also like
               </p>
-
-              <h2 className="mt-1 text-2xl font-black text-slate-900">
-                Recommended products
+              <h2 className="mt-0.5 text-lg font-black text-slate-950">
+                Recommended for you
               </h2>
             </div>
 
             <Link
               to="/products"
-              className="inline-flex items-center gap-1 text-sm font-black text-[#0F4C9C]"
+              className="inline-flex shrink-0 items-center gap-1 text-xs font-black text-[#0F4C9C]"
             >
               View all
-              <ArrowRight size={16} />
+              <ArrowRight size={14} />
             </Link>
           </div>
 
-          <div className="flex gap-4 overflow-x-auto pb-3">
+          <div className="flex snap-x gap-2.5 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {related.map((product) => (
               <Link
                 key={product.product_id}
                 to={`/products/${product.product_id}`}
-                className="min-w-[180px] overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg sm:min-w-[210px]"
+                className="group flex min-w-[230px] max-w-[230px] snap-start items-center gap-3 rounded-[18px] border border-slate-200/80 bg-white p-2.5 shadow-[0_7px_20px_rgba(15,23,42,0.045)] transition hover:border-blue-200 hover:shadow-md sm:min-w-[250px] sm:max-w-[250px]"
               >
-                <div className="aspect-square bg-[#F4F8FC] p-3">
+                <div className="h-20 w-20 shrink-0 overflow-hidden rounded-[14px] bg-[#F7FAFF] p-1.5">
                   <img
                     src={
                       product.image_url ||
@@ -911,21 +894,26 @@ export default function OrderDetails() {
                       FALLBACK
                     }
                     alt={product.name}
-                    className="h-full w-full object-contain"
+                    className="h-full w-full object-contain transition duration-300 group-hover:scale-105"
                     onError={(event) => {
                       event.currentTarget.src = FALLBACK;
                     }}
                   />
                 </div>
 
-                <div className="p-3">
-                  <h3 className="line-clamp-2 min-h-[40px] text-sm font-black text-slate-900">
+                <div className="min-w-0 flex-1">
+                  <h3 className="line-clamp-2 text-xs font-black leading-5 text-slate-900">
                     {product.name}
                   </h3>
 
-                  <p className="mt-2 text-lg font-black text-[#062B5F]">
+                  <p className="mt-1.5 text-sm font-black text-[#062B5F]">
                     {money(product.price)}
                   </p>
+
+                  <span className="mt-1 inline-flex items-center gap-1 text-[9px] font-black text-[#0F4C9C]">
+                    View product
+                    <ArrowRight size={11} />
+                  </span>
                 </div>
               </Link>
             ))}
