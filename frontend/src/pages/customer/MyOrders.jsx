@@ -179,6 +179,7 @@ export default function MyOrders() {
   const [reorderingId, setReorderingId] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
 
   const loadOrders = async () => {
     setLoading(true);
@@ -202,6 +203,34 @@ export default function MyOrders() {
     () => [...orders].sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()),
     [orders]
   );
+
+
+  const filteredOrders = useMemo(
+    () =>
+      statusFilter === "all"
+        ? sortedOrders
+        : sortedOrders.filter((order) => order.status === statusFilter),
+    [sortedOrders, statusFilter]
+  );
+
+  const statusCounts = useMemo(() => {
+    const counts = {
+      all: sortedOrders.length,
+      placed: 0,
+      confirmed: 0,
+      processing: 0,
+      out_for_delivery: 0,
+      delivered: 0,
+    };
+
+    sortedOrders.forEach((order) => {
+      if (counts[order.status] !== undefined) {
+        counts[order.status] += 1;
+      }
+    });
+
+    return counts;
+  }, [sortedOrders]);
 
   const reorder = async (order) => {
     const items = Array.isArray(order.items) ? order.items : [];
@@ -250,84 +279,236 @@ export default function MyOrders() {
   }
 
   return (
-    <div className="space-y-5 pb-24">
-      <section className="rounded-[28px] bg-gradient-to-r from-[#062B5F] to-[#0F4C9C] p-5 text-white shadow-lg sm:p-7">
-        <div className="flex items-center gap-4">
-          <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white/10"><Package size={29} weight="duotone" /></span>
-          <div>
-            <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-200">Order history</p>
-            <h1 className="mt-1 text-2xl font-black sm:text-3xl">My Orders</h1>
-            <p className="mt-1 text-sm text-blue-100">Track, review and reorder your ZANSZI purchases.</p>
+    <div className="mx-auto max-w-5xl space-y-4 pb-24">
+      <section className="rounded-[24px] border border-slate-200 bg-white px-4 py-4 shadow-sm sm:px-5">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-blue-50 text-[#0F4C9C]">
+              <Package size={22} weight="duotone" />
+            </span>
+
+            <div className="min-w-0">
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#0F4C9C]">
+                Order history
+              </p>
+              <h1 className="mt-0.5 text-xl font-black text-slate-950 sm:text-2xl">
+                My Orders
+              </h1>
+              <p className="mt-0.5 text-xs text-slate-500">
+                Track, reorder and manage purchases.
+              </p>
+            </div>
+          </div>
+
+          <div className="shrink-0 rounded-2xl bg-[#F7FAFF] px-3 py-2 text-right">
+            <p className="text-[9px] font-black uppercase tracking-[0.14em] text-slate-400">
+              Total
+            </p>
+            <p className="text-lg font-black text-[#062B5F]">
+              {sortedOrders.length}
+            </p>
           </div>
         </div>
       </section>
 
-      {message && <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-700">{message}</div>}
-      {error && <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">{error}</div>}
+      {message && (
+        <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2.5 text-xs font-bold text-emerald-700">
+          {message}
+        </div>
+      )}
 
-      {!sortedOrders.length ? (
-        <section className="rounded-[28px] border border-dashed border-slate-300 bg-white px-6 py-16 text-center shadow-sm">
-          <span className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-blue-50 text-[#0F4C9C]"><ShoppingBag size={38} weight="duotone" /></span>
-          <h2 className="mt-5 text-2xl font-black text-slate-900">No orders yet</h2>
-          <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">Once you place your first order, you can track it here.</p>
-          <Link to="/products" className="mt-6 inline-flex items-center gap-2 rounded-2xl bg-[#0F4C9C] px-6 py-3 text-sm font-black text-white">Start shopping<ArrowRight size={17} weight="bold" /></Link>
+      {error && (
+        <div className="rounded-xl border border-red-100 bg-red-50 px-3 py-2.5 text-xs font-bold text-red-700">
+          {error}
+        </div>
+      )}
+
+      <section className="rounded-[22px] border border-slate-200 bg-white p-2 shadow-sm">
+        <div className="flex gap-1.5 overflow-x-auto">
+          {[
+            ["all", "All"],
+            ["placed", "Placed"],
+            ["confirmed", "Confirmed"],
+            ["processing", "Processing"],
+            ["out_for_delivery", "On the way"],
+            ["delivered", "Delivered"],
+          ].map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setStatusFilter(value)}
+              className={`shrink-0 rounded-xl px-3 py-2 text-[11px] font-black transition ${
+                statusFilter === value
+                  ? "bg-[#0F4C9C] text-white shadow-sm"
+                  : "text-slate-500 hover:bg-slate-50"
+              }`}
+            >
+              {label}
+              <span
+                className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[9px] ${
+                  statusFilter === value
+                    ? "bg-white/15"
+                    : "bg-slate-100"
+                }`}
+              >
+                {statusCounts[value] || 0}
+              </span>
+            </button>
+          ))}
+        </div>
+      </section>
+
+      {!filteredOrders.length ? (
+        <section className="rounded-[26px] border border-dashed border-slate-300 bg-white px-6 py-14 text-center shadow-sm">
+          <span className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-blue-50 text-[#0F4C9C]">
+            <ShoppingBag size={30} weight="duotone" />
+          </span>
+          <h2 className="mt-4 text-xl font-black text-slate-900">
+            {sortedOrders.length ? "No orders in this status" : "No orders yet"}
+          </h2>
+          <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-slate-500">
+            {sortedOrders.length
+              ? "Choose another status to see your orders."
+              : "Once you place your first order, you can track it here."}
+          </p>
+          {!sortedOrders.length && (
+            <Link
+              to="/products"
+              className="mt-5 inline-flex items-center gap-2 rounded-xl bg-[#0F4C9C] px-5 py-3 text-sm font-black text-white"
+            >
+              Start shopping
+              <ArrowRight size={16} weight="bold" />
+            </Link>
+          )}
         </section>
       ) : (
-        <section className="space-y-4">
-          {sortedOrders.map((order) => {
+        <section className="space-y-3">
+          {filteredOrders.map((order) => {
             const items = Array.isArray(order.items) ? order.items : [];
             const status = order.status || "placed";
-            const address = [order.delivery_address, order.city, order.state, order.postal_code].filter(Boolean).join(", ");
+            const firstItem = items[0];
+            const address = [
+              order.city,
+              order.state,
+            ].filter(Boolean).join(", ");
 
             return (
-              <article key={order.order_id} className="overflow-hidden rounded-[26px] border border-slate-200 bg-white shadow-sm transition hover:shadow-lg">
-                <div className="p-4 sm:p-5">
-                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="min-w-0">
+              <article
+                key={order.order_id}
+                className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm transition hover:border-blue-100 hover:shadow-md"
+              >
+                <div className="p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <h2 className="text-base font-black text-slate-900 sm:text-lg">{order.order_number || order.order_id}</h2>
-                        <span className={`rounded-full px-3 py-1 text-[10px] font-black ring-1 ${STATUS_STYLES[status] || STATUS_STYLES.placed}`}>{STATUS_LABELS[status] || "Placed"}</span>
+                        <h2 className="truncate text-sm font-black text-slate-950 sm:text-base">
+                          {order.order_number || order.order_id}
+                        </h2>
+                        <span
+                          className={`rounded-full px-2.5 py-1 text-[9px] font-black ring-1 ${
+                            STATUS_STYLES[status] || STATUS_STYLES.placed
+                          }`}
+                        >
+                          {STATUS_LABELS[status] || "Placed"}
+                        </span>
                       </div>
-                      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2 text-xs text-slate-500">
-                        <span className="inline-flex items-center gap-1.5"><CalendarBlank size={15} />{formatDate(order.created_at)}</span>
-                        <span className="inline-flex items-center gap-1.5"><Package size={15} />{items.length} {items.length === 1 ? "product" : "products"}</span>
+
+                      <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-slate-500">
+                        <span className="inline-flex items-center gap-1">
+                          <CalendarBlank size={13} />
+                          {formatDate(order.created_at)}
+                        </span>
+                        <span className="inline-flex items-center gap-1">
+                          <Package size={13} />
+                          {items.length} {items.length === 1 ? "item" : "items"}
+                        </span>
                       </div>
                     </div>
-                    <p className="text-xl font-black text-[#062B5F] sm:text-2xl">{money(order.total)}</p>
+
+                    <p className="shrink-0 text-lg font-black text-[#062B5F]">
+                      {money(order.total)}
+                    </p>
                   </div>
 
-                  <div className="mt-5 flex gap-3 overflow-x-auto pb-1">
-                    {items.slice(0, 4).map((item, index) => (
-                      <div key={`${item.product_id || index}-${index}`} className="flex min-w-[180px] items-center gap-3 rounded-2xl bg-[#F5F9FF] p-2.5">
-                        <div className="h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-white p-1.5">
-                          <img src={item.image_url || item.images?.[0] || FALLBACK} alt={item.name || "Product"} className="h-full w-full object-contain" onError={(event) => { event.currentTarget.src = FALLBACK; }} />
-                        </div>
-                        <div className="min-w-0"><p className="line-clamp-2 text-xs font-black leading-4 text-slate-900">{item.name || "Product"}</p><p className="mt-1 text-[11px] text-slate-500">Qty: {item.quantity || 1}</p></div>
+                  <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-[#F7FAFF] p-1.5">
+                        <img
+                          src={
+                            firstItem?.image_url ||
+                            firstItem?.images?.[0] ||
+                            FALLBACK
+                          }
+                          alt={firstItem?.name || "Order product"}
+                          className="h-full w-full object-contain"
+                          onError={(event) => {
+                            event.currentTarget.src = FALLBACK;
+                          }}
+                        />
+                        {items.length > 1 && (
+                          <span className="absolute bottom-1 right-1 rounded-full bg-[#062B5F] px-1.5 py-0.5 text-[8px] font-black text-white">
+                            +{items.length - 1}
+                          </span>
+                        )}
                       </div>
-                    ))}
-                    {items.length > 4 && <div className="grid min-w-[80px] place-items-center rounded-2xl bg-slate-100 p-3 text-sm font-black text-slate-600">+{items.length - 4}</div>}
+
+                      <div className="min-w-0">
+                        <p className="truncate text-xs font-black text-slate-900">
+                          {firstItem?.name || "Order items"}
+                        </p>
+                        <p className="mt-1 text-[10px] text-slate-500">
+                          {address || "Delivery address saved"}
+                        </p>
+                        <p className="mt-1 inline-flex items-center gap-1 text-[10px] font-bold text-[#0F4C9C]">
+                          <Truck size={13} />
+                          {status === "delivered"
+                            ? "Delivered"
+                            : "Track delivery"}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/orders/${order.order_id}`)}
+                        className="inline-flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-xl bg-[#0F4C9C] px-3 text-[11px] font-black text-white sm:flex-none"
+                      >
+                        View
+                        <ArrowRight size={14} weight="bold" />
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={reorderingId === order.order_id}
+                        onClick={() => reorder(order)}
+                        className="grid h-9 w-9 place-items-center rounded-xl border border-slate-200 bg-white text-[#0F4C9C] disabled:opacity-50"
+                        aria-label="Reorder"
+                      >
+                        <ArrowClockwise size={15} />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => downloadInvoice(order)}
+                        className="grid h-9 w-9 place-items-center rounded-xl border border-slate-200 bg-white text-slate-600"
+                        aria-label="Invoice"
+                      >
+                        <DownloadSimple size={15} />
+                      </button>
+                    </div>
                   </div>
 
-                  {address && <div className="mt-4 flex items-start gap-2 rounded-2xl border border-slate-100 bg-white p-3"><MapPin size={18} className="mt-0.5 shrink-0 text-[#0F4C9C]" /><p className="line-clamp-2 text-xs leading-5 text-slate-600">{address}</p></div>}
-                  <OrderTimeline status={status} />
-                </div>
-
-                <div className="flex flex-wrap gap-2 border-t border-slate-100 bg-slate-50/70 p-3 sm:px-5">
-                  <button type="button" onClick={() => navigate(`/orders/${order.order_id}`)} className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-xl bg-[#0F4C9C] px-4 text-xs font-black text-white sm:flex-none">View Order<ArrowRight size={16} weight="bold" /></button>
-                  <button type="button" disabled={reorderingId === order.order_id} onClick={() => reorder(order)} className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-xs font-black text-[#0F4C9C] disabled:opacity-50 sm:flex-none"><ArrowClockwise size={16} />{reorderingId === order.order_id ? "Adding..." : "Reorder"}</button>
-                  <button type="button" onClick={() => downloadInvoice(order)} className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-xs font-black text-slate-700 sm:flex-none"><DownloadSimple size={16} />Invoice</button>
+                  <div className="mt-4 border-t border-slate-100 pt-3">
+                    <OrderTimeline status={status} />
+                  </div>
                 </div>
               </article>
             );
           })}
         </section>
       )}
-
-      <section className="grid gap-3 sm:grid-cols-3">
-        <div className="rounded-2xl border border-slate-200 bg-white p-4"><Truck size={23} className="text-[#0F4C9C]" /><p className="mt-3 text-sm font-black text-slate-900">Track delivery</p><p className="mt-1 text-xs leading-5 text-slate-500">Follow every step from order placement to delivery.</p></div>
-        <div className="rounded-2xl border border-slate-200 bg-white p-4"><Receipt size={23} className="text-[#0F4C9C]" /><p className="mt-3 text-sm font-black text-slate-900">Invoice access</p><p className="mt-1 text-xs leading-5 text-slate-500">Open and print an invoice for every order.</p></div>
-        <div className="rounded-2xl border border-slate-200 bg-white p-4"><ArrowClockwise size={23} className="text-[#0F4C9C]" /><p className="mt-3 text-sm font-black text-slate-900">Quick reorder</p><p className="mt-1 text-xs leading-5 text-slate-500">Add previously ordered products back to your cart.</p></div>
-      </section>
     </div>
+  );
   );
 }
