@@ -499,94 +499,83 @@ export default function OrderDetails() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-4 pb-24">
-      <section className="overflow-hidden rounded-[26px] border border-slate-200/80 bg-gradient-to-br from-white via-white to-[#F7FAFF] shadow-[0_12px_35px_rgba(15,23,42,0.06)]">
-        <div className="px-4 py-4 sm:px-5">
+      <div className="flex items-center justify-between gap-3">
+        <button
+          type="button"
+          onClick={() => navigate("/orders")}
+          className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 shadow-sm"
+        >
+          <ArrowLeft size={16} weight="bold" />
+          My Orders
+        </button>
+
+        <span
+          className={`rounded-full px-3 py-1.5 text-[10px] font-black ring-1 ${
+            STATUS_STYLES[status] || STATUS_STYLES.placed
+          }`}
+        >
+          {LABELS[status] || "Placed"}
+        </span>
+      </div>
+
+      <section className="rounded-[22px] border border-slate-200 bg-white px-4 py-4 shadow-sm sm:px-5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-400">
+              Order
+            </p>
+
+            <div className="mt-1 flex items-center gap-2">
+              <h1 className="truncate text-lg font-black tracking-tight text-slate-950 sm:text-xl">
+                {order.order_number || order.order_id}
+              </h1>
+
+              <button
+                type="button"
+                onClick={copyOrderNumber}
+                className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-[10px] font-black text-[#0F4C9C] transition hover:bg-slate-50"
+              >
+                <Copy size={13} />
+                {copied ? "Copied" : "Copy"}
+              </button>
+            </div>
+
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500">
+              <span className="inline-flex items-center gap-1.5">
+                <CalendarBlank size={14} />
+                {formatDate(order.created_at)}
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <Package size={14} />
+                {items.length} {items.length === 1 ? "item" : "items"}
+              </span>
+            </div>
+          </div>
+
+          <div className="shrink-0 text-right">
+            <span className={`inline-flex rounded-full px-2.5 py-1 text-[9px] font-black ring-1 ${STATUS_STYLES[status] || STATUS_STYLES.placed}`}>
+              {LABELS[status] || "Placed"}
+            </span>
+            <p className="mt-2 text-[9px] font-black uppercase tracking-[0.14em] text-slate-400">
+              Total
+            </p>
+            <p className="text-xl font-black text-[#062B5F]">
+              {money(total)}
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-4 border-t border-slate-100 pt-4">
           <div className="flex items-center justify-between gap-3">
-            <button
-              type="button"
-              onClick={() => navigate("/orders")}
-              className="inline-flex items-center gap-2 text-xs font-black text-slate-500 transition hover:text-[#0F4C9C]"
-            >
-              <span className="grid h-8 w-8 place-items-center rounded-xl border border-slate-200 bg-white shadow-sm">
-                <ArrowLeft size={15} weight="bold" />
-              </span>
-              My Orders
-            </button>
-
-            <span
-              className={`rounded-full px-3 py-1 text-[9px] font-black ring-1 ${
-                STATUS_STYLES[status] || STATUS_STYLES.placed
-              }`}
-            >
-              {LABELS[status] || "Placed"}
-            </span>
-          </div>
-
-          <div className="mt-4 flex items-start justify-between gap-4">
-            <div className="min-w-0 flex-1">
-              <p className="text-[9px] font-black uppercase tracking-[0.18em] text-[#0F4C9C]">
-                Order details
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">
+                Delivery status
               </p>
-
-              <div className="mt-1.5 flex min-w-0 items-center gap-2">
-                <h1 className="truncate text-lg font-black tracking-tight text-slate-950 sm:text-xl">
-                  {order.order_number || order.order_id}
-                </h1>
-
-                <button
-                  type="button"
-                  onClick={copyOrderNumber}
-                  className="grid h-8 w-8 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-[#0F4C9C] shadow-sm transition hover:border-blue-200 hover:bg-blue-50"
-                  aria-label="Copy order number"
-                >
-                  <Copy size={14} />
-                </button>
-              </div>
-
-              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] font-semibold text-slate-500">
-                <span className="inline-flex items-center gap-1.5">
-                  <CalendarBlank size={13} />
-                  {formatDate(order.created_at)}
-                </span>
-
-                <span className="h-1 w-1 rounded-full bg-slate-300" />
-
-                <span className="inline-flex items-center gap-1.5">
-                  <Package size={13} />
-                  {items.length} {items.length === 1 ? "item" : "items"}
-                </span>
-              </div>
-            </div>
-
-            <div className="shrink-0 text-right">
-              <p className="text-[9px] font-black uppercase tracking-[0.14em] text-slate-400">
-                Total
-              </p>
-              <p className="mt-0.5 text-xl font-black text-[#062B5F]">
-                {money(total)}
+              <p className="mt-1 text-sm font-black text-slate-900">
+                {estimatedDeliveryText}
               </p>
             </div>
-          </div>
-
-          <div className="mt-4 grid gap-3 rounded-[20px] border border-slate-100 bg-white/90 p-3.5 shadow-sm sm:grid-cols-[1fr_auto] sm:items-center">
-            <div className="flex items-start gap-3">
-              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-blue-50 text-[#0F4C9C]">
-                <Truck size={18} weight="duotone" />
-              </span>
-
-              <div className="min-w-0">
-                <p className="text-[9px] font-black uppercase tracking-[0.14em] text-slate-400">
-                  Estimated delivery
-                </p>
-                <p className="mt-0.5 text-sm font-black leading-5 text-slate-900">
-                  {estimatedDeliveryText}
-                </p>
-              </div>
-            </div>
-
-            <span className="hidden text-[10px] font-black text-slate-400 sm:block">
-              {LABELS[status] || "Placed"}
-            </span>
+            <Truck size={22} className="shrink-0 text-[#0F4C9C]" />
           </div>
 
           <div className="mt-4">
