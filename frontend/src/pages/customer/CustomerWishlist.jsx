@@ -69,26 +69,39 @@ export default function CustomerWishlist() {
   };
 
   return (
-    <div className="mx-auto max-w-6xl space-y-5 pb-24">
-      <section className="rounded-3xl bg-gradient-to-r from-[#062B5F] to-[#0F4C9C] px-5 py-6 text-white shadow-lg">
-        <div className="flex items-center gap-3">
-          <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15">
-            <Heart size={25} fill="currentColor" />
-          </span>
-          <div>
-            <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-200">
-              Saved for later
-            </p>
-            <h1 className="mt-1 text-2xl font-black sm:text-3xl">My Wishlist</h1>
-            <p className="mt-1 text-sm text-blue-100">
-              {wishlistIds.length} saved product{wishlistIds.length === 1 ? "" : "s"}
-            </p>
+    <div className="mx-auto max-w-6xl space-y-4 pb-24">
+      <section className="rounded-[24px] border border-slate-200 bg-white px-4 py-4 shadow-sm sm:px-5">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-rose-50 text-rose-600">
+              <Heart size={21} fill="currentColor" />
+            </span>
+
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-rose-500">
+                Saved items
+              </p>
+              <h1 className="mt-0.5 text-xl font-black text-slate-950 sm:text-2xl">
+                My Wishlist
+              </h1>
+              <p className="mt-0.5 text-xs text-slate-500">
+                {wishlistIds.length} product{wishlistIds.length === 1 ? "" : "s"} saved
+              </p>
+            </div>
           </div>
+
+          <button
+            type="button"
+            onClick={() => navigate("/products")}
+            className="shrink-0 rounded-xl bg-[#F7FAFF] px-3 py-2 text-[11px] font-black text-[#0F4C9C]"
+          >
+            Shop
+          </button>
         </div>
       </section>
 
       {message && (
-        <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-bold text-[#0F4C9C]">
+        <div className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2.5 text-xs font-bold text-[#0F4C9C]">
           {message}
         </div>
       )}
@@ -98,105 +111,130 @@ export default function CustomerWishlist() {
           {Array.from({ length: 4 }).map((_, index) => (
             <div
               key={index}
-              className="rounded-2xl border border-slate-200 bg-white p-3"
+              className="rounded-[20px] border border-slate-200 bg-white p-2.5"
             >
-              <div className="aspect-square animate-pulse rounded-xl bg-slate-200" />
-              <div className="mt-3 h-4 animate-pulse rounded bg-slate-200" />
-              <div className="mt-2 h-4 w-2/3 animate-pulse rounded bg-slate-200" />
+              <div className="aspect-square animate-pulse rounded-2xl bg-slate-100" />
+              <div className="mt-3 h-3.5 animate-pulse rounded bg-slate-100" />
+              <div className="mt-2 h-3.5 w-2/3 animate-pulse rounded bg-slate-100" />
             </div>
           ))}
         </div>
       ) : wishedProducts.length > 0 ? (
-        <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+        <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
           {wishedProducts.map((product) => {
-            const image = product.image_url || product.images?.[0] || FALLBACK;
+            const image =
+              product.image_url ||
+              product.images?.[0] ||
+              FALLBACK;
+
+            const inStock = Number(product.stock) > 0;
 
             return (
               <article
                 key={product.product_id}
-                className="overflow-hidden rounded-2xl border border-slate-200 bg-white p-3 shadow-sm"
+                className="group overflow-hidden rounded-[20px] border border-slate-200 bg-white p-2.5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
               >
-                <button
-                  type="button"
-                  onClick={() => navigate(`/products/${product.product_id}`)}
-                  className="block w-full text-left"
-                >
-                  <div className="aspect-square overflow-hidden rounded-xl bg-[#F4F8FC]">
-                    <img
-                      src={image}
-                      alt={product.name}
-                      className="h-full w-full object-contain p-2"
-                      onError={(event) => {
-                        event.currentTarget.src = FALLBACK;
-                      }}
-                    />
-                  </div>
-
-                  <p className="mt-3 text-[10px] font-black uppercase tracking-[0.14em] text-[#0F4C9C]">
-                    {product.category?.name || product.category_name || "Zanszii"}
-                  </p>
-
-                  <h2 className="mt-1 line-clamp-2 min-h-[40px] text-sm font-black leading-5 text-slate-900">
-                    {product.name}
-                  </h2>
-
-                  <p className="mt-1 text-xs text-slate-500">
-                    {product.unit ? `Per ${product.unit}` : "Per piece"}
-                  </p>
-
-                  <p className="mt-3 text-lg font-black text-slate-900">
-                    {money(product.price)}
-                  </p>
-                </button>
-
-                <div className="mt-3 grid grid-cols-[1fr_auto] gap-2">
+                <div className="relative">
                   <button
                     type="button"
-                    disabled={product.stock <= 0 || addingId === product.product_id}
-                    onClick={() => addToCart(product)}
-                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#0F4C9C] px-3 py-2.5 text-xs font-black text-white disabled:bg-slate-300"
+                    onClick={() =>
+                      navigate(`/products/${product.product_id}`)
+                    }
+                    className="block w-full"
                   >
-                    <ShoppingCart size={16} />
-                    {product.stock <= 0
-                      ? "Sold out"
-                      : addingId === product.product_id
-                      ? "Adding..."
-                      : "Add"}
+                    <div className="aspect-square overflow-hidden rounded-2xl bg-[#F7FAFF] p-2">
+                      <img
+                        src={image}
+                        alt={product.name}
+                        className="h-full w-full object-contain transition duration-300 group-hover:scale-105"
+                        onError={(event) => {
+                          event.currentTarget.src = FALLBACK;
+                        }}
+                      />
+                    </div>
                   </button>
 
                   <button
                     type="button"
                     aria-label={`Remove ${product.name} from wishlist`}
                     onClick={() => removeFromWishlist(product)}
-                    className="flex h-10 w-10 items-center justify-center rounded-xl border border-rose-100 bg-rose-50 text-rose-600"
+                    className="absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full bg-white/95 text-rose-500 shadow-sm backdrop-blur"
                   >
-                    <Trash2 size={17} />
+                    <Trash2 size={15} />
                   </button>
                 </div>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    navigate(`/products/${product.product_id}`)
+                  }
+                  className="mt-3 block w-full text-left"
+                >
+                  <p className="truncate text-[9px] font-black uppercase tracking-[0.13em] text-[#0F4C9C]">
+                    {product.category?.name ||
+                      product.category_name ||
+                      "ZANSZI"}
+                  </p>
+
+                  <h2 className="mt-1 line-clamp-2 min-h-[36px] text-[13px] font-black leading-[18px] text-slate-900">
+                    {product.name}
+                  </h2>
+
+                  <div className="mt-2 flex items-end justify-between gap-2">
+                    <div>
+                      <p className="text-base font-black text-[#062B5F]">
+                        {money(product.price)}
+                      </p>
+                      <p
+                        className={`mt-0.5 text-[9px] font-bold ${
+                          inStock ? "text-emerald-600" : "text-rose-500"
+                        }`}
+                      >
+                        {inStock ? "In stock" : "Sold out"}
+                      </p>
+                    </div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={!inStock || addingId === product.product_id}
+                  onClick={() => addToCart(product)}
+                  className="mt-3 inline-flex min-h-9 w-full items-center justify-center gap-1.5 rounded-xl bg-[#0F4C9C] px-3 text-[11px] font-black text-white disabled:bg-slate-300"
+                >
+                  <ShoppingCart size={14} />
+                  {!inStock
+                    ? "Sold out"
+                    : addingId === product.product_id
+                      ? "Adding..."
+                      : "Add to cart"}
+                </button>
               </article>
             );
           })}
         </section>
       ) : (
-        <section className="rounded-3xl border border-dashed border-slate-300 bg-white px-5 py-16 text-center">
-          <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-blue-50 text-[#0F4C9C]">
-            <Package size={30} />
+        <section className="rounded-[26px] border border-dashed border-slate-300 bg-white px-5 py-14 text-center shadow-sm">
+          <span className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-rose-50 text-rose-500">
+            <Heart size={29} />
           </span>
           <h2 className="mt-4 text-xl font-black text-slate-900">
             Your wishlist is empty
           </h2>
-          <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">
-            Tap the heart icon on any product to save it here for later.
+          <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-slate-500">
+            Save products you love and come back to them anytime.
           </p>
           <button
             type="button"
             onClick={() => navigate("/products")}
             className="mt-5 rounded-xl bg-[#0F4C9C] px-5 py-3 text-sm font-black text-white"
           >
-            Start shopping
+            Explore products
           </button>
         </section>
       )}
     </div>
+  );
   );
 }
