@@ -158,7 +158,7 @@ function CustomerLayout({ user, signOut }) {
     "Select location";
 
   return (
-    <div className="min-h-screen bg-[#F6F8FC] pb-24 lg:pb-0">
+    <div className="min-h-screen bg-[#F6F8FC] pb-28 lg:pb-0">
       <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/95 shadow-sm backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center gap-2 px-3 py-3 sm:gap-4 sm:px-6 lg:px-8">
           <NavLink
@@ -276,42 +276,40 @@ function CustomerLayout({ user, signOut }) {
         <Outlet />
       </main>
 
-      <nav className="fixed inset-x-0 bottom-0 z-50 px-2 pb-[max(8px,env(safe-area-inset-bottom))] lg:hidden">
-        <div className="mx-auto max-w-md rounded-t-[22px] border border-b-0 border-slate-200/90 bg-white/95 px-2 pt-2 shadow-[0_-12px_32px_rgba(15,23,42,0.10)] backdrop-blur-xl">
-          <div className="grid grid-cols-5">
-            {customerLinks.map(([to, text, Icon]) => (
-              <NavLink
-                key={to}
-                to={to}
-                end={to === "/"}
-                className={({ isActive }) =>
-                  `relative flex flex-col items-center gap-1 px-1 pb-2 pt-1 text-[9px] font-black transition ${
-                    isActive ? "text-[#0F4C9C]" : "text-slate-400"
-                  }`
-                }
-              >
-                {({ isActive }) => (
-                  <>
-                    <span className={`relative grid h-9 w-11 place-items-center rounded-xl transition ${isActive ? "bg-[#EEF5FF] text-[#0F4C9C]" : "text-slate-400"}`}>
-                      <Icon size={19} strokeWidth={isActive ? 2.7 : 2} />
+      <nav className="fixed inset-x-0 bottom-0 z-50 px-3 pb-[max(10px,env(safe-area-inset-bottom))] pt-2 lg:hidden">
+        <div className="mx-auto grid max-w-md grid-cols-5 rounded-[24px] border border-white/80 bg-white/90 px-1.5 py-1.5 shadow-[0_-6px_30px_rgba(15,23,42,0.12)] backdrop-blur-2xl">
+          {customerLinks.map(([to, text, Icon]) => (
+            <NavLink
+              key={to}
+              to={to}
+              end={to === "/"}
+              className={({ isActive }) =>
+                `relative flex flex-col items-center gap-0.5 rounded-[18px] px-1 py-1.5 text-[9px] font-black transition ${
+                  isActive
+                    ? "bg-[#062B5F] text-white shadow-[0_6px_16px_rgba(6,43,95,0.22)]"
+                    : "text-slate-400 hover:bg-slate-50"
+                }`
+              }
+            >
+              {({ isActive }) => (
+                <>
+                  <span
+                    className="relative flex h-7 w-9 items-center justify-center rounded-xl"
+                  >
+                    <Icon size={20} strokeWidth={isActive ? 2.8 : 2} />
 
-                      {to === "/wishlist" && wishlistCount > 0 && (
-                        <span className="absolute -right-1 -top-1 min-w-[17px] rounded-full bg-rose-500 px-1 text-center text-[8px] font-black text-white ring-2 ring-white">
-                          {wishlistCount > 99 ? "99+" : wishlistCount}
-                        </span>
-                      )}
-                    </span>
-
-                    <span>{text}</span>
-
-                    {isActive && (
-                      <span className="mt-0.5 h-0.5 w-5 rounded-full bg-[#0F4C9C]" />
+                    {to === "/wishlist" && wishlistCount > 0 && (
+                      <span className="absolute -right-1 -top-1 min-w-[17px] rounded-full bg-rose-500 px-1 text-center text-[9px] font-black text-white">
+                        {wishlistCount > 99 ? "99+" : wishlistCount}
+                      </span>
                     )}
-                  </>
-                )}
-              </NavLink>
-            ))}
-          </div>
+                  </span>
+
+                  {text}
+                </>
+              )}
+            </NavLink>
+          ))}
         </div>
       </nav>
 
