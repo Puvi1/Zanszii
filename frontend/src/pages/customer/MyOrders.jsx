@@ -4,7 +4,6 @@ import {
   ArrowClockwise,
   ArrowRight,
   CalendarBlank,
-  CheckCircle,
   DownloadSimple,
   CaretRight,
   MapPin,
@@ -17,14 +16,6 @@ import { useCart } from "../../context/CartContext";
 
 const FALLBACK =
   "https://placehold.co/500x500/F4F8FC/0F4C9C?text=ZANSZI";
-
-const STEPS = [
-  "placed",
-  "confirmed",
-  "processing",
-  "out_for_delivery",
-  "delivered",
-];
 
 const LABELS = {
   placed: "Placed",
@@ -101,78 +92,6 @@ const getAddress = (order) => {
     .filter(Boolean)
     .join(", ");
 };
-
-const getProgressIndex = (status) => {
-  if (status === "assigned") return 2;
-
-  const index = STEPS.indexOf(status);
-  return index < 0 ? 0 : index;
-};
-
-function OrderTimeline({ status }) {
-  if (status === "cancelled" || status === "delivery_failed") {
-    return (
-      <div
-        className={`rounded-2xl px-4 py-3 text-xs font-black ${
-          status === "cancelled"
-            ? "bg-red-50 text-red-700"
-            : "bg-rose-50 text-rose-700"
-        }`}
-      >
-        {status === "cancelled"
-          ? "This order was cancelled."
-          : "Delivery was unsuccessful."}
-      </div>
-    );
-  }
-
-  const activeIndex = getProgressIndex(status);
-
-  return (
-    <div className="overflow-x-auto pb-1">
-      <div className="grid min-w-[470px] grid-cols-5 px-1">
-        {STEPS.map((step, index) => {
-          const complete = index <= activeIndex;
-          const connectorComplete = index <= activeIndex;
-
-          return (
-            <div key={step} className="relative text-center">
-              {index > 0 && (
-                <span
-                  className={`absolute right-1/2 top-[10px] h-[2px] w-full rounded-full ${
-                    connectorComplete ? "bg-[#0F5DB8]" : "bg-slate-200"
-                  }`}
-                />
-              )}
-
-              <span
-                className={`relative z-10 mx-auto grid h-5 w-5 place-items-center rounded-full border-[3px] ${
-                  complete
-                    ? "border-[#0F5DB8] bg-[#0F5DB8] text-white"
-                    : "border-slate-200 bg-white text-slate-300"
-                }`}
-              >
-                {complete ? (
-                  <CheckCircle size={10} weight="fill" />
-                ) : (
-                  <span className="h-1.5 w-1.5 rounded-full bg-current" />
-                )}
-              </span>
-
-              <p
-                className={`mt-1.5 text-[8px] font-black leading-4 ${
-                  complete ? "text-[#0A4B94]" : "text-slate-400"
-                }`}
-              >
-                {LABELS[step]}
-              </p>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
 
 function invoiceHtml(order) {
   const items = Array.isArray(order.items) ? order.items : [];
@@ -438,14 +357,14 @@ export default function MyOrders() {
   return (
     <div className="mx-auto max-w-3xl space-y-5 pb-28">
       {/* Compact Premium Header */}
-      <section className="flex items-center justify-between gap-4 px-1 py-2">
+      <section className="flex items-center justify-between gap-3 px-1 py-1.5">
         <div className="flex min-w-0 items-center gap-3">
-          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-[#F1F6FD] text-[#0F4C9C] ring-1 ring-blue-100">
-            <Package size={22} weight="duotone" />
+          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-[#F1F6FD] text-[#0F4C9C] ring-1 ring-blue-100">
+            <Package size={20} weight="duotone" />
           </div>
 
           <div className="min-w-0">
-            <h1 className="text-[22px] font-black tracking-tight text-slate-950 sm:text-[28px]">
+            <h1 className="text-[21px] font-black tracking-[-0.02em] text-slate-950 sm:text-[28px]">
               My Orders
             </h1>
 
@@ -464,8 +383,8 @@ export default function MyOrders() {
 
       {sortedOrders.length === 0 ? (
         <section className="rounded-[28px] border border-slate-200 bg-white p-8 text-center shadow-sm">
-          <div className="mx-auto grid h-11 w-11 place-items-center rounded-2xl bg-blue-50 text-[#0F4C9C]">
-            <ShoppingCart size={22} />
+          <div className="mx-auto grid h-10 w-10 place-items-center rounded-2xl bg-blue-50 text-[#0F4C9C]">
+            <ShoppingCart size={20} />
           </div>
 
           <h2 className="mt-4 text-xl font-black text-slate-950">
@@ -479,7 +398,7 @@ export default function MyOrders() {
           <button
             type="button"
             onClick={() => navigate("/products")}
-            className="mt-5 rounded-2xl bg-[#0F5DB8] px-5 py-3 text-sm font-black text-white shadow-sm"
+            className="mt-5 rounded-xl bg-[#0F5DB8] px-5 py-3 text-sm font-black text-white shadow-sm"
           >
             Start shopping
           </button>
@@ -510,9 +429,18 @@ export default function MyOrders() {
             return (
               <article
                 key={id}
-                className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_12px_35px_rgba(15,23,42,0.07)]"
+                role="button"
+                tabIndex={0}
+                onClick={() => navigate(`/orders/${id}`)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    navigate(`/orders/${id}`);
+                  }
+                }}
+                className="cursor-pointer overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_10px_30px_rgba(15,23,42,0.06)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_14px_36px_rgba(15,23,42,0.08)] focus:outline-none focus:ring-2 focus:ring-[#0F5DB8]/20"
               >
-                <div className="p-4">
+                <div className="p-4 pb-3.5">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
@@ -560,44 +488,69 @@ export default function MyOrders() {
 
                   {items.length > 0 && (
                     <div className="mt-4">
-                      <div className="flex items-center gap-2 overflow-x-auto pb-1">
-                        {items.slice(0, 6).map((item, index) => (
+                      <div className="flex items-start gap-2.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                        {items.slice(0, 5).map((item, index) => (
                           <button
                             key={`${item.product_id || item.name}-${index}`}
                             type="button"
-                            onClick={() =>
-                              item.product_id &&
-                              navigate(`/products/${item.product_id}`)
-                            }
-                            className="group relative h-12 w-12 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-[#F7FAFF] p-1.5"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              if (item.product_id) {
+                                navigate(`/products/${item.product_id}`);
+                              }
+                            }}
+                            className="group w-[62px] shrink-0 text-left"
                             aria-label={item.name || "Purchased item"}
                           >
-                            <img
-                              src={
-                                item.image_url ||
-                                item.images?.[0] ||
-                                FALLBACK
-                              }
-                              alt={item.name || "Product"}
-                              className="h-full w-full object-contain transition group-hover:scale-105"
-                              onError={(event) => {
-                                event.currentTarget.src = FALLBACK;
-                              }}
-                            />
+                            <div className="relative grid h-[62px] w-[62px] place-items-center overflow-hidden rounded-2xl border border-slate-200 bg-[#F8FAFD] p-2 shadow-[0_3px_10px_rgba(15,23,42,0.04)]">
+                              <img
+                                src={
+                                  item.image_url ||
+                                  item.images?.[0] ||
+                                  FALLBACK
+                                }
+                                alt={item.name || "Product"}
+                                className="h-full w-full object-contain transition duration-200 group-hover:scale-105"
+                                onError={(event) => {
+                                  event.currentTarget.src = FALLBACK;
+                                }}
+                              />
 
-                            <span className="absolute -bottom-1 -right-1 grid min-h-5 min-w-5 place-items-center rounded-full border-2 border-white bg-slate-900 px-1 text-[8px] font-black text-white">
-                              ×{Number(item.quantity || 1)}
-                            </span>
+                              {Number(item.quantity || 1) > 1 && (
+                                <span className="absolute bottom-1 right-1 rounded-full bg-slate-950/85 px-1.5 py-0.5 text-[8px] font-black leading-none text-white">
+                                  {Number(item.quantity)} pcs
+                                </span>
+                              )}
+                            </div>
+
+                            <p className="mt-1 line-clamp-1 text-[9px] font-bold text-slate-500">
+                              {item.name || "Item"}
+                            </p>
                           </button>
                         ))}
 
-                        {items.length > 6 && (
-                          <div className="grid h-12 min-w-12 shrink-0 place-items-center rounded-xl border border-slate-200 bg-slate-50 px-2 text-center">
-                            <span className="text-[10px] font-black text-slate-600">
-                              +{items.length - 6}
+                        {items.length > 5 && (
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              navigate(`/orders/${id}`);
+                            }}
+                            className="grid h-[62px] w-[62px] shrink-0 place-items-center rounded-2xl border border-slate-200 bg-slate-50 text-center"
+                          >
+                            <span>
+                              <strong className="block text-sm font-black text-slate-800">
+                                +{items.length - 5}
+                              </strong>
+                              <span className="text-[9px] font-bold text-slate-400">
+                                more
+                              </span>
                             </span>
-                          </div>
+                          </button>
                         )}
+                      </div>
+                    </div>
+                  )}
                       </div>
 
                       {items.length === 1 && firstItem && (
@@ -609,34 +562,29 @@ export default function MyOrders() {
                   )}
 
                   {/* Address */}
-                  <div className="mt-4 flex gap-2.5 rounded-xl border border-slate-200 bg-[#FBFCFE] px-3 py-2.5">
+                  <div className="mt-4 flex gap-2.5 rounded-2xl border border-slate-200/80 bg-[#FAFCFF] px-3.5 py-3">
                     <MapPin
                       size={16}
                       weight="duotone"
                       className="mt-0.5 shrink-0 text-[#0F5DB8]"
                     />
 
-                    <p className="line-clamp-2 text-[11px] font-medium leading-4 text-slate-600">
+                    <p className="line-clamp-2 text-[11px] font-medium leading-[1.45] text-slate-600">
                       {address ||
                         "Delivery address unavailable"}
                     </p>
                   </div>
-
-                  <div className="mt-4">
-                    <OrderTimeline
-                      status={status}
-                    />
-                  </div>
                 </div>
 
                 {/* Actions */}
-                <div className="grid grid-cols-[1.2fr_1fr_1fr] gap-2 border-t border-slate-100 bg-[#FCFDFE] p-2.5 sm:gap-3">
+                <div className="grid grid-cols-[1.15fr_1fr_1fr] gap-2 border-t border-slate-100 bg-[#FCFDFE] p-2.5">
                   <button
                     type="button"
-                    onClick={() =>
-                      navigate(`/orders/${id}`)
-                    }
-                    className="inline-flex min-w-0 items-center justify-center gap-2 rounded-2xl bg-[#0F5DB8] px-3 py-2.5 text-[10px] font-black text-white shadow-[0_8px_20px_rgba(15,93,184,0.22)] transition active:scale-[0.98] sm:text-[11px]"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      navigate(`/orders/${id}`);
+                    }}
+                    className="inline-flex min-w-0 items-center justify-center gap-2 rounded-xl bg-[#0F5DB8] px-3 py-2.5 text-[10px] font-black text-white shadow-[0_8px_20px_rgba(15,93,184,0.22)] transition active:scale-[0.98] sm:text-[11px]"
                   >
                     View Order
                     <ArrowRight
@@ -647,9 +595,12 @@ export default function MyOrders() {
 
                   <button
                     type="button"
-                    onClick={() => reorder(order)}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      reorder(order);
+                    }}
                     disabled={isReordering}
-                    className="inline-flex min-w-0 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-[10px] font-black text-slate-700 transition hover:bg-slate-50 active:scale-[0.98] disabled:opacity-50 sm:text-[11px]"
+                    className="inline-flex min-w-0 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-[10px] font-black text-slate-700 transition hover:bg-slate-50 active:scale-[0.98] disabled:opacity-50 sm:text-[11px]"
                   >
                     <ArrowClockwise
                       size={15}
@@ -663,10 +614,11 @@ export default function MyOrders() {
 
                   <button
                     type="button"
-                    onClick={() =>
-                      printInvoice(order)
-                    }
-                    className="inline-flex min-w-0 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-[10px] font-black text-slate-700 transition hover:bg-slate-50 active:scale-[0.98] sm:text-[11px]"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      printInvoice(order);
+                    }}
+                    className="inline-flex min-w-0 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-[10px] font-black text-slate-700 transition hover:bg-slate-50 active:scale-[0.98] sm:text-[11px]"
                   >
                     <DownloadSimple
                       size={15}
