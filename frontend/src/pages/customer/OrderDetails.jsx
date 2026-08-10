@@ -518,68 +518,67 @@ export default function OrderDetails() {
         </span>
       </div>
 
-      <section className="rounded-[22px] border border-slate-200 bg-white px-4 py-4 shadow-sm sm:px-5">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <p className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-400">
-              Order
-            </p>
-
-            <div className="mt-1 flex items-center gap-2">
-              <h1 className="truncate text-lg font-black tracking-tight text-slate-950 sm:text-xl">
-                {order.order_number || order.order_id}
-              </h1>
-
-              <button
-                type="button"
-                onClick={copyOrderNumber}
-                className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-[10px] font-black text-[#0F4C9C] transition hover:bg-slate-50"
-              >
-                <Copy size={13} />
-                {copied ? "Copied" : "Copy"}
-              </button>
-            </div>
-
-            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500">
-              <span className="inline-flex items-center gap-1.5">
-                <CalendarBlank size={14} />
-                {formatDate(order.created_at)}
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <Package size={14} />
-                {items.length} {items.length === 1 ? "item" : "items"}
-              </span>
-            </div>
-          </div>
-
-          <div className="shrink-0 text-right">
-            <span className={`inline-flex rounded-full px-2.5 py-1 text-[9px] font-black ring-1 ${STATUS_STYLES[status] || STATUS_STYLES.placed}`}>
-              {LABELS[status] || "Placed"}
-            </span>
-            <p className="mt-2 text-[9px] font-black uppercase tracking-[0.14em] text-slate-400">
-              Total
-            </p>
-            <p className="text-xl font-black text-[#062B5F]">
-              {money(total)}
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-4 border-t border-slate-100 pt-4">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">
-                Delivery status
+      <section className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm">
+        <div className="p-4 sm:p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[9px] font-black uppercase tracking-[0.16em] text-[#0F4C9C]">
+                Order details
               </p>
-              <p className="mt-1 text-sm font-black text-slate-900">
-                {estimatedDeliveryText}
+
+              <div className="mt-1 flex items-center gap-2">
+                <h1 className="truncate text-lg font-black text-slate-950 sm:text-xl">
+                  {order.order_number || order.order_id}
+                </h1>
+
+                <button
+                  type="button"
+                  onClick={copyOrderNumber}
+                  className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-slate-200 bg-slate-50 text-[#0F4C9C]"
+                  aria-label="Copy order number"
+                >
+                  <Copy size={14} />
+                </button>
+              </div>
+
+              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500">
+                <span className="inline-flex items-center gap-1.5">
+                  <CalendarBlank size={14} />
+                  {formatDate(order.created_at)}
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <Package size={14} />
+                  {items.length} {items.length === 1 ? "item" : "items"}
+                </span>
+              </div>
+            </div>
+
+            <div className="shrink-0 text-right">
+              <p className="text-[9px] font-black uppercase tracking-[0.14em] text-slate-400">
+                Total
+              </p>
+              <p className="mt-1 text-xl font-black text-[#062B5F]">
+                {money(total)}
               </p>
             </div>
-            <Truck size={22} className="shrink-0 text-[#0F4C9C]" />
           </div>
 
-          <div className="mt-4">
-            <Timeline order={order} />
+          <div className="mt-4 rounded-2xl bg-[#F7FAFF] p-3.5">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[10px] font-bold text-slate-400">
+                  Estimated delivery
+                </p>
+                <p className="mt-0.5 text-sm font-black text-slate-900">
+                  {estimatedDeliveryText}
+                </p>
+              </div>
+              <Truck size={24} className="text-[#0F4C9C]" />
+            </div>
+
+            <div className="mt-4">
+              <Timeline order={order} />
+            </div>
           </div>
         </div>
       </section>
@@ -857,56 +856,57 @@ export default function OrderDetails() {
         </aside>
       </section>
       {related.length > 0 && (
-        <section className="pt-1">
-          <div className="mb-3 flex items-center justify-between gap-3">
+        <section>
+          <div className="mb-4 flex items-end justify-between">
             <div>
-              <p className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-400">
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-[#0F4C9C]">
                 You may also like
               </p>
-              <h2 className="mt-0.5 text-lg font-black text-slate-950">
-                Recommended
+
+              <h2 className="mt-1 text-2xl font-black text-slate-900">
+                Recommended products
               </h2>
             </div>
 
             <Link
               to="/products"
-              className="inline-flex items-center gap-1 text-xs font-black text-[#0F4C9C]"
+              className="inline-flex items-center gap-1 text-sm font-black text-[#0F4C9C]"
             >
               View all
-              <ArrowRight size={14} />
+              <ArrowRight size={16} />
             </Link>
           </div>
 
-          <div className="flex snap-x gap-2.5 overflow-x-auto pb-2">
+          <div className="flex gap-4 overflow-x-auto pb-3">
             {related.map((product) => (
               <Link
                 key={product.product_id}
                 to={`/products/${product.product_id}`}
-                className="flex min-w-[225px] max-w-[225px] snap-start items-center gap-3 rounded-[18px] border border-slate-200 bg-white p-2.5 shadow-sm transition hover:border-blue-200 hover:shadow-md sm:min-w-[250px] sm:max-w-[250px]"
+                className="min-w-[180px] overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg sm:min-w-[210px]"
               >
-                <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-[#F7FAFF] p-1.5">
+                <div className="aspect-square bg-[#F4F8FC] p-3">
                   <img
-                    src={product.image_url || product.images?.[0] || FALLBACK}
+                    src={
+                      product.image_url ||
+                      product.images?.[0] ||
+                      FALLBACK
+                    }
                     alt={product.name}
                     className="h-full w-full object-contain"
-                    loading="lazy"
                     onError={(event) => {
                       event.currentTarget.src = FALLBACK;
                     }}
                   />
                 </div>
 
-                <div className="min-w-0 flex-1">
-                  <h3 className="line-clamp-2 text-xs font-black leading-4 text-slate-900">
+                <div className="p-3">
+                  <h3 className="line-clamp-2 min-h-[40px] text-sm font-black text-slate-900">
                     {product.name}
                   </h3>
-                  <p className="mt-1.5 text-sm font-black text-[#062B5F]">
+
+                  <p className="mt-2 text-lg font-black text-[#062B5F]">
                     {money(product.price)}
                   </p>
-                  <span className="mt-1 inline-flex items-center gap-1 text-[9px] font-black text-[#0F4C9C]">
-                    View product
-                    <ArrowRight size={11} />
-                  </span>
                 </div>
               </Link>
             ))}
