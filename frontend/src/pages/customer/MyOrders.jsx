@@ -319,7 +319,7 @@ export default function MyOrders() {
       setError("");
 
       try {
-        const { data } = await api.get("/orders");
+        const { data } = await api.get("/orders/my");
 
         if (!active) return;
 
