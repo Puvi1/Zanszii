@@ -18,22 +18,24 @@ const FALLBACK =
   "https://placehold.co/500x500/F4F8FC/0F4C9C?text=ZANSZI";
 
 const LABELS = {
-  placed: "Placed",
-  confirmed: "Confirmed",
-  processing: "Processing",
-  assigned: "Processing",
-  out_for_delivery: "Out for delivery",
+  placed: "Order Placed",
+  confirmed: "Preparing your Order", // legacy compatibility
+  processing: "Preparing your Order",
+  assigned: "Packed", // legacy compatibility
+  packed: "Packed",
+  out_for_delivery: "Out for Delivery",
   delivered: "Delivered",
   cancelled: "Cancelled",
-  delivery_failed: "Delivery failed",
+  delivery_failed: "Delivery Failed",
 };
 
 const STATUS_STYLES = {
   placed: "bg-blue-50 text-blue-700 ring-blue-100",
-  confirmed: "bg-indigo-50 text-indigo-700 ring-indigo-100",
+  confirmed: "bg-amber-50 text-amber-700 ring-amber-100",
   processing: "bg-amber-50 text-amber-700 ring-amber-100",
-  assigned: "bg-cyan-50 text-cyan-700 ring-cyan-100",
-  out_for_delivery: "bg-purple-50 text-purple-700 ring-purple-100",
+  assigned: "bg-violet-50 text-violet-700 ring-violet-100",
+  packed: "bg-violet-50 text-violet-700 ring-violet-100",
+  out_for_delivery: "bg-cyan-50 text-cyan-700 ring-cyan-100",
   delivered: "bg-emerald-50 text-emerald-700 ring-emerald-100",
   cancelled: "bg-red-50 text-red-700 ring-red-100",
   delivery_failed: "bg-rose-50 text-rose-700 ring-rose-100",
@@ -450,7 +452,7 @@ export default function MyOrders() {
                         </h2>
 
                         <span
-                          className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[9px] font-black ring-1 ${
+                          className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[9px] font-black ring-1 ${
                             STATUS_STYLES[status] ||
                             STATUS_STYLES.placed
                           }`}
@@ -549,15 +551,6 @@ export default function MyOrders() {
                           </button>
                         )}
                       </div>
-                    </div>
-                  )}
-                      </div>
-
-                      {items.length === 1 && firstItem && (
-                        <p className="mt-2 truncate text-xs font-black text-slate-900">
-                          {firstItem.name || "Product"}
-                        </p>
-                      )}
                     </div>
                   )}
 
