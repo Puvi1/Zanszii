@@ -6,6 +6,7 @@ import {
   CalendarBlank,
   CheckCircle,
   DownloadSimple,
+  CaretRight,
   MapPin,
   Package,
   ShoppingCart,
@@ -138,28 +139,28 @@ function OrderTimeline({ status }) {
             <div key={step} className="relative text-center">
               {index > 0 && (
                 <span
-                  className={`absolute right-1/2 top-[15px] h-[3px] w-full rounded-full ${
+                  className={`absolute right-1/2 top-[10px] h-[2px] w-full rounded-full ${
                     connectorComplete ? "bg-[#0F5DB8]" : "bg-slate-200"
                   }`}
                 />
               )}
 
               <span
-                className={`relative z-10 mx-auto grid h-8 w-8 place-items-center rounded-full border-[3px] ${
+                className={`relative z-10 mx-auto grid h-5 w-5 place-items-center rounded-full border-[3px] ${
                   complete
                     ? "border-[#0F5DB8] bg-[#0F5DB8] text-white"
                     : "border-slate-200 bg-white text-slate-300"
                 }`}
               >
                 {complete ? (
-                  <CheckCircle size={16} weight="fill" />
+                  <CheckCircle size={10} weight="fill" />
                 ) : (
-                  <span className="h-2 w-2 rounded-full bg-current" />
+                  <span className="h-1.5 w-1.5 rounded-full bg-current" />
                 )}
               </span>
 
               <p
-                className={`mt-2 text-[9px] font-black leading-4 ${
+                className={`mt-1.5 text-[8px] font-black leading-4 ${
                   complete ? "text-[#0A4B94]" : "text-slate-400"
                 }`}
               >
@@ -439,12 +440,12 @@ export default function MyOrders() {
       {/* Compact Premium Header */}
       <section className="flex items-center justify-between gap-4 px-1 py-2">
         <div className="flex min-w-0 items-center gap-3">
-          <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-[#F1F6FD] text-[#0F4C9C] ring-1 ring-blue-100">
-            <Package size={28} weight="duotone" />
+          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-[#F1F6FD] text-[#0F4C9C] ring-1 ring-blue-100">
+            <Package size={22} weight="duotone" />
           </div>
 
           <div className="min-w-0">
-            <h1 className="text-2xl font-black tracking-tight text-slate-950 sm:text-[28px]">
+            <h1 className="text-[22px] font-black tracking-tight text-slate-950 sm:text-[28px]">
               My Orders
             </h1>
 
@@ -463,8 +464,8 @@ export default function MyOrders() {
 
       {sortedOrders.length === 0 ? (
         <section className="rounded-[28px] border border-slate-200 bg-white p-8 text-center shadow-sm">
-          <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-blue-50 text-[#0F4C9C]">
-            <ShoppingCart size={28} />
+          <div className="mx-auto grid h-11 w-11 place-items-center rounded-2xl bg-blue-50 text-[#0F4C9C]">
+            <ShoppingCart size={22} />
           </div>
 
           <h2 className="mt-4 text-xl font-black text-slate-950">
@@ -484,7 +485,7 @@ export default function MyOrders() {
           </button>
         </section>
       ) : (
-        <div className="space-y-5">
+        <div className="space-y-4">
           {sortedOrders.map((order) => {
             const id =
               order.order_id || order.order_number;
@@ -511,7 +512,7 @@ export default function MyOrders() {
                 key={id}
                 className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_12px_35px_rgba(15,23,42,0.07)]"
               >
-                <div className="p-4 sm:p-5">
+                <div className="p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
@@ -521,11 +522,12 @@ export default function MyOrders() {
                         </h2>
 
                         <span
-                          className={`rounded-full px-3 py-1 text-[10px] font-black ring-1 ${
+                          className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[9px] font-black ring-1 ${
                             STATUS_STYLES[status] ||
                             STATUS_STYLES.placed
                           }`}
                         >
+                          <span className="h-1.5 w-1.5 rounded-full bg-current opacity-80" />
                           {LABELS[status] || "Placed"}
                         </span>
                       </div>
@@ -542,76 +544,85 @@ export default function MyOrders() {
                           <Package size={14} />
                           {items.length}{" "}
                           {items.length === 1
-                            ? "product"
-                            : "products"}
+                            ? "item"
+                            : "items"}
                         </span>
                       </div>
                     </div>
 
-                    <p className="shrink-0 text-xl font-black text-[#062B5F]">
-                      {money(total)}
-                    </p>
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      <p className="text-lg font-black text-[#062B5F]">
+                        {money(total)}
+                      </p>
+                      <CaretRight size={14} className="text-slate-400" />
+                    </div>
                   </div>
 
-                  {firstItem && (
-                    <div className="mt-5 flex items-center gap-3">
-                      <div className="grid h-[72px] w-[72px] shrink-0 place-items-center overflow-hidden rounded-2xl bg-[#F7FAFF] p-2">
-                        <img
-                          src={
-                            firstItem.image_url ||
-                            firstItem.images?.[0] ||
-                            FALLBACK
-                          }
-                          alt={
-                            firstItem.name ||
-                            "Product"
-                          }
-                          className="h-full w-full object-contain"
-                          onError={(event) => {
-                            event.currentTarget.src =
-                              FALLBACK;
-                          }}
-                        />
-                      </div>
+                  {items.length > 0 && (
+                    <div className="mt-4">
+                      <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                        {items.slice(0, 6).map((item, index) => (
+                          <button
+                            key={`${item.product_id || item.name}-${index}`}
+                            type="button"
+                            onClick={() =>
+                              item.product_id &&
+                              navigate(`/products/${item.product_id}`)
+                            }
+                            className="group relative h-12 w-12 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-[#F7FAFF] p-1.5"
+                            aria-label={item.name || "Purchased item"}
+                          >
+                            <img
+                              src={
+                                item.image_url ||
+                                item.images?.[0] ||
+                                FALLBACK
+                              }
+                              alt={item.name || "Product"}
+                              className="h-full w-full object-contain transition group-hover:scale-105"
+                              onError={(event) => {
+                                event.currentTarget.src = FALLBACK;
+                              }}
+                            />
 
-                      <div className="min-w-0">
-                        <h3 className="truncate text-sm font-black text-slate-950">
-                          {firstItem.name ||
-                            "Product"}
-                        </h3>
+                            <span className="absolute -bottom-1 -right-1 grid min-h-5 min-w-5 place-items-center rounded-full border-2 border-white bg-slate-900 px-1 text-[8px] font-black text-white">
+                              ×{Number(item.quantity || 1)}
+                            </span>
+                          </button>
+                        ))}
 
-                        <p className="mt-1 text-xs font-medium text-slate-500">
-                          Qty:{" "}
-                          {Number(
-                            firstItem.quantity || 1
-                          )}
-                        </p>
-
-                        {items.length > 1 && (
-                          <p className="mt-1 text-[10px] font-bold text-[#0F4C9C]">
-                            +{items.length - 1} more item
-                            {items.length > 2 ? "s" : ""}
-                          </p>
+                        {items.length > 6 && (
+                          <div className="grid h-12 min-w-12 shrink-0 place-items-center rounded-xl border border-slate-200 bg-slate-50 px-2 text-center">
+                            <span className="text-[10px] font-black text-slate-600">
+                              +{items.length - 6}
+                            </span>
+                          </div>
                         )}
                       </div>
+
+                      {items.length === 1 && firstItem && (
+                        <p className="mt-2 truncate text-xs font-black text-slate-900">
+                          {firstItem.name || "Product"}
+                        </p>
+                      )}
                     </div>
                   )}
 
                   {/* Address */}
-                  <div className="mt-5 flex gap-3 rounded-2xl border border-slate-200 bg-[#FBFCFE] px-4 py-3.5">
+                  <div className="mt-4 flex gap-2.5 rounded-xl border border-slate-200 bg-[#FBFCFE] px-3 py-2.5">
                     <MapPin
-                      size={19}
+                      size={16}
                       weight="duotone"
                       className="mt-0.5 shrink-0 text-[#0F5DB8]"
                     />
 
-                    <p className="text-xs font-medium leading-5 text-slate-600">
+                    <p className="line-clamp-2 text-[11px] font-medium leading-4 text-slate-600">
                       {address ||
                         "Delivery address unavailable"}
                     </p>
                   </div>
 
-                  <div className="mt-5">
+                  <div className="mt-4">
                     <OrderTimeline
                       status={status}
                     />
@@ -619,13 +630,13 @@ export default function MyOrders() {
                 </div>
 
                 {/* Actions */}
-                <div className="grid grid-cols-[1.2fr_1fr_1fr] gap-2 border-t border-slate-100 bg-[#FCFDFE] p-3 sm:gap-3 sm:p-4">
+                <div className="grid grid-cols-[1.2fr_1fr_1fr] gap-2 border-t border-slate-100 bg-[#FCFDFE] p-2.5 sm:gap-3">
                   <button
                     type="button"
                     onClick={() =>
                       navigate(`/orders/${id}`)
                     }
-                    className="inline-flex min-w-0 items-center justify-center gap-2 rounded-2xl bg-[#0F5DB8] px-3 py-3 text-[11px] font-black text-white shadow-[0_8px_20px_rgba(15,93,184,0.22)] transition active:scale-[0.98] sm:text-xs"
+                    className="inline-flex min-w-0 items-center justify-center gap-2 rounded-2xl bg-[#0F5DB8] px-3 py-2.5 text-[10px] font-black text-white shadow-[0_8px_20px_rgba(15,93,184,0.22)] transition active:scale-[0.98] sm:text-[11px]"
                   >
                     View Order
                     <ArrowRight
@@ -638,7 +649,7 @@ export default function MyOrders() {
                     type="button"
                     onClick={() => reorder(order)}
                     disabled={isReordering}
-                    className="inline-flex min-w-0 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-3 text-[11px] font-black text-slate-700 transition hover:bg-slate-50 active:scale-[0.98] disabled:opacity-50 sm:text-xs"
+                    className="inline-flex min-w-0 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-[10px] font-black text-slate-700 transition hover:bg-slate-50 active:scale-[0.98] disabled:opacity-50 sm:text-[11px]"
                   >
                     <ArrowClockwise
                       size={15}
@@ -655,7 +666,7 @@ export default function MyOrders() {
                     onClick={() =>
                       printInvoice(order)
                     }
-                    className="inline-flex min-w-0 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-3 text-[11px] font-black text-slate-700 transition hover:bg-slate-50 active:scale-[0.98] sm:text-xs"
+                    className="inline-flex min-w-0 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-[10px] font-black text-slate-700 transition hover:bg-slate-50 active:scale-[0.98] sm:text-[11px]"
                   >
                     <DownloadSimple
                       size={15}
